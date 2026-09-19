@@ -252,6 +252,20 @@ function parse_status_line(string $line): ?int
     return null;
 }
 
+/**
+ * Заголовок Server-Timing: сколько ушло на PHP-прокси и сколько на Go API (до первого байта ответа).
+ * Видно во вкладке «Сеть» браузера — сразу ясно, где медленно: хостинг, канал до VPS или сам API.
+ *
+ * @param float $elapsedMs        сколько прошло от начала работы скрипта до момента отправки заголовков
+ * @param float $upstreamSeconds  время до первого байта от Go API (CURLINFO_STARTTRANSFER_TIME)
+ */
+function server_timing(float $elapsedMs, float $upstreamSeconds): string
+{
+    $upstream = max(0.0, $upstreamSeconds * 1000.0);
+    $proxy = max(0.0, $elapsedMs - $upstream);
+    return sprintf('proxy;dur=%.1f;desc="PHP-прокси", upstream;dur=%.1f;desc="Go API до первого байта"', $proxy, $upstream);
+}
+
 /** Тело собственной ошибки прокси в том же формате, что и Go API. */
 function error_body(string $code, string $message, string $requestId): string
 {

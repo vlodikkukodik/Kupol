@@ -11,20 +11,20 @@ import (
 	"kupol/internal/accounts"
 )
 
-type roleDTO struct {
+type RoleDTO struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-func toRoleDTOs(roles []accounts.Role) []roleDTO {
-	out := make([]roleDTO, len(roles))
+func toRoleDTOs(roles []accounts.Role) []RoleDTO {
+	out := make([]RoleDTO, len(roles))
 	for i, r := range roles {
-		out[i] = roleDTO{ID: string(r), Name: r.Name()}
+		out[i] = RoleDTO{ID: string(r), Name: r.Name()}
 	}
 	return out
 }
 
-type userDTO struct {
+type UserDTO struct {
 	Login       string    `json:"login"`
 	Level       int       `json:"level"`
 	LevelName   string    `json:"level_name"`
@@ -32,16 +32,16 @@ type userDTO struct {
 	CreatedAt   time.Time `json:"created_at"`
 	// Roles — роли команды; Capabilities — что пользователю разрешено (готовый список: интерфейс
 	// сам права из ролей не выводит, решает сервер).
-	Roles        []roleDTO `json:"roles"`
+	Roles        []RoleDTO `json:"roles"`
 	Capabilities []string  `json:"capabilities"`
 }
 
-func toUserDTO(u accounts.User) userDTO {
+func toUserDTO(u accounts.User) UserDTO {
 	caps := []string{}
 	for _, c := range u.Capabilities() {
 		caps = append(caps, string(c))
 	}
-	return userDTO{
+	return UserDTO{
 		Login:        u.Login,
 		Level:        u.Level,
 		LevelName:    u.LevelName(),
@@ -95,10 +95,11 @@ func (h *authHandlers) fail(c *gin.Context, err error, invalidCredentialsMsg str
 // 401 на каждой загрузке страницы засорял бы консоль браузера и журналы.
 func (h *authHandlers) session(c *gin.Context) {
 	if a := CurrentAuth(c); a != nil {
-		c.JSON(http.StatusOK, gin.H{"user": toUserDTO(a.User)})
+		u := toUserDTO(a.User)
+		c.JSON(http.StatusOK, SessionResponse{User: &u})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": nil})
+	c.JSON(http.StatusOK, SessionResponse{})
 }
 
 // GET /api/auth/captcha — вопрос анкеты для регистрации.
@@ -108,10 +109,10 @@ func (h *authHandlers) captcha(c *gin.Context) {
 		h.fail(c, err, "")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"id": cp.ID, "question": cp.Question})
+	c.JSON(http.StatusOK, CaptchaResponse{ID: cp.ID, Question: cp.Question})
 }
 
-type registerRequest struct {
+type RegisterRequest struct {
 	Login         string `json:"login"`
 	Password      string `json:"password"`
 	CaptchaID     string `json:"captcha_id"`
@@ -120,7 +121,7 @@ type registerRequest struct {
 
 // POST /api/auth/register
 func (h *authHandlers) register(c *gin.Context) {
-	var req registerRequest
+	var req RegisterRequest
 	if !bindJSON(c, &req) {
 		return
 	}
@@ -132,17 +133,17 @@ func (h *authHandlers) register(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusCreated, gin.H{"user": toUserDTO(res.User), "backup_code": res.BackupCode})
+	c.JSON(http.StatusCreated, RegisterResponse{User: toUserDTO(res.User), BackupCode: res.BackupCode})
 }
 
-type loginRequest struct {
+type LoginRequest struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
 // POST /api/auth/login
 func (h *authHandlers) login(c *gin.Context) {
-	var req loginRequest
+	var req LoginRequest
 	if !bindJSON(c, &req) {
 		return
 	}
@@ -152,7 +153,7 @@ func (h *authHandlers) login(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusOK, gin.H{"user": toUserDTO(res.User)})
+	c.JSON(http.StatusOK, LoginResponse{User: toUserDTO(res.User)})
 }
 
 // POST /api/auth/logout — завершает текущую сессию. Без сессии тоже успешно: выход идемпотентен.
@@ -167,7 +168,7 @@ func (h *authHandlers) logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-type restoreRequest struct {
+type RestoreRequest struct {
 	Login       string `json:"login"`
 	BackupCode  string `json:"backup_code"`
 	NewPassword string `json:"new_password"`
@@ -175,7 +176,7 @@ type restoreRequest struct {
 
 // POST /api/auth/restore — новый пароль по резервному коду; отвечает НОВЫМ резервным кодом.
 func (h *authHandlers) restore(c *gin.Context) {
-	var req restoreRequest
+	var req RestoreRequest
 	if !bindJSON(c, &req) {
 		return
 	}
@@ -185,17 +186,17 @@ func (h *authHandlers) restore(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusOK, gin.H{"user": toUserDTO(res.User), "backup_code": res.BackupCode})
+	c.JSON(http.StatusOK, RegisterResponse{User: toUserDTO(res.User), BackupCode: res.BackupCode})
 }
 
-type changePasswordRequest struct {
+type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
 }
 
 // POST /api/me/password
 func (h *authHandlers) changePassword(c *gin.Context) {
-	var req changePasswordRequest
+	var req ChangePasswordRequest
 	if !bindJSON(c, &req) {
 		return
 	}
@@ -207,13 +208,13 @@ func (h *authHandlers) changePassword(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-type deleteAccountRequest struct {
+type DeleteAccountRequest struct {
 	Password string `json:"password"`
 }
 
 // DELETE /api/me — «сдать дело в архив»: полное удаление аккаунта.
 func (h *authHandlers) deleteAccount(c *gin.Context) {
-	var req deleteAccountRequest
+	var req DeleteAccountRequest
 	if !bindJSON(c, &req) {
 		return
 	}

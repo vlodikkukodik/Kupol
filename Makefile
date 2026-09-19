@@ -33,8 +33,8 @@ test-back: db-up ## Тесты бэкенда (нужна БД)
 test-proxy: ## Тесты PHP-прокси
 	XDEBUG_MODE=off php frontend/tests/php/run.php
 
-test-front: ## Тесты фронтенда (vitest) и линтер
-	cd frontend && npm run lint && npm test
+test-front: ## Фронтенд: типы (vue-tsc), линтер, тесты (vitest)
+	cd frontend && npm run typecheck && npm run lint && npm test
 
 test: test-back test-proxy test-front ## Все быстрые тесты
 
@@ -59,6 +59,18 @@ test-backup: db-up ## Резервные копии: шифрование, со�
 	./scripts/test-backup.sh
 
 test-infra: e2e-apache test-deploy test-nginx test-backup ## Всё, что проверяет инфраструктуру (нужен docker, lftp, sshd, age)
+
+TYGO_VERSION := v0.2.21
+TYGO := $(shell command -v tygo 2>/dev/null || echo $(HOME)/go/bin/tygo)
+
+types: ## TypeScript-типы фронтенда из Go (tygo): frontend/src/api/generated/
+	@command -v $(TYGO) >/dev/null || go install github.com/gzuidhof/tygo@$(TYGO_VERSION)
+	cd backend && $(TYGO) generate --config tygo.yaml
+
+types-check: types ## Сгенерированные типы актуальны (иначе — make types и коммит)
+	@test -z "$$(git status --porcelain -- frontend/src/api/generated)" || { \
+	  git --no-pager diff --stat -- frontend/src/api/generated; \
+	  echo "типы устарели: выполните make types и закоммитьте frontend/src/api/generated"; exit 1; }
 
 build-front: ## Сборка фронтенда в frontend/dist
 	cd frontend && npm ci && npm run build

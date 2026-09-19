@@ -51,15 +51,15 @@ func (h *teamDocumentHandlers) fail(c *gin.Context, err error) {
 	case errors.Is(err, documents.ErrCodeTaken):
 		FailFields(c, http.StatusConflict, CodeCodeTaken, "Этот шифр уже занят", map[string]string{"code": "Этот шифр уже занят другим документом"})
 	case errors.As(err, &le):
-		failDetail(c, http.StatusConflict, errorDetail{
-			Code: CodeLocked, Message: "Документ правит " + le.Holder, Lock: &lockDetail{Holder: le.Holder, ExpiresAt: le.ExpiresAt.UTC()},
+		failDetail(c, http.StatusConflict, ErrorDetail{
+			Code: CodeLocked, Message: "Документ правит " + le.Holder, Lock: &LockDetail{Holder: le.Holder, ExpiresAt: le.ExpiresAt.UTC()},
 		})
 	case errors.As(err, &ce):
-		failDetail(c, http.StatusConflict, errorDetail{
+		failDetail(c, http.StatusConflict, ErrorDetail{
 			Code: CodeConflict, Message: "Документ изменён после того, как вы его открыли", CurrentRevision: ce.CurrentRevision,
 		})
 	case errors.As(err, &ve):
-		failDetail(c, http.StatusUnprocessableEntity, errorDetail{Code: CodeValidation, Message: "Проверьте содержимое документа", Problems: ve.Problems})
+		failDetail(c, http.StatusUnprocessableEntity, ErrorDetail{Code: CodeValidation, Message: "Проверьте содержимое документа", Problems: ve.Problems})
 	case errors.As(err, &qe):
 		FailFields(c, http.StatusBadRequest, CodeBadRequest, "Некорректные параметры запроса", map[string]string{qe.Field: qe.Message})
 	default:
@@ -111,15 +111,15 @@ func (h *teamDocumentHandlers) list(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-type createDocumentRequest struct {
-	Type string `json:"type"`
-	Code string `json:"code"`
-	documents.Content
+type CreateDocumentRequest struct {
+	Type              string `json:"type"`
+	Code              string `json:"code"`
+	documents.Content `tstype:",extends"`
 }
 
 // POST /api/team/documents — завести черновик.
 func (h *teamDocumentHandlers) create(c *gin.Context) {
-	var req createDocumentRequest
+	var req CreateDocumentRequest
 	if !bindJSONLimit(c, &req, maxDocumentBody) {
 		return
 	}
@@ -128,7 +128,7 @@ func (h *teamDocumentHandlers) create(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"document": d})
+	c.JSON(http.StatusCreated, TeamDocumentResponse{Document: d})
 }
 
 // GET /api/team/documents/:id — документ целиком (без фильтрации по допуску читателя).
@@ -142,10 +142,10 @@ func (h *teamDocumentHandlers) get(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"document": d})
+	c.JSON(http.StatusOK, TeamDocumentResponse{Document: d})
 }
 
-type saveDocumentRequest struct {
+type SaveDocumentRequest struct {
 	BaseRevision int               `json:"base_revision"`
 	Content      documents.Content `json:"content"`
 }
@@ -156,7 +156,7 @@ func (h *teamDocumentHandlers) save(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req saveDocumentRequest
+	var req SaveDocumentRequest
 	if !bindJSONLimit(c, &req, maxDocumentBody) {
 		return
 	}
@@ -197,7 +197,7 @@ func (h *teamDocumentHandlers) takeLock(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"lock": l})
+	c.JSON(http.StatusOK, LockResponse{Lock: l})
 }
 
 // DELETE /api/team/documents/:id/lock — снять замок (свой; чужой — Редактор и Директорат).
@@ -257,7 +257,7 @@ func (h *teamDocumentHandlers) version(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"version": v})
+	c.JSON(http.StatusOK, VersionResponse{Version: v})
 }
 
 // GET /api/team/documents/:id/versions/:vid/diff?against=live|<номер версии> — разница по блокам и полям.
@@ -284,7 +284,7 @@ func (h *teamDocumentHandlers) diff(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"diff": d})
+	c.JSON(http.StatusOK, DiffResponse{Diff: d})
 }
 
 // POST /api/team/documents/:id/versions/:vid/restore — откатить документ к снимку (новая редакция).

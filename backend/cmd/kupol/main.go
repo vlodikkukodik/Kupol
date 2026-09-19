@@ -6,6 +6,7 @@
 //	kupol migrate status   показать состояние миграций
 //	kupol user ...         управление пользователями (уровни, Директорат, сброс пароля); см. kupol user
 //	kupol doc ...          документы: загрузка из JSON, выгрузка, список, статус, удаление; см. kupol doc
+//	kupol audit ...        журнал событий (роли, замки, откаты, пароли); см. kupol audit
 //	kupol version          версия сборки
 package main
 
@@ -111,10 +112,12 @@ func run(args []string) error {
 		return runUser(ctx, svc, args, os.Stdout)
 	case "doc":
 		return runDoc(ctx, documents.NewService(db, log, nil), args, os.Stdout)
+	case "audit":
+		return runAudit(ctx, db, args, os.Stdout)
 	case "serve":
 		return serve(ctx, cfg, db, log)
 	default:
-		return fmt.Errorf("неизвестная команда %q (serve|migrate|user|doc|version)", cmd)
+		return fmt.Errorf("неизвестная команда %q (serve|migrate|user|doc|audit|version)", cmd)
 	}
 }
 

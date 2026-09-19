@@ -152,8 +152,8 @@ func (s *Service) Versions(ctx context.Context, a Actor, docID int64, page, perP
 
 // VersionFull — снимок целиком.
 type VersionFull struct {
-	VersionItem
-	Content Content `json:"content"`
+	VersionItem `tstype:",extends"`
+	Content     Content `json:"content"`
 }
 
 // version читает снимок документа (без проверки прав: её делает вызывающий).
@@ -191,8 +191,8 @@ func (s *Service) GetVersion(ctx context.Context, a Actor, docID, versionID int6
 type FieldChange struct {
 	Field  string `json:"field"`
 	Label  string `json:"label"`
-	Before any    `json:"before"`
-	After  any    `json:"after"`
+	Before any    `json:"before" tstype:"unknown"`
+	After  any    `json:"after" tstype:"unknown"`
 }
 
 // BlockChange — изменение блока. Change: added, removed, changed, moved.

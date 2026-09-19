@@ -96,45 +96,46 @@ type appendixData struct {
 	Title  string `json:"title"`
 }
 
-// Ответы читателю: собираются явно, поле за полем.
+// Ответы читателю: собираются явно, поле за полем. Типы экспортируются, чтобы tygo включил их в контракт
+// фронтенда: OutBlock.Data — одна из этих форм в зависимости от Type.
 
-type outHeading struct {
+type OutHeading struct {
 	Depth int    `json:"depth"`
 	Text  string `json:"text"`
 }
 
-type outParagraph struct {
+type OutParagraph struct {
 	Text []OutRun `json:"text"`
 }
 
-type outList struct {
+type OutList struct {
 	Ordered bool       `json:"ordered"`
 	Items   [][]OutRun `json:"items"`
 }
 
-type outQuote struct {
+type OutQuote struct {
 	Text   []OutRun `json:"text"`
 	Source string   `json:"source,omitempty"`
 }
 
-type outLogEntry struct {
+type OutLogEntry struct {
 	Date         string   `json:"date,omitempty"`
 	Participants []string `json:"participants,omitempty"`
 	Text         []OutRun `json:"text"`
 }
 
-type outExperimentLog struct {
+type OutExperimentLog struct {
 	Title   string        `json:"title,omitempty"`
-	Entries []outLogEntry `json:"entries"`
+	Entries []OutLogEntry `json:"entries"`
 }
 
-type outStamp struct {
+type OutStamp struct {
 	Text string `json:"text"`
 	Tone string `json:"tone"`
 	Tilt int    `json:"tilt"`
 }
 
-type outMemo struct {
+type OutMemo struct {
 	Kind      string     `json:"kind"`
 	Number    string     `json:"number,omitempty"`
 	Date      string     `json:"date,omitempty"`
@@ -145,29 +146,29 @@ type outMemo struct {
 	Signature string     `json:"signature,omitempty"`
 }
 
-type outTranscriptLine struct {
+type OutTranscriptLine struct {
 	Speaker string   `json:"speaker,omitempty"`
 	Text    []OutRun `json:"text"`
 }
 
-type outClipping struct {
+type OutClipping struct {
 	Kind       string              `json:"kind"`
 	Title      string              `json:"title,omitempty"`
 	Source     string              `json:"source,omitempty"`
 	Date       string              `json:"date,omitempty"`
 	Paragraphs [][]OutRun          `json:"paragraphs,omitempty"`
-	Lines      []outTranscriptLine `json:"lines,omitempty"`
+	Lines      []OutTranscriptLine `json:"lines,omitempty"`
 }
 
-type outTable struct {
+type OutTable struct {
 	Caption string       `json:"caption,omitempty"`
 	Columns []string     `json:"columns"`
 	Rows    [][][]OutRun `json:"rows"`
 }
 
-// outDocLink: для недоступной цели (нет такого документа или он закрыт от читателя) — только
+// OutDocLink: для недоступной цели (нет такого документа или он закрыт от читателя) — только
 // «недоступно»: ни шифр, ни название, ни примечание автора не раскрываются.
-type outDocLink struct {
+type OutDocLink struct {
 	Available bool   `json:"available"`
 	Code      string `json:"code,omitempty"`
 	Slug      string `json:"slug,omitempty"`
@@ -177,20 +178,20 @@ type outDocLink struct {
 	Note      string `json:"note,omitempty"`
 }
 
-type outDivider struct {
+type OutDivider struct {
 	Style string `json:"style"`
 }
 
-type outPage struct {
+type OutPage struct {
 	Number string `json:"number,omitempty"`
 }
 
-type outFootnote struct {
+type OutFootnote struct {
 	Mark string   `json:"mark"`
 	Text []OutRun `json:"text"`
 }
 
-type outAppendix struct {
+type OutAppendix struct {
 	Number string `json:"number,omitempty"`
 	Title  string `json:"title"`
 }
@@ -232,16 +233,16 @@ func init() {
 			}
 			p.text(path+".text", d.Text, 1, 300)
 		},
-		func(d *headingData, _ *renderer) any { return outHeading{Depth: d.Depth, Text: d.Text} })
+		func(d *headingData, _ *renderer) any { return OutHeading{Depth: d.Depth, Text: d.Text} })
 
 	register("paragraph",
 		func(d *paragraphData, p *Problems, path string) { d.Text.check(p, path+".text", true) },
-		func(d *paragraphData, r *renderer) any { return outParagraph{Text: d.Text.render(r.viewer)} })
+		func(d *paragraphData, r *renderer) any { return OutParagraph{Text: d.Text.render(r.viewer)} })
 
 	register("list",
 		func(d *listData, p *Problems, path string) { checkRichList(d.Items, p, path+".items", 1, 200, false) },
 		func(d *listData, r *renderer) any {
-			return outList{Ordered: d.Ordered, Items: renderRichList(d.Items, r.viewer)}
+			return OutList{Ordered: d.Ordered, Items: renderRichList(d.Items, r.viewer)}
 		})
 
 	register("quote",
@@ -249,7 +250,7 @@ func init() {
 			d.Text.check(p, path+".text", true)
 			p.text(path+".source", d.Source, 0, 200)
 		},
-		func(d *quoteData, r *renderer) any { return outQuote{Text: d.Text.render(r.viewer), Source: d.Source} })
+		func(d *quoteData, r *renderer) any { return OutQuote{Text: d.Text.render(r.viewer), Source: d.Source} })
 
 	register("dossier_header",
 		func(*dossierHeaderData, *Problems, string) {},
@@ -275,9 +276,9 @@ func init() {
 			}
 		},
 		func(d *experimentLogData, r *renderer) any {
-			out := outExperimentLog{Title: d.Title, Entries: make([]outLogEntry, len(d.Entries))}
+			out := OutExperimentLog{Title: d.Title, Entries: make([]OutLogEntry, len(d.Entries))}
 			for i, e := range d.Entries {
-				out.Entries[i] = outLogEntry{Date: e.Date, Participants: e.Participants, Text: e.Text.render(r.viewer)}
+				out.Entries[i] = OutLogEntry{Date: e.Date, Participants: e.Participants, Text: e.Text.render(r.viewer)}
 			}
 			return out
 		})
@@ -293,7 +294,7 @@ func init() {
 				p.Add(path+".tilt", "наклон — от -15 до 15 градусов")
 			}
 		},
-		func(d *stampData, _ *renderer) any { return outStamp{Text: d.Text, Tone: d.Tone, Tilt: d.Tilt} })
+		func(d *stampData, _ *renderer) any { return OutStamp{Text: d.Text, Tone: d.Tone, Tilt: d.Tilt} })
 
 	register("memo",
 		func(d *memoData, p *Problems, path string) {
@@ -312,7 +313,7 @@ func init() {
 			p.text(path+".signature", d.Signature, 0, 200)
 		},
 		func(d *memoData, r *renderer) any {
-			return outMemo{
+			return OutMemo{
 				Kind: d.Kind, Number: d.Number, Date: d.Date, From: d.From, To: d.To, Subject: d.Subject,
 				Body: renderRichList(d.Body, r.viewer), Signature: d.Signature,
 			}
@@ -344,11 +345,11 @@ func init() {
 			checkRichList(d.Paragraphs, p, path+".paragraphs", 1, 100, false)
 		},
 		func(d *clippingData, r *renderer) any {
-			out := outClipping{Kind: d.Kind, Title: d.Title, Source: d.Source, Date: d.Date}
+			out := OutClipping{Kind: d.Kind, Title: d.Title, Source: d.Source, Date: d.Date}
 			if d.Kind == "transcript" {
-				out.Lines = make([]outTranscriptLine, len(d.Lines))
+				out.Lines = make([]OutTranscriptLine, len(d.Lines))
 				for i, l := range d.Lines {
-					out.Lines[i] = outTranscriptLine{Speaker: l.Speaker, Text: l.Text.render(r.viewer)}
+					out.Lines[i] = OutTranscriptLine{Speaker: l.Speaker, Text: l.Text.render(r.viewer)}
 				}
 			} else {
 				out.Paragraphs = renderRichList(d.Paragraphs, r.viewer)
@@ -380,7 +381,7 @@ func init() {
 			}
 		},
 		func(d *tableData, r *renderer) any {
-			out := outTable{Caption: d.Caption, Columns: d.Columns, Rows: make([][][]OutRun, len(d.Rows))}
+			out := OutTable{Caption: d.Caption, Columns: d.Columns, Rows: make([][][]OutRun, len(d.Rows))}
 			for i, row := range d.Rows {
 				out.Rows[i] = renderRichList(row, r.viewer)
 			}
@@ -396,11 +397,11 @@ func init() {
 			}
 			p.oneOf(path+".style", d.Style, "line", "stars")
 		},
-		func(d *dividerData, _ *renderer) any { return outDivider{Style: d.Style} })
+		func(d *dividerData, _ *renderer) any { return OutDivider{Style: d.Style} })
 
 	register("page",
 		func(d *pageData, p *Problems, path string) { p.text(path+".number", d.Number, 0, 20) },
-		func(d *pageData, _ *renderer) any { return outPage{Number: d.Number} })
+		func(d *pageData, _ *renderer) any { return OutPage{Number: d.Number} })
 
 	register("footnote",
 		func(d *footnoteData, p *Problems, path string) {
@@ -408,7 +409,7 @@ func init() {
 			d.Text.check(p, path+".text", true)
 		},
 		func(d *footnoteData, r *renderer) any {
-			return outFootnote{Mark: d.Mark, Text: d.Text.render(r.viewer)}
+			return OutFootnote{Mark: d.Mark, Text: d.Text.render(r.viewer)}
 		})
 
 	register("appendix",
@@ -416,7 +417,7 @@ func init() {
 			p.text(path+".number", d.Number, 0, 20)
 			p.text(path+".title", d.Title, 1, 200)
 		},
-		func(d *appendixData, _ *renderer) any { return outAppendix{Number: d.Number, Title: d.Title} })
+		func(d *appendixData, _ *renderer) any { return OutAppendix{Number: d.Number, Title: d.Title} })
 }
 
 // docLinkSpec — блок-ссылка на другой документ: разрешается при чтении с учётом допуска читателя.
@@ -437,9 +438,9 @@ func docLinkSpec() kindSpec {
 				t = r.resolve(d.Code)
 			}
 			if t == nil {
-				return outDocLink{Available: false}
+				return OutDocLink{Available: false}
 			}
-			return outDocLink{
+			return OutDocLink{
 				Available: true, Code: t.Code, Slug: t.Slug, Title: t.Title,
 				Type: string(t.Type), TypeName: t.Type.Name(), Note: d.Note,
 			}

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"kupol/internal/audit"
 )
 
 // userRole — строка таблицы user_roles.
@@ -184,13 +186,22 @@ func (s *Service) GrantRole(ctx context.Context, login string, role Role, grante
 	if err != nil {
 		return nil, false, err
 	}
-	res := s.db.WithContext(ctx).Exec(
-		`INSERT INTO user_roles (user_id, role, granted_by, granted_at) VALUES (?, ?, ?, ?) ON CONFLICT (user_id, role) DO NOTHING`,
-		u.ID, string(role), grantedBy, s.now())
-	if res.Error != nil {
-		return nil, false, res.Error
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Exec(
+			`INSERT INTO user_roles (user_id, role, granted_by, granted_at) VALUES (?, ?, ?, ?) ON CONFLICT (user_id, role) DO NOTHING`,
+			u.ID, string(role), grantedBy, s.now())
+		if res.Error != nil {
+			return res.Error
+		}
+		changed = res.RowsAffected == 1
+		if !changed {
+			return nil
+		}
+		return audit.Record(tx, s.now(), audit.RoleGranted, audit.Event{ActorID: grantedBy, TargetUserID: &u.ID, Details: audit.Details("role", string(role))})
+	})
+	if err != nil {
+		return nil, false, err
 	}
-	changed = res.RowsAffected == 1
 	if changed {
 		s.log.Info("роль выдана", "user_id", u.ID, "role", string(role), "granted_by", grantedBy)
 	}
@@ -207,11 +218,20 @@ func (s *Service) RevokeRole(ctx context.Context, login string, role Role, revok
 	if err != nil {
 		return nil, false, err
 	}
-	res := s.db.WithContext(ctx).Where("user_id = ? AND role = ?", u.ID, string(role)).Delete(&userRole{})
-	if res.Error != nil {
-		return nil, false, res.Error
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("user_id = ? AND role = ?", u.ID, string(role)).Delete(&userRole{})
+		if res.Error != nil {
+			return res.Error
+		}
+		changed = res.RowsAffected == 1
+		if !changed {
+			return nil
+		}
+		return audit.Record(tx, s.now(), audit.RoleRevoked, audit.Event{ActorID: revokedBy, TargetUserID: &u.ID, Details: audit.Details("role", string(role))})
+	})
+	if err != nil {
+		return nil, false, err
 	}
-	changed = res.RowsAffected == 1
 	if changed {
 		s.log.Info("роль снята", "user_id", u.ID, "role", string(role), "revoked_by", revokedBy)
 	}

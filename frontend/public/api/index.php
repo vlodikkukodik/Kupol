@@ -15,9 +15,11 @@ declare(strict_types=1);
 require __DIR__ . '/lib.php';
 
 use function Kupol\Proxy\{build_config, client_ip, error_body, forward_request_headers, normalize_request_uri,
-    parse_response_header_line, parse_status_line, should_forward_response_header, sign,
+    parse_response_header_line, parse_status_line, server_timing, should_forward_response_header, sign,
     valid_request_id, valid_request_uri};
 use const Kupol\Proxy\{ALLOWED_METHODS, HEADER_IP, HEADER_SIG, HEADER_TS, MAX_BODY_BYTES};
+
+$startedAt = hrtime(true); // для Server-Timing
 
 ini_set('display_errors', '0');
 ini_set('zlib.output_compression', '0');
@@ -128,8 +130,9 @@ if ($ch === false) {
 $status = 0;
 $pending = [];       // заголовки текущего блока ответа
 $headersSent = false;
+$upstreamTtfb = 0.0; // секунд от начала запроса к Go до первого байта ответа
 
-$sendHead = static function () use (&$status, &$pending, &$headersSent): void {
+$sendHead = static function () use (&$status, &$pending, &$headersSent, &$upstreamTtfb, $startedAt): void {
     if ($headersSent) {
         return;
     }
@@ -139,6 +142,7 @@ $sendHead = static function () use (&$status, &$pending, &$headersSent): void {
         // Set-Cookie может быть несколько — не заменяем, а добавляем
         header($name . ': ' . $value, strtolower($name) !== 'set-cookie');
     }
+    header('Server-Timing: ' . server_timing((hrtime(true) - $startedAt) / 1e6, $upstreamTtfb));
 };
 
 curl_setopt_array($ch, [
@@ -151,11 +155,12 @@ curl_setopt_array($ch, [
     CURLOPT_TIMEOUT        => $config['timeout'],
     CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
     CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-    CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$status, &$pending): int {
+    CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$status, &$pending, &$upstreamTtfb): int {
         $code = parse_status_line($line);
         if ($code !== null) {           // новый блок ответа (в т.ч. 1xx) — начинаем заново
             $status = $code;
             $pending = [];
+            $upstreamTtfb = (float)curl_getinfo($ch, CURLINFO_STARTTRANSFER_TIME);
         } else {
             $parsed = parse_response_header_line($line);
             if ($parsed !== null && should_forward_response_header($parsed[0])) {

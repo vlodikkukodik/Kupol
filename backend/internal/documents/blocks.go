@@ -31,7 +31,7 @@ type InputBlock struct {
 type OutBlock struct {
 	ID   string `json:"id,omitempty"`
 	Type string `json:"type"`
-	Data any    `json:"data"`
+	Data any    `json:"data" tstype:"unknown"`
 }
 
 // LinkTarget — то, что читатель вправе узнать о документе, на который ведёт ссылка.

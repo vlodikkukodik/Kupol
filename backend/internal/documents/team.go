@@ -9,6 +9,8 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"kupol/internal/audit"
 )
 
 // Actor — кто работает с документами в team panel. Права приходят готовыми (их считает сервис аккаунтов),
@@ -387,7 +389,7 @@ func (s *Service) TeamCreate(ctx context.Context, a Actor, in CreateInput) (*Tea
 
 // SaveResult — итог сохранения.
 type SaveResult struct {
-	Document *TeamDocument `json:"document"`
+	Document *TeamDocument `json:"document" tstype:",required"`
 	Changed  bool          `json:"changed"` // false — содержимое не изменилось, новая редакция не создавалась
 }
 
@@ -451,9 +453,16 @@ func (s *Service) TeamSave(ctx context.Context, a Actor, id int64, baseRevision 
 		if baseRevision != d.Revision {
 			return &ConflictError{CurrentRevision: d.Revision}
 		}
-		changed, err := s.saveContent(tx, a, d, c, editKind(d), "")
+		kind := editKind(d)
+		changed, err := s.saveContent(tx, a, d, c, kind, "")
 		if err != nil {
 			return err
+		}
+		if changed && kind == VersionEdit {
+			uid := a.UserID
+			if err := audit.Record(tx, s.now(), audit.PublishedEdited, audit.Event{ActorID: &uid, DocumentID: &id, Details: audit.Details("revision", d.Revision, "status", d.Status)}); err != nil {
+				return err
+			}
 		}
 		td, err := s.teamDocument(tx, a, d)
 		res = &SaveResult{Document: td, Changed: changed}
@@ -473,7 +482,7 @@ type AutosaveResult struct {
 	Saved     bool      `json:"saved"` // false — содержимое не отличается от последнего снимка, ничего не записано
 	VersionID int64     `json:"version_id,omitempty"`
 	SavedAt   time.Time `json:"saved_at"`
-	Lock      *LockInfo `json:"lock"`
+	Lock      *LockInfo `json:"lock" tstype:",required"`
 }
 
 // TeamAutosave записывает несохранённые правки редактора. Документ они не меняют: читатели их не видят.
@@ -542,6 +551,12 @@ func (s *Service) TeamRestore(ctx context.Context, a Actor, id, versionID int64)
 		changed, err := s.saveContent(tx, a, d, c, VersionRollback, note)
 		if err != nil {
 			return err
+		}
+		if changed {
+			uid := a.UserID
+			if err := audit.Record(tx, s.now(), audit.DocumentRolledBack, audit.Event{ActorID: &uid, DocumentID: &id, Details: audit.Details("version_id", v.ID, "version_revision", v.Revision, "revision", d.Revision)}); err != nil {
+				return err
+			}
 		}
 		td, err := s.teamDocument(tx, a, d)
 		res = &SaveResult{Document: td, Changed: changed}

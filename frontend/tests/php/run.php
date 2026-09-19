@@ -13,7 +13,7 @@ declare(strict_types=1);
 require __DIR__ . '/../../public/api/lib.php';
 
 use function Kupol\Proxy\{build_config, client_ip, decode_secret, error_body, forward_request_headers, normalize_request_uri,
-    parse_response_header_line, parse_status_line, should_forward_response_header, sign,
+    parse_response_header_line, parse_status_line, server_timing, should_forward_response_header, sign,
     valid_request_id, valid_request_uri};
 
 putenv('XDEBUG_MODE=off');
@@ -70,6 +70,14 @@ function throws(callable $fn, string $class = InvalidArgumentException::class, s
 echo "lib.php\n";
 
 $key = '0123456789abcdef0123456789abcdef';
+
+check('server_timing: время прокси = всё время минус время Go; отрицательного не бывает; десятичная точка', function () {
+    eq(server_timing(12.5, 0.0085), 'proxy;dur=4.0;desc="PHP-прокси", upstream;dur=8.5;desc="Go API до первого байта"');
+    eq(server_timing(3.0, 0.010), 'proxy;dur=0.0;desc="PHP-прокси", upstream;dur=10.0;desc="Go API до первого байта"', 'upstream не больше общего');
+    eq(server_timing(5.0, -1.0), 'proxy;dur=5.0;desc="PHP-прокси", upstream;dur=0.0;desc="Go API до первого байта"', 'мусор из curl');
+    // при любой локали число пишется с точкой (sprintf %.1f зависит от LC_NUMERIC только для %f, но проверим явно)
+    truthy(preg_match('/^proxy;dur=\d+\.\d;/', server_timing(1234.56, 0.1)) === 1, 'формат');
+});
 
 check('подпись: эталонный вектор совпадает с Go', function () use ($key) {
     // тот же вектор в backend/internal/proxyauth/proxyauth_test.go (получен через openssl)
@@ -374,6 +382,16 @@ check('пустая строка запроса («/api/echo?»): подпись
         eq($r['status'], 200, $path);
         $j = json_decode($r['body'], true);
         eq($j['signature_valid'], true, "подпись для $path");
+    }
+});
+
+check('Server-Timing: есть у ответа, время Go не превышает общее; у ответов без тела (204) — тоже', function () use ($P) {
+    foreach (['/api/echo', '/api/cookies'] as $path) {
+        $r = http('GET', $P . $path);
+        $vals = header_values($r, 'Server-Timing');
+        eq(count($vals), 1, "заголовок у $path");
+        truthy(preg_match('/^proxy;dur=(\d+\.\d);desc="PHP-прокси", upstream;dur=(\d+\.\d);desc="Go API до первого байта"$/u', $vals[0], $m) === 1, "формат: {$vals[0]}");
+        truthy((float)$m[1] >= 0 && (float)$m[2] >= 0, 'неотрицательные значения');
     }
 });
 

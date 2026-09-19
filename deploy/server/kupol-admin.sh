@@ -9,6 +9,7 @@
 #   sudo kupol-admin migrate status
 #   sudo kupol-admin doc import [--dry-run] файл.json...   (файл должен быть читаем пользователем kupol)
 #   sudo kupol-admin doc list | export <шифр> | set-status <шифр> <статус> | delete <шифр> --yes
+#   sudo kupol-admin audit [--limit N] [--action событие] [--doc <номер документа>]   журнал событий
 #
 # Читает настройки из /etc/kupol/kupol.env (доступен только root) и запускает бинарник
 # под пользователем kupol, как и сам сервис.

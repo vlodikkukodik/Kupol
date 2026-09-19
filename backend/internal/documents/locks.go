@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"kupol/internal/audit"
 )
 
 // LockTTL — на сколько «взят в работу» документ; редактор продлевает замок, пока идёт правка (спецификация §6: 15 минут).
@@ -118,6 +120,14 @@ func (s *Service) ReleaseLock(ctx context.Context, a Actor, docID int64) error {
 			return ErrForbidden
 		}
 		if !cur.Mine {
+			var held Lock
+			if err := tx.Where("document_id = ?", docID).Take(&held).Error; err != nil {
+				return err
+			}
+			uid := a.UserID
+			if err := audit.Record(tx, s.now(), audit.LockBroken, audit.Event{ActorID: &uid, TargetUserID: &held.UserID, DocumentID: &docID}); err != nil {
+				return err
+			}
 			s.log.Info("замок документа снят не владельцем", "document_id", docID, "holder", cur.Holder, "by", a.Login)
 		}
 		return tx.Where("document_id = ?", docID).Delete(&Lock{}).Error

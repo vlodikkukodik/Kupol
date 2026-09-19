@@ -46,7 +46,7 @@ type Option struct {
 
 // TypeOption — тип документа для формы создания.
 type TypeOption struct {
-	Option
+	Option       `tstype:",extends"`
 	CodeExample  string `json:"code_example"`
 	CodeOptional bool   `json:"code_optional"`
 }

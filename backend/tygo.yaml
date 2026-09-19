@@ -1,0 +1,35 @@
+# Генерация TypeScript-типов фронтенда из Go (make types → tygo). Результат в git: CI проверяет, что он актуален
+# (git diff --exit-code), а фронтенд не может разойтись с сервером в формах ответов и запросов.
+#
+# Выводятся все экспортируемые типы пакетов: формы ответов API (httpapi) и предметные типы, из которых они
+# состоят (documents). Лишнее (модели БД) фронтенд просто не импортирует.
+type_mappings:
+  time.Time: "string /* RFC 3339 */"
+  json.RawMessage: "unknown"
+  time.Minute: "60_000 /* мс */"
+  # Предметные типы из пакета documents в ответах httpapi: без этого tygo пишет any, и типы ничего не проверяют.
+  documents.Item: "documents.Item"
+  documents.OutDocument: "documents.OutDocument"
+  documents.TeamDocument: "documents.TeamDocument"
+  documents.LockInfo: "documents.LockInfo"
+  documents.VersionFull: "documents.VersionFull"
+  documents.Diff: "documents.Diff"
+  documents.Problem: "documents.Problem"
+  documents.Content: "documents.Content"
+  # Зависимости сервера (Deps) фронтенду не нужны и непрозрачны.
+  config.Config: "unknown"
+  gorm.DB: "unknown"
+  slog.Logger: "unknown"
+  accounts.Service: "unknown"
+  documents.Service: "unknown"
+  ratelimit.Limiter: "unknown"
+packages:
+  - path: "kupol/internal/documents"
+    output_path: "../frontend/src/api/generated/documents.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/documents (make types). Не править руками.
+  - path: "kupol/internal/httpapi"
+    output_path: "../frontend/src/api/generated/httpapi.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/httpapi (make types). Не править руками.
+      import type * as documents from "./documents";

@@ -17,37 +17,37 @@ type teamHandlers struct {
 	log *slog.Logger
 }
 
-type memberDTO struct {
+type MemberDTO struct {
 	Login       string    `json:"login"`
 	Level       int       `json:"level"`
 	LevelName   string    `json:"level_name"`
 	Directorate bool      `json:"directorate"`
-	Roles       []roleDTO `json:"roles"`
+	Roles       []RoleDTO `json:"roles"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-func toMemberDTO(m accounts.Member) memberDTO {
-	return memberDTO{
+func toMemberDTO(m accounts.Member) MemberDTO {
+	return MemberDTO{
 		Login: m.Login, Level: m.Level, LevelName: m.LevelName, Directorate: m.Directorate,
 		Roles: toRoleDTOs(m.Roles), CreatedAt: m.CreatedAt,
 	}
 }
 
-type capabilityDTO struct {
+type CapabilityDTO struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-type roleInfoDTO struct {
+type RoleInfoDTO struct {
 	ID           string          `json:"id"`
 	Name         string          `json:"name"`
-	Capabilities []capabilityDTO `json:"capabilities"`
+	Capabilities []CapabilityDTO `json:"capabilities"`
 }
 
-func capabilityDTOs(caps []accounts.Capability) []capabilityDTO {
-	out := make([]capabilityDTO, len(caps))
+func CapabilityDTOs(caps []accounts.Capability) []CapabilityDTO {
+	out := make([]CapabilityDTO, len(caps))
 	for i, c := range caps {
-		out[i] = capabilityDTO{ID: string(c), Name: c.Name()}
+		out[i] = CapabilityDTO{ID: string(c), Name: c.Name()}
 	}
 	return out
 }
@@ -55,14 +55,14 @@ func capabilityDTOs(caps []accounts.Capability) []capabilityDTO {
 // GET /api/team/roles — какие бывают роли и что каждая позволяет. Нужна тем, кто состоит в команде: их страница
 // «Роли и права» показывает это без знания устройства ролей на стороне интерфейса.
 func (h *teamHandlers) roles(c *gin.Context) {
-	roles := make([]roleInfoDTO, len(accounts.AllRoles))
+	roles := make([]RoleInfoDTO, len(accounts.AllRoles))
 	for i, r := range accounts.AllRoles {
-		roles[i] = roleInfoDTO{ID: string(r), Name: r.Name(), Capabilities: capabilityDTOs(r.Capabilities())}
+		roles[i] = RoleInfoDTO{ID: string(r), Name: r.Name(), Capabilities: CapabilityDTOs(r.Capabilities())}
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"roles":        roles,
-		"directorate":  gin.H{"name": accounts.DirectorateName, "capabilities": capabilityDTOs(accounts.AllCapabilities)},
-		"capabilities": capabilityDTOs(accounts.AllCapabilities),
+	c.JSON(http.StatusOK, TeamRolesResponse{
+		Roles:        roles,
+		Directorate:  DirectorateInfoDTO{Name: accounts.DirectorateName, Capabilities: CapabilityDTOs(accounts.AllCapabilities)},
+		Capabilities: CapabilityDTOs(accounts.AllCapabilities),
 	})
 }
 
@@ -107,11 +107,11 @@ func (h *teamHandlers) members(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	members := make([]memberDTO, len(page.Members))
+	members := make([]MemberDTO, len(page.Members))
 	for i, m := range page.Members {
 		members[i] = toMemberDTO(m)
 	}
-	c.JSON(http.StatusOK, gin.H{"members": members, "total": page.Total, "page": page.Page, "per_page": page.PerPage, "pages": page.Pages})
+	c.JSON(http.StatusOK, TeamMembersResponse{Members: members, Total: page.Total, Page: page.Page, PerPage: page.PerPage, Pages: page.Pages})
 }
 
 // roleParam разбирает роль из адреса; неизвестная роль — 404.
@@ -135,7 +135,7 @@ func (h *teamHandlers) grant(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"member": toMemberDTO(*m), "changed": changed})
+	c.JSON(http.StatusOK, MemberRoleResponse{Member: toMemberDTO(*m), Changed: changed})
 }
 
 // DELETE /api/team/members/:login/roles/:role — снять роль.
@@ -150,5 +150,5 @@ func (h *teamHandlers) revoke(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"member": toMemberDTO(*m), "changed": changed})
+	c.JSON(http.StatusOK, MemberRoleResponse{Member: toMemberDTO(*m), Changed: changed})
 }

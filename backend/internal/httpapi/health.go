@@ -12,7 +12,7 @@ import (
 	"kupol/internal/version"
 )
 
-type healthResponse struct {
+type HealthResponse struct {
 	Status   string `json:"status"`
 	DB       string `json:"db"`
 	Version  string `json:"version"`
@@ -27,7 +27,7 @@ func healthHandler(db *gorm.DB) gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()
 
-		resp := healthResponse{
+		resp := HealthResponse{
 			Status:   "ok",
 			DB:       "ok",
 			Version:  version.Version,

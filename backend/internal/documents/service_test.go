@@ -679,15 +679,15 @@ func TestGetResolvesLinksByViewer(t *testing.T) {
 		` + obj("О-4", "Черновик", "draft", 0, "") + `
 	]}`)
 
-	links := func(v Viewer) map[string]outDocLink {
+	links := func(v Viewer) map[string]OutDocLink {
 		d, err := e.svc.Get(ctx, v, "О-1")
 		if err != nil {
 			t.Fatal(err)
 		}
-		out := map[string]outDocLink{}
+		out := map[string]OutDocLink{}
 		for _, b := range d.Blocks {
 			if b.Type == "doc_link" {
-				out[b.ID] = b.Data.(outDocLink)
+				out[b.ID] = b.Data.(OutDocLink)
 			}
 		}
 		return out
@@ -698,7 +698,7 @@ func TestGetResolvesLinksByViewer(t *testing.T) {
 		t.Errorf("открытая цель: %+v", g["l-open"])
 	}
 	for _, id := range []string{"l-l5", "l-draft", "l-missing"} {
-		if g[id] != (outDocLink{}) {
+		if g[id] != (OutDocLink{}) {
 			t.Errorf("гость: ссылка %s раскрывает %+v", id, g[id])
 		}
 	}

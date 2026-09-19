@@ -1,0 +1,157 @@
+// Пакет audit — журнал событий: кто, когда и что сделал с ролями, замками, откатами и паролями.
+//
+// Запись делается в той же транзакции, что и само действие: не бывает роли, выданной без записи в журнале,
+// и записи о том, что не случилось. Подробности — только то, что нужно для разбора (роль, версия, прежний владелец
+// замка); паролей, кодов и содержимого документов в журнале нет.
+package audit
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// Action — машинное имя события.
+type Action string
+
+const (
+	RoleGranted        Action = "role.granted"              // выдана роль команды
+	RoleRevoked        Action = "role.revoked"              // снята роль команды
+	LockBroken         Action = "lock.broken"               // снят чужой замок документа
+	DocumentRolledBack Action = "document.rolled_back"      // документ откачен к прежней версии
+	PublishedEdited    Action = "document.published_edited" // правка опубликованного или архивного «на месте»
+	PasswordChanged    Action = "account.password_changed"  // пароль сменён владельцем
+	AccessRestored     Action = "account.access_restored"   // доступ восстановлен по резервному коду
+	PasswordReset      Action = "account.password_reset"    // пароль сброшен автором командой на сервере
+)
+
+var titles = map[Action]string{
+	RoleGranted:        "Выдана роль",
+	RoleRevoked:        "Снята роль",
+	LockBroken:         "Снят чужой замок",
+	DocumentRolledBack: "Откат документа",
+	PublishedEdited:    "Правка опубликованного",
+	PasswordChanged:    "Смена пароля",
+	AccessRestored:     "Восстановление доступа",
+	PasswordReset:      "Сброс пароля",
+}
+
+// Title — название события для людей; для неизвестного — само машинное имя.
+func (a Action) Title() string {
+	if t, ok := titles[a]; ok {
+		return t
+	}
+	return string(a)
+}
+
+// Event — запись журнала (таблица audit_events).
+type Event struct {
+	ID           int64 `gorm:"primaryKey"`
+	At           time.Time
+	Action       string
+	ActorID      *int64
+	TargetUserID *int64
+	DocumentID   *int64
+	// Details — JSON-объект с подробностями; собирается через Details().
+	Details string `gorm:"type:jsonb"`
+}
+
+func (Event) TableName() string { return "audit_events" }
+
+// Details собирает подробности события из пар «ключ, значение».
+func Details(pairs ...any) string {
+	if len(pairs)%2 != 0 {
+		panic("audit.Details: нечётное число аргументов")
+	}
+	m := make(map[string]any, len(pairs)/2)
+	for i := 0; i < len(pairs); i += 2 {
+		key, ok := pairs[i].(string)
+		if !ok {
+			panic(fmt.Sprintf("audit.Details: ключ %v не строка", pairs[i]))
+		}
+		m[key] = pairs[i+1]
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		panic("audit.Details: " + err.Error())
+	}
+	return string(raw)
+}
+
+// Record записывает событие в переданной транзакции (или соединении). at — момент из часов сервиса.
+func Record(db *gorm.DB, at time.Time, action Action, e Event) error {
+	if action == "" {
+		return errors.New("audit: пустое событие")
+	}
+	e.At = at.UTC()
+	e.Action = string(action)
+	if e.Details == "" {
+		e.Details = "{}"
+	}
+	return db.Create(&e).Error
+}
+
+// Row — строка журнала для показа: с логинами вместо номеров (у удалённых аккаунтов логина нет).
+type Row struct {
+	ID         int64     `json:"id"`
+	At         time.Time `json:"at"`
+	Action     string    `json:"action"`
+	Title      string    `json:"title"`
+	Actor      *string   `json:"actor,omitempty"`
+	Target     *string   `json:"target,omitempty"`
+	DocumentID *int64    `json:"document_id,omitempty"`
+	Details    string    `json:"details"`
+}
+
+// Query — отбор записей журнала.
+type Query struct {
+	Action     Action
+	DocumentID int64
+	Limit      int
+}
+
+const defaultLimit, maxLimit = 50, 500
+
+type rawRow struct {
+	Event
+	ActorLogin  *string
+	TargetLogin *string
+}
+
+// List возвращает записи журнала, новые сверху.
+func List(ctx context.Context, db *gorm.DB, q Query) ([]Row, error) {
+	limit := q.Limit
+	switch {
+	case limit == 0:
+		limit = defaultLimit
+	case limit < 0 || limit > maxLimit:
+		return nil, fmt.Errorf("audit: размер выборки — от 1 до %d", maxLimit)
+	}
+	tx := db.WithContext(ctx).Table("audit_events e").
+		Select("e.id, e.at, e.action, e.actor_id, e.target_user_id, e.document_id, e.details::text AS details, a.login AS actor_login, t.login AS target_login").
+		Joins("LEFT JOIN users a ON a.id = e.actor_id").
+		Joins("LEFT JOIN users t ON t.id = e.target_user_id").
+		Order("e.at DESC, e.id DESC").Limit(limit)
+	if q.Action != "" {
+		tx = tx.Where("e.action = ?", string(q.Action))
+	}
+	if q.DocumentID != 0 {
+		tx = tx.Where("e.document_id = ?", q.DocumentID)
+	}
+	var raws []rawRow
+	if err := tx.Scan(&raws).Error; err != nil {
+		return nil, err
+	}
+	rows := make([]Row, len(raws))
+	for i, r := range raws {
+		rows[i] = Row{
+			ID: r.ID, At: r.At.UTC(), Action: r.Event.Action, Title: Action(r.Event.Action).Title(),
+			Actor: r.ActorLogin, Target: r.TargetLogin, DocumentID: r.DocumentID, Details: r.Details,
+		}
+	}
+	return rows, nil
+}

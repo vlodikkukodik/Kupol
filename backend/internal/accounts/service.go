@@ -17,6 +17,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 	"gorm.io/gorm"
 
+	"kupol/internal/audit"
 	"kupol/internal/config"
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
@@ -525,6 +526,9 @@ func (s *Service) ChangePassword(ctx context.Context, userID, currentSessionID i
 			Updates(map[string]any{"password_hash": hash, "password_changed_at": s.now()}).Error; err != nil {
 			return err
 		}
+		if err := audit.Record(tx, s.now(), audit.PasswordChanged, audit.Event{ActorID: &user.ID, TargetUserID: &user.ID}); err != nil {
+			return err
+		}
 		return s.revokeSessions(tx, user.ID, currentSessionID)
 	})
 	if err != nil {
@@ -635,6 +639,9 @@ func (s *Service) RestoreAccess(ctx context.Context, login, backupCode, newPassw
 		}).Error; err != nil {
 			return err
 		}
+		if err := audit.Record(tx, now, audit.AccessRestored, audit.Event{ActorID: &user.ID, TargetUserID: &user.ID}); err != nil {
+			return err
+		}
 		if err := s.revokeSessions(tx, user.ID, 0); err != nil {
 			return err
 		}
@@ -715,6 +722,10 @@ func (s *Service) AdminResetPassword(ctx context.Context, login string) (string,
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&User{}).Where("id = ?", user.ID).
 			Updates(map[string]any{"password_hash": hash, "password_changed_at": s.now()}).Error; err != nil {
+			return err
+		}
+		// без исполнителя: это команда автора на сервере
+		if err := audit.Record(tx, s.now(), audit.PasswordReset, audit.Event{TargetUserID: &user.ID}); err != nil {
 			return err
 		}
 		return s.revokeSessions(tx, user.ID, 0)

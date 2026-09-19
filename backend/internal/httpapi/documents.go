@@ -128,7 +128,7 @@ func (h *documentHandlers) recent(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items})
+	c.JSON(http.StatusOK, RecentResponse{Items: items})
 }
 
 // GET /api/documents/summary — счётчики по типам, отделам и классам для фильтров и «папок».
@@ -149,5 +149,5 @@ func (h *documentHandlers) get(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"document": d})
+	c.JSON(http.StatusOK, DocumentResponse{Document: d})
 }

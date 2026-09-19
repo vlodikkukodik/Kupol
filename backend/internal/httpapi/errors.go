@@ -35,11 +35,11 @@ const (
 	CodeCodeTaken          = "code_taken"
 )
 
-type errorBody struct {
-	Error errorDetail `json:"error"`
+type ErrorBody struct {
+	Error ErrorDetail `json:"error"`
 }
 
-type errorDetail struct {
+type ErrorDetail struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	RequestID string `json:"request_id,omitempty"`
@@ -53,24 +53,24 @@ type errorDetail struct {
 	// Problems — замечания к содержимому документа (путь в JSON и текст) при ответе 422.
 	Problems []documents.Problem `json:"problems,omitempty"`
 	// Lock — кто правит документ (409 locked); CurrentRevision — актуальная редакция (409 conflict).
-	Lock            *lockDetail `json:"lock,omitempty"`
+	Lock            *LockDetail `json:"lock,omitempty"`
 	CurrentRevision int         `json:"current_revision,omitempty"`
 }
 
-type lockDetail struct {
+type LockDetail struct {
 	Holder    string    `json:"holder"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // failDetail прерывает обработку ответом с заполненными подробностями (request_id ставится сам).
-func failDetail(c *gin.Context, status int, d errorDetail) {
+func failDetail(c *gin.Context, status int, d ErrorDetail) {
 	d.RequestID = RequestID(c)
-	c.AbortWithStatusJSON(status, errorBody{Error: d})
+	c.AbortWithStatusJSON(status, ErrorBody{Error: d})
 }
 
 // FailAccessDenied отвечает 403 «Доступ запрещён» с указанием нужного допуска.
 func FailAccessDenied(c *gin.Context, level int, levelName string) {
-	c.AbortWithStatusJSON(403, errorBody{Error: errorDetail{
+	c.AbortWithStatusJSON(403, ErrorBody{Error: ErrorDetail{
 		Code:              CodeAccessDenied,
 		Message:           "Доступ запрещён",
 		RequestID:         RequestID(c),
@@ -86,7 +86,7 @@ func Fail(c *gin.Context, status int, code, message string) {
 
 // FailFields — Fail с ошибками по полям формы.
 func FailFields(c *gin.Context, status int, code, message string, fields map[string]string) {
-	c.AbortWithStatusJSON(status, errorBody{Error: errorDetail{
+	c.AbortWithStatusJSON(status, ErrorBody{Error: ErrorDetail{
 		Code:      code,
 		Message:   message,
 		RequestID: RequestID(c),
@@ -101,7 +101,7 @@ func FailRateLimited(c *gin.Context, retryAfter time.Duration) {
 		secs = 1
 	}
 	c.Header("Retry-After", strconv.Itoa(secs))
-	c.AbortWithStatusJSON(429, errorBody{Error: errorDetail{
+	c.AbortWithStatusJSON(429, ErrorBody{Error: ErrorDetail{
 		Code:       CodeRateLimited,
 		Message:    "Слишком много попыток. Повторите позже.",
 		RequestID:  RequestID(c),
