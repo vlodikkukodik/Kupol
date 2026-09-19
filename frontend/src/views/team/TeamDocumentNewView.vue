@@ -1,32 +1,42 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '../../api/index.js'
-import FormField from '../../components/FormField.vue'
-import { useDocumentMeta } from '../../composables/useDocumentMeta.js'
-import { useForm } from '../../composables/useForm.js'
-import { contentFromForm, formFromContent, problemsToFields } from '../../lib/teamdoc.js'
+import UiAlert from '@/ui/UiAlert.vue'
+import UiButton from '@/ui/UiButton.vue'
+import UiField from '@/ui/UiField.vue'
+import UiInput from '@/ui/UiInput.vue'
+import UiSelect from '@/ui/UiSelect.vue'
+import UiSheet from '@/ui/UiSheet.vue'
+import UiSkeleton from '@/ui/UiSkeleton.vue'
+import { isApiError } from '@/api/client'
+import { teamApi } from '@/api/endpoints'
+import type { Problem } from '@/api/generated/documents'
+import { useDocumentMeta } from '@/composables/useDocumentMeta'
+import { useForm } from '@/composables/useForm'
+import { contentFromForm, formFromContent, problemsToFields } from '@/lib/teamdoc'
 import ErrorView from '../ErrorView.vue'
 
 const router = useRouter()
-const { meta, error: metaError, loading: metaLoading, reload: reloadMeta } = useDocumentMeta()
+const { meta, query: metaQuery } = useDocumentMeta()
 const form = useForm()
 
 const type = ref('')
 const code = ref('')
 const fields = ref(formFromContent({ level: 0 }, ''))
-const otherProblems = ref([])
+const otherProblems = ref<Problem[]>([])
 
 const typeInfo = computed(() => meta.value?.types.find((t) => t.id === type.value) ?? null)
+const typeOptions = computed(() => (meta.value?.types ?? []).map((t) => ({ value: t.id, label: t.name })))
 const codeHint = computed(() => {
   if (!typeInfo.value) return 'Сначала выберите тип документа.'
   const example = `Например, ${typeInfo.value.code_example}.`
   return typeInfo.value.code_optional ? `${example} Можно не указывать: номер присвоится при публикации.` : example
 })
+const metaRequestId = computed(() => (isApiError(metaQuery.error.value) ? metaQuery.error.value.requestId : ''))
 
 async function focusFirstError() {
   await nextTick()
-  document.querySelector('.new-doc [aria-invalid="true"]')?.focus()
+  document.querySelector<HTMLElement>('.new-doc [aria-invalid="true"]')?.focus()
 }
 
 async function onSubmit() {
@@ -37,17 +47,17 @@ async function onSubmit() {
   Object.assign(form.errors, errors)
   if (Object.keys(form.errors).length > 0) return focusFirstError()
 
-  let created = null
+  let createdId = 0
   const ok = await form.submit(async () => {
-    const res = await api.post('/team/documents', { type: type.value, code: code.value.trim(), ...content })
-    created = res.document
+    const res = await teamApi.create({ type: type.value, code: code.value.trim(), ...content })
+    createdId = res.document.id
   })
   if (ok) {
-    await router.push({ name: 'team-document', params: { id: created.id } })
+    await router.push({ name: 'team-document', params: { id: createdId } })
     return undefined
   }
   const err = form.lastError.value
-  if (err?.problems?.length) {
+  if (err?.problems.length) {
     const { byPath, other } = problemsToFields(err.problems)
     Object.assign(form.errors, byPath)
     otherProblems.value = other
@@ -58,82 +68,101 @@ async function onSubmit() {
 </script>
 
 <template>
-  <section class="new-doc" aria-labelledby="new-title">
+  <UiSheet as="section" class="new-doc" aria-labelledby="new-title">
     <h2 id="new-title">Новый документ</h2>
     <p class="note">Документ появится черновиком: его видите только вы и Директорат, пока не отправите на проверку.</p>
 
-    <ErrorView v-if="metaError" :request-id="metaError.requestId" :retrying="metaLoading" @retry="reloadMeta" />
-    <p v-else-if="!meta" class="state" role="status">Загрузка…</p>
+    <ErrorView v-if="metaQuery.isError.value" :request-id="metaRequestId" :retrying="metaQuery.isFetching.value" @retry="metaQuery.refetch()" />
+    <UiSkeleton v-else-if="!meta" :lines="4" />
 
-    <form v-else class="form" novalidate aria-label="Новый документ" @submit.prevent="onSubmit">
-      <p v-if="form.formError.value" class="form-error" role="alert">{{ form.formError.value }}</p>
+    <form v-else novalidate aria-label="Новый документ" @submit.prevent="onSubmit">
+      <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
       <ul v-if="otherProblems.length" class="problems">
         <li v-for="p in otherProblems" :key="p.path"><code>{{ p.path }}</code>: {{ p.message }}</li>
       </ul>
 
-      <div class="field" :class="{ 'field--invalid': form.errors.type }">
-        <label for="nd-type">Тип документа</label>
-        <select
-          id="nd-type"
-          v-model="type"
-          :aria-invalid="form.errors.type ? 'true' : undefined"
-          :aria-describedby="form.errors.type ? 'nd-type-error' : undefined"
-        >
-          <option value="" disabled>Выберите…</option>
-          <option v-for="t in meta.types" :key="t.id" :value="t.id">{{ t.name }}</option>
-        </select>
-        <p v-if="form.errors.type" id="nd-type-error" class="error">{{ form.errors.type }}</p>
-      </div>
+      <UiField id="nd-type" label="Тип документа" :error="form.errors.type">
+        <UiSelect v-model="type" :options="typeOptions" placeholder="Выберите…" />
+      </UiField>
+      <UiField id="nd-code" label="Шифр" :hint="codeHint" :error="form.errors.code">
+        <UiInput v-model="code" :maxlength="40" />
+      </UiField>
+      <UiField id="nd-title" label="Название" :error="form.errors.title">
+        <UiInput v-model="fields.title" :maxlength="300" />
+      </UiField>
 
-      <FormField id="nd-code" v-model="code" label="Шифр" :hint="codeHint" :error="form.errors.code" :maxlength="40" />
-      <FormField id="nd-title" v-model="fields.title" label="Название" :error="form.errors.title" :maxlength="300" />
-
-      <fieldset class="date" :aria-describedby="form.errors.composed ? 'nd-composed-error' : undefined">
+      <fieldset class="date">
         <legend>Дата составления (внутри вселенной)</legend>
-        <div class="date-row">
-          <FormField id="nd-year" v-model="fields.year" label="Год" inputmode="numeric" :maxlength="4" :error="form.errors['composed.year']" />
-          <FormField id="nd-month" v-model="fields.month" label="Месяц" inputmode="numeric" :maxlength="2" :error="form.errors['composed.month']" />
-          <FormField id="nd-day" v-model="fields.day" label="День" inputmode="numeric" :maxlength="2" :error="form.errors['composed.day']" />
+        <div class="date__row">
+          <UiField id="nd-year" label="Год" :error="form.errors['composed.year']">
+            <UiInput v-model="fields.year" inputmode="numeric" :maxlength="4" />
+          </UiField>
+          <UiField id="nd-month" label="Месяц" :error="form.errors['composed.month']">
+            <UiInput v-model="fields.month" inputmode="numeric" :maxlength="2" />
+          </UiField>
+          <UiField id="nd-day" label="День" :error="form.errors['composed.day']">
+            <UiInput v-model="fields.day" inputmode="numeric" :maxlength="2" />
+          </UiField>
         </div>
         <p class="hint">Месяц и день можно не указывать.</p>
-        <p v-if="form.errors.composed" id="nd-composed-error" class="error">{{ form.errors.composed }}</p>
+        <p v-if="form.errors.composed" class="error">{{ form.errors.composed }}</p>
       </fieldset>
 
-      <div class="form-actions">
-        <button type="submit" class="btn" :disabled="form.submitting.value">
-          {{ form.submitting.value ? 'Заводим…' : 'Завести черновик' }}
-        </button>
-        <RouterLink class="form-link" :to="{ name: 'team-documents' }">Отмена</RouterLink>
+      <div class="actions">
+        <UiButton type="submit" variant="primary" :loading="form.submitting.value">{{ form.submitting.value ? 'Заводим…' : 'Завести черновик' }}</UiButton>
+        <UiButton :to="{ name: 'team-documents' }" variant="link">Отмена</UiButton>
       </div>
     </form>
-  </section>
+  </UiSheet>
 </template>
 
 <style scoped>
-.note, .state { color: var(--ink-soft); }
-.field { margin-bottom: var(--space-3); }
-label, legend {
-  display: block;
-  margin-bottom: var(--space-1);
+.new-doc {
+  max-width: 44rem;
+  margin-inline: 0;
+}
+.note {
+  color: var(--text-muted);
+}
+.problems {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-6);
+  border: 2px solid var(--red-700);
+  border-radius: var(--radius-2);
+  background: #f8e6e1;
+  color: var(--red-800);
+}
+.date {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-2);
+}
+.date legend {
+  padding: 0 var(--space-2);
   font-family: var(--font-head);
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
-select {
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  background: #f4eedc;
-  color: var(--ink);
-  font: inherit;
+.date__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 var(--space-3);
 }
-.field--invalid select { border-color: var(--stamp-red); }
-.error { margin: var(--space-1) 0 0; color: var(--stamp-red); font-weight: 700; }
-.hint { margin: 0; font-size: 0.85rem; color: var(--ink-soft); }
-.date { margin: 0 0 var(--space-3); padding: var(--space-3); border: 1px solid var(--rule); }
-.date-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: var(--space-3); }
-.date-row :deep(.field) { margin-bottom: var(--space-2); }
-.problems { margin: 0 0 var(--space-3); padding-left: 1.2rem; color: var(--stamp-red); }
+.hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.error {
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
 </style>

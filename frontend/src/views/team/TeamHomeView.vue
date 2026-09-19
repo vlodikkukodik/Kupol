@@ -1,34 +1,41 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
-import { api } from '../../api/index.js'
-import { useResource } from '../../composables/useResource.js'
-import { useAuthStore } from '../../stores/auth.js'
+import { useQuery } from '@tanstack/vue-query'
+import UiSheet from '@/ui/UiSheet.vue'
+import UiSkeleton from '@/ui/UiSkeleton.vue'
+import UiTable from '@/ui/UiTable.vue'
+import { isApiError } from '@/api/client'
+import { teamApi } from '@/api/endpoints'
+import { keys } from '@/api/query'
+import { useAuthStore, type Capability } from '@/stores/auth'
 import ErrorView from '../ErrorView.vue'
 
 const auth = useAuthStore()
-const { data, error, loading, reload } = useResource((signal) => api.get('/team/roles', { signal }))
+const query = useQuery({ queryKey: keys.teamRoles, queryFn: ({ signal }) => teamApi.roles({ signal }) })
+const data = computed(() => query.data.value)
+const requestId = computed(() => (isApiError(query.error.value) ? query.error.value.requestId : ''))
 
 const mine = computed(() => {
   const u = auth.user
   if (!u) return []
   return u.directorate ? [{ id: 'directorate', name: 'Директорат' }] : u.roles
 })
-const has = (capability) => auth.can(capability)
+const has = (capability: string) => auth.can(capability as Capability)
 </script>
 
 <template>
-  <ErrorView v-if="error" :request-id="error.requestId" :retrying="loading" @retry="reload" />
-  <p v-else-if="!data" class="state" role="status">Загрузка…</p>
+  <ErrorView v-if="query.isError.value" :request-id="requestId" :retrying="query.isFetching.value" @retry="query.refetch()" />
+  <UiSheet v-else-if="!data"><UiSkeleton :lines="5" /></UiSheet>
 
-  <template v-else>
-    <section aria-labelledby="mine-title">
+  <div v-else class="stack">
+    <UiSheet as="section" aria-labelledby="mine-title">
       <h2 id="mine-title">Ваши роли</h2>
       <p v-if="mine.length" data-testid="my-roles">
         <template v-for="(r, i) in mine" :key="r.id"><strong>{{ r.name }}</strong><template v-if="i < mine.length - 1">, </template></template>
       </p>
       <p v-if="auth.user?.directorate">Директорат подразумевает все роли и все права. Роли остальным выдаются на экране «Команда».</p>
 
-      <h3 class="sub">Что вам разрешено</h3>
+      <h3>Что вам разрешено</h3>
       <ul class="rights" data-testid="my-rights">
         <li v-for="c in data.capabilities" :key="c.id" :class="{ off: !has(c.id) }">
           <span class="mark" aria-hidden="true">{{ has(c.id) ? '✓' : '—' }}</span>
@@ -36,12 +43,12 @@ const has = (capability) => auth.can(capability)
           {{ c.name }}
         </li>
       </ul>
-    </section>
+    </UiSheet>
 
-    <section aria-labelledby="roles-title">
+    <UiSheet as="section" aria-labelledby="roles-title">
       <h2 id="roles-title">Что даёт каждая роль</h2>
       <p class="note">Ролей у человека может быть несколько, права складываются. Роли выдаёт Директорат.</p>
-      <div class="wrap" tabindex="0" role="region" aria-label="Таблица ролей и прав">
+      <UiTable label="Таблица ролей и прав">
         <table class="matrix" data-testid="roles-matrix">
           <caption class="visually-hidden">Права по ролям</caption>
           <thead>
@@ -54,32 +61,60 @@ const has = (capability) => auth.can(capability)
           <tbody>
             <tr v-for="c in data.capabilities" :key="c.id">
               <th scope="row">{{ c.name }}</th>
-              <td v-for="r in data.roles" :key="r.id">
+              <td v-for="r in data.roles" :key="r.id" class="cell">
                 <template v-if="r.capabilities.some((x) => x.id === c.id)">
                   <span aria-hidden="true">✓</span><span class="visually-hidden">да</span>
                 </template>
-                <template v-else><span aria-hidden="true">—</span><span class="visually-hidden">нет</span></template>
+                <template v-else><span aria-hidden="true" class="no">—</span><span class="visually-hidden">нет</span></template>
               </td>
-              <td><span aria-hidden="true">✓</span><span class="visually-hidden">да</span></td>
+              <td class="cell"><span aria-hidden="true">✓</span><span class="visually-hidden">да</span></td>
             </tr>
           </tbody>
         </table>
-      </div>
-    </section>
-  </template>
+      </UiTable>
+    </UiSheet>
+  </div>
 </template>
 
 <style scoped>
-section { margin-bottom: var(--space-5); }
-.state, .note { color: var(--ink-soft); }
-.sub { margin: var(--space-3) 0 var(--space-2); font-size: 1.05rem; letter-spacing: 0.1em; }
-.rights { margin: 0; padding: 0; list-style: none; }
-.rights li { padding: 0.35rem 0; border-bottom: 1px solid var(--rule); }
-.rights li.off { color: var(--ink-soft); }
-.mark { display: inline-block; width: 1.6rem; font-weight: 700; }
-.wrap { overflow-x: auto; }
-.matrix { width: 100%; border-collapse: collapse; }
-.matrix th, .matrix td { padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--rule); text-align: center; }
-.matrix thead th { border-bottom: 2px solid var(--ink); background: var(--paper-shade); font-family: var(--font-head); letter-spacing: 0.06em; text-transform: uppercase; }
-.matrix tbody th { text-align: left; font-weight: 400; }
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr); /* без этого широкая таблица растягивает колонку и страницу */
+  gap: var(--space-5);
+}
+.stack > * {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+}
+.note {
+  color: var(--text-muted);
+}
+.rights {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: var(--space-1) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rights li {
+  padding: var(--space-1) 0;
+  border-bottom: 1px dashed var(--border-strong);
+}
+.rights li.off {
+  color: var(--text-muted);
+}
+.mark {
+  display: inline-block;
+  width: 1.4em;
+  font-weight: 700;
+}
+.matrix .cell {
+  text-align: center;
+  font-weight: 700;
+}
+.matrix .no {
+  color: var(--text-muted);
+}
 </style>

@@ -1,25 +1,34 @@
-<script setup>
-import { api } from '../api/index.js'
-import { useResource } from '../composables/useResource.js'
-import { formatComposed } from '../lib/format.js'
+<script setup lang="ts">
+import { useQuery } from '@tanstack/vue-query'
+import UiBadge from '@/ui/UiBadge.vue'
+import UiSkeleton from '@/ui/UiSkeleton.vue'
+import { documentsApi } from '@/api/endpoints'
+import { keys } from '@/api/query'
+import { formatComposed } from '@/lib/format'
+import { levelName } from '@/lib/levels'
 
 // «Поступило в ЦАК»: последние опубликованные документы, доступные читателю по его допуску.
-const { data, error, loading } = useResource((signal) => api.get('/documents/recent?limit=8', { signal }))
+const LIMIT = 8
+const { data, isPending, isError } = useQuery({
+  queryKey: keys.recent(LIMIT),
+  queryFn: ({ signal }) => documentsApi.recent(LIMIT, { signal }),
+})
 </script>
 
 <template>
   <section class="feed" aria-labelledby="feed-title">
     <h2 id="feed-title">Поступило в ЦАК</h2>
 
-    <p v-if="loading && !data" class="state" role="status">Загрузка…</p>
-    <p v-else-if="error" class="state">Лента временно недоступна.</p>
+    <UiSkeleton v-if="isPending" :lines="4" label="Загрузка ленты…" />
+    <p v-else-if="isError" class="state">Лента временно недоступна.</p>
     <template v-else-if="data">
       <ul v-if="data.items.length" class="items" data-testid="recent-feed">
         <li v-for="it in data.items" :key="it.slug">
-          <RouterLink :to="{ name: 'document', params: { ref: it.slug } }">
-            <span class="code">{{ it.code }}</span>
-            <span class="title">{{ it.title }}</span>
-            <span class="meta">{{ it.type_name }}, {{ formatComposed(it.composed) }}</span>
+          <RouterLink :to="{ name: 'document', params: { ref: it.slug } }" class="item">
+            <span class="item__code">{{ it.code }}</span>
+            <span class="item__title">{{ it.title }}</span>
+            <span class="item__meta">{{ it.type_name }}, {{ formatComposed(it.composed) }}</span>
+            <UiBadge v-if="it.level > 0" tone="ink" class="item__level" :title="`Допуск: ${levelName(it.level)}`">Уровень {{ it.level }}</UiBadge>
           </RouterLink>
         </li>
       </ul>
@@ -30,18 +39,73 @@ const { data, error, loading } = useResource((signal) => api.get('/documents/rec
 </template>
 
 <style scoped>
-.feed { margin-top: var(--space-5); }
-.items { margin: 0 0 var(--space-3); padding: 0; list-style: none; border-top: 2px solid var(--ink); }
-.items li { border-bottom: 1px solid var(--rule); }
-.items a { display: grid; grid-template-columns: 9rem 1fr; gap: 0 var(--space-3); padding: 0.55rem 0.2rem; color: var(--ink); text-decoration: none; }
-.items a:hover { background: var(--paper-shade); }
-.code { font-weight: 700; white-space: nowrap; }
-.title { overflow-wrap: anywhere; }
-.meta { grid-column: 2; font-size: 0.8rem; color: var(--ink-soft); }
-.state { color: var(--ink-soft); }
-.all { margin: 0; }
-@media (max-width: 34rem) {
-  .items a { grid-template-columns: 1fr; }
-  .meta { grid-column: 1; }
+.feed h2 {
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--ink-900);
+}
+.state {
+  color: var(--text-muted);
+}
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.items li {
+  border-bottom: 1px dashed var(--border-strong);
+}
+.item {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr auto;
+  grid-template-areas:
+    'code title level'
+    'code meta level';
+  gap: 0 var(--space-4);
+  align-items: baseline;
+  padding: var(--space-3) var(--space-2);
+  color: var(--text);
+  text-decoration: none;
+}
+.item:hover {
+  background: var(--surface-strong);
+}
+.item__code {
+  grid-area: code;
+  font-family: var(--font-doc);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.item__title {
+  grid-area: title;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 0.2em;
+}
+.item:hover .item__title {
+  text-decoration-color: currentColor;
+}
+.item__meta {
+  grid-area: meta;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.item__level {
+  grid-area: level;
+  align-self: center;
+}
+.all {
+  margin: var(--space-3) 0 0;
+}
+@media (max-width: 36rem) {
+  .item {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'code level'
+      'title title'
+      'meta meta';
+  }
 }
 </style>

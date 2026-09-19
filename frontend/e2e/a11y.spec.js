@@ -38,7 +38,7 @@ test('гость: окно входа', async ({ page }) => {
 test('гость: окно регистрации', async ({ page }) => {
   await page.goto('/')
   await openAuth(page, 'Регистрация')
-  await expect(page.locator('.captcha-question')).not.toHaveText(/Загрузка/)
+  await expect(page.locator('.captcha__question')).not.toHaveText(/Загрузка/)
   await expectAccessible(page, 'окно регистрации')
 })
 
@@ -50,7 +50,7 @@ test('гость: формы с показанными ошибками', async 
   await expectAccessible(page, 'вход с ошибками')
 
   await page.getByRole('tab', { name: 'Регистрация' }).click()
-  await expect(page.locator('.captcha-question')).not.toHaveText(/Загрузка/)
+  await expect(page.locator('.captcha__question')).not.toHaveText(/Загрузка/)
   await page.getByRole('button', { name: 'Оформить допуск' }).click()
   await expect(page.getByText('Логин: от 3 до 24 символов')).toBeVisible()
   await expectAccessible(page, 'регистрация с ошибками')
@@ -74,8 +74,8 @@ test('вошедший: резервный код, личное дело, фор
   test.skip(!canWrite, 'создаёт пользователя')
   await page.goto('/')
   await openAuth(page, 'Регистрация')
-  await expect(page.locator('.captcha-question')).not.toHaveText(/Загрузка/)
-  const q = await page.locator('.captcha-question').innerText()
+  await expect(page.locator('.captcha__question')).not.toHaveText(/Загрузка/)
+  const q = await page.locator('.captcha__question').innerText()
   const answers = [
     [/В каком году основан/, '1974'], [/Какой гриф/, 'Форма КУПОЛ-1'], [/Как сокращённо/, 'ЦАК'],
     [/пропущенное слово/, 'объектами'], [/С какого слова начинается/, 'Комитет'], [/Сколько букв/, '5'],
@@ -130,7 +130,7 @@ test.describe('документы и каталог', () => {
 
   test('документ гостю: все типы блоков, плашки, зачернённые фрагменты', async ({ page }) => {
     await page.goto('/doc/O-9001')
-    await expect(page.locator('article.dossier .plate').first()).toBeVisible()
+    await expect(page.locator('article.paper .plate').first()).toBeVisible()
     await expectAccessible(page, 'документ О-9001 (гость)')
 
     await page.goto('/doc/PRIKAZ-1901-91')
@@ -149,7 +149,7 @@ test.describe('документы и каталог', () => {
     await signUp(context, { level: 1, directorate: true })
     const page = await context.newPage()
     await page.goto('/doc/O-9001')
-    await expect(page.locator('article.dossier')).toBeVisible()
+    await expect(page.locator('article.paper')).toBeVisible()
     await expectAccessible(page, 'документ О-9001 (Директорат)')
     await page.goto('/catalog?type=object&from=1979&to=1990')
     await expect(page.getByTestId('registry')).toBeVisible()

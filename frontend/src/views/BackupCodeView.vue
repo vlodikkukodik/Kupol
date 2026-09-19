@@ -1,7 +1,11 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth.js'
+import UiAlert from '@/ui/UiAlert.vue'
+import UiButton from '@/ui/UiButton.vue'
+import UiCheckbox from '@/ui/UiCheckbox.vue'
+import UiSheet from '@/ui/UiSheet.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -39,11 +43,11 @@ function download() {
 function proceed() {
   auth.acknowledgeBackupCode()
   code.value = ''
-  router.push({ name: 'file' })
+  void router.push({ name: 'file' })
 }
 
 // Пока код не подтверждён, случайное закрытие вкладки его безвозвратно потеряет — предупреждаем.
-function warnBeforeLeaving(event) {
+function warnBeforeLeaving(event: BeforeUnloadEvent) {
   if (!saved.value) {
     event.preventDefault()
     event.returnValue = ''
@@ -54,47 +58,64 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeLeavi
 </script>
 
 <template>
-  <article class="backup">
+  <UiSheet as="article" class="backup">
     <h1>Резервный код</h1>
     <p>
       Это единственный способ вернуть доступ, если вы забудете пароль: почты в архиве нет. Код показывается
       <strong>один раз</strong>. Сохраните его сейчас и храните отдельно от пароля.
     </p>
 
-    <p id="backup-code-label" class="code-label">Ваш резервный код</p>
+    <p id="backup-code-label" class="label">Ваш резервный код</p>
     <p class="code" aria-labelledby="backup-code-label" data-testid="backup-code">{{ code }}</p>
 
     <div class="actions">
-      <button type="button" class="btn" @click="copy">Скопировать</button>
-      <button type="button" class="btn" @click="download">Скачать файлом</button>
+      <UiButton icon="cards" @click="copy">Скопировать</UiButton>
+      <UiButton icon="file" @click="download">Скачать файлом</UiButton>
     </div>
-    <p v-if="copied" class="copied" role="status">{{ copied }}</p>
+    <UiAlert v-if="copied" tone="info" class="copied">{{ copied }}</UiAlert>
 
-    <div class="check">
-      <input id="backup-saved" v-model="saved" type="checkbox">
-      <label for="backup-saved">Я сохранил(а) код в надёжном месте</label>
+    <div class="confirm">
+      <UiCheckbox v-model="saved" label="Я сохранил(а) код в надёжном месте" />
     </div>
-    <button type="button" class="btn" :disabled="!saved" @click="proceed">Продолжить</button>
-  </article>
+    <UiButton variant="primary" :disabled="!saved" icon-end="check" @click="proceed">Продолжить</UiButton>
+  </UiSheet>
 </template>
 
 <style scoped>
-.code-label { margin: var(--space-4) 0 var(--space-1); font-family: var(--font-head); letter-spacing: 0.1em; text-transform: uppercase; }
+.backup {
+  max-width: 40rem;
+  margin-top: var(--space-4);
+}
+.label {
+  margin: var(--space-5) 0 var(--space-1);
+  font-family: var(--font-head);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
 .code {
-  margin: 0 0 var(--space-3);
-  padding: var(--space-3);
-  border: 2px dashed var(--stamp-red);
-  background: var(--paper-shade);
-  color: var(--stamp-red);
-  font-size: clamp(1.1rem, 4.2vw, 1.6rem);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4);
+  border: 2px dashed var(--ink-900);
+  border-radius: var(--radius-2);
+  background: var(--surface-sunken);
+  font-family: var(--font-doc);
+  font-size: var(--text-xl);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   overflow-wrap: anywhere;
   user-select: all;
 }
-.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
-.copied { margin: 0 0 var(--space-3); font-size: 0.9rem; }
-.check { display: flex; gap: var(--space-2); align-items: center; margin: var(--space-4) 0 var(--space-3); }
-.check input { width: 1.2rem; height: 1.2rem; accent-color: var(--stamp-red); }
-.check label { cursor: pointer; }
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.copied {
+  margin-bottom: var(--space-3);
+}
+.confirm {
+  margin: var(--space-4) 0;
+}
 </style>

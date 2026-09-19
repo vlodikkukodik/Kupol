@@ -1,51 +1,67 @@
-<script setup>
-import FormField from '../FormField.vue'
-import { LEVEL_NAMES } from '../../lib/levels.js'
+<script setup lang="ts">
+import { computed } from 'vue'
+import UiField from '@/ui/UiField.vue'
+import UiInput from '@/ui/UiInput.vue'
+import UiSelect from '@/ui/UiSelect.vue'
+import type { Meta } from '@/api/generated/documents'
+import { LEVEL_NAMES } from '@/lib/levels'
+import type { DocForm } from '@/lib/teamdoc'
 
 // Свойства документа: название, допуск, режим прямой ссылки, гриф, дата составления, свойства Объекта.
-// Поля — строки (как в полях ввода); перевод в содержимое для сервера — lib/teamdoc.js.
-const form = defineModel({ type: Object, required: true })
-defineProps({
-  meta: { type: Object, required: true }, // справочник /team/document-types
-  errors: { type: Object, default: () => ({}) }, // путь замечания -> текст
-  disabled: { type: Boolean, default: false },
-})
+// Поля — строки (как в полях ввода); перевод в содержимое для сервера — lib/teamdoc.ts.
+const form = defineModel<DocForm>({ required: true })
+const props = withDefaults(
+  defineProps<{
+    /** Справочник /team/document-types */
+    meta: Meta
+    /** путь замечания → текст */
+    errors?: Record<string, string>
+    disabled?: boolean
+  }>(),
+  { errors: () => ({}), disabled: false },
+)
 
-const levelLabel = (n) => (n === 0 ? '0 — открыт всем' : n === 7 ? '7 — только Директорат' : `${n} — ${LEVEL_NAMES[n]}`)
+const levelLabel = (n: number) => (n === 0 ? '0 — открыт всем' : n === 7 ? '7 — только Директорат' : `${n} — ${LEVEL_NAMES[n]}`)
+const levelOptions = computed(() => Array.from({ length: props.meta.max_level + 1 }, (_, n) => ({ value: String(n), label: levelLabel(n) })))
+const directOptions = computed(() => props.meta.direct_links.map((o) => ({ value: o.id, label: o.name })))
+const classOptions = [1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: String(n) }))
+const categoryOptions = computed(() => props.meta.categories.map((o) => ({ value: o.id, label: o.name })))
+const containmentOptions = computed(() => props.meta.containment.map((o) => ({ value: o.id, label: o.name })))
 </script>
 
 <template>
   <fieldset class="props" :disabled="disabled">
     <legend class="visually-hidden">Свойства документа</legend>
 
-    <FormField id="dp-title" v-model="form.title" label="Название" :error="errors.title" :maxlength="300" :disabled="disabled" />
+    <UiField id="dp-title" label="Название" :error="errors.title">
+      <UiInput v-model="form.title" :maxlength="300" :disabled="disabled" />
+    </UiField>
 
     <div class="row">
-      <div class="field" :class="{ 'field--invalid': errors.level }">
-        <label for="dp-level">Допуск к документу</label>
-        <select id="dp-level" v-model="form.level" :aria-invalid="errors.level ? 'true' : undefined" :aria-describedby="errors.level ? 'dp-level-error' : 'dp-level-hint'">
-          <option v-for="n in meta.max_level + 1" :key="n - 1" :value="String(n - 1)">{{ levelLabel(n - 1) }}</option>
-        </select>
-        <p id="dp-level-hint" class="hint">Читатель ниже этого уровня не видит документ в каталоге.</p>
-        <p v-if="errors.level" id="dp-level-error" class="error">{{ errors.level }}</p>
-      </div>
-      <div class="field" :class="{ 'field--invalid': errors.direct_link }">
-        <label for="dp-direct">По прямой ссылке без допуска</label>
-        <select id="dp-direct" v-model="form.direct_link" :aria-invalid="errors.direct_link ? 'true' : undefined">
-          <option v-for="o in meta.direct_links" :key="o.id" :value="o.id">{{ o.name }}</option>
-        </select>
-        <p v-if="errors.direct_link" class="error">{{ errors.direct_link }}</p>
-      </div>
+      <UiField id="dp-level" label="Допуск к документу" hint="Читатель ниже этого уровня не видит документ в каталоге." :error="errors.level">
+        <UiSelect v-model="form.level" :options="levelOptions" :disabled="disabled" />
+      </UiField>
+      <UiField id="dp-direct" label="По прямой ссылке без допуска" :error="errors.direct_link">
+        <UiSelect v-model="form.direct_link" :options="directOptions" :disabled="disabled" />
+      </UiField>
     </div>
 
-    <FormField id="dp-grif" v-model="form.grif" label="Гриф" :hint="`По умолчанию — «${meta.default_grif}».`" :error="errors.grif" :maxlength="100" :disabled="disabled" />
+    <UiField id="dp-grif" label="Гриф" :hint="`По умолчанию — «${meta.default_grif}».`" :error="errors.grif">
+      <UiInput v-model="form.grif" :maxlength="100" :disabled="disabled" />
+    </UiField>
 
     <fieldset class="group">
       <legend>Дата составления (внутри вселенной)</legend>
       <div class="date-row">
-        <FormField id="dp-year" v-model="form.year" label="Год" inputmode="numeric" :maxlength="4" :error="errors['composed.year']" :disabled="disabled" />
-        <FormField id="dp-month" v-model="form.month" label="Месяц" inputmode="numeric" :maxlength="2" :error="errors['composed.month']" :disabled="disabled" />
-        <FormField id="dp-day" v-model="form.day" label="День" inputmode="numeric" :maxlength="2" :error="errors['composed.day']" :disabled="disabled" />
+        <UiField id="dp-year" label="Год" :error="errors['composed.year']">
+          <UiInput v-model="form.year" inputmode="numeric" :maxlength="4" :disabled="disabled" />
+        </UiField>
+        <UiField id="dp-month" label="Месяц" :error="errors['composed.month']">
+          <UiInput v-model="form.month" inputmode="numeric" :maxlength="2" :disabled="disabled" />
+        </UiField>
+        <UiField id="dp-day" label="День" :error="errors['composed.day']">
+          <UiInput v-model="form.day" inputmode="numeric" :maxlength="2" :disabled="disabled" />
+        </UiField>
       </div>
       <p v-if="errors.composed" class="error">{{ errors.composed }}</p>
     </fieldset>
@@ -54,67 +70,66 @@ const levelLabel = (n) => (n === 0 ? '0 — открыт всем' : n === 7 ? '
       <legend>Свойства Объекта</legend>
       <p v-if="errors.props" class="error">{{ errors.props }}</p>
       <div class="row">
-        <div class="field" :class="{ 'field--invalid': errors['props.danger_class'] }">
-          <label for="dp-class">Класс опасности</label>
-          <select id="dp-class" v-model="form.props.danger_class" :aria-invalid="errors['props.danger_class'] ? 'true' : undefined">
-            <option value="">не указан</option>
-            <option v-for="n in 5" :key="n" :value="String(n)">{{ n }}</option>
-          </select>
-          <p v-if="errors['props.danger_class']" class="error">{{ errors['props.danger_class'] }}</p>
-        </div>
-        <FormField id="dp-deviation" v-model="form.props.deviation_points" label="Пункты отклонения" inputmode="numeric" :maxlength="9" :error="errors['props.deviation_points']" :disabled="disabled" />
+        <UiField id="dp-class" label="Класс опасности" :error="errors['props.danger_class']">
+          <UiSelect v-model="form.props.danger_class" :options="classOptions" placeholder="не указан" :disabled="disabled" />
+        </UiField>
+        <UiField id="dp-deviation" label="Пункты отклонения" :error="errors['props.deviation_points']">
+          <UiInput v-model="form.props.deviation_points" inputmode="numeric" :maxlength="9" :disabled="disabled" />
+        </UiField>
       </div>
       <div class="row">
-        <div class="field" :class="{ 'field--invalid': errors['props.category'] }">
-          <label for="dp-category">Категория</label>
-          <select id="dp-category" v-model="form.props.category" :aria-invalid="errors['props.category'] ? 'true' : undefined">
-            <option value="">не указана</option>
-            <option v-for="o in meta.categories" :key="o.id" :value="o.id">{{ o.name }}</option>
-          </select>
-          <p v-if="errors['props.category']" class="error">{{ errors['props.category'] }}</p>
-        </div>
-        <div class="field" :class="{ 'field--invalid': errors['props.containment_status'] }">
-          <label for="dp-containment">Статус содержания</label>
-          <select id="dp-containment" v-model="form.props.containment_status" :aria-invalid="errors['props.containment_status'] ? 'true' : undefined">
-            <option value="">не указан</option>
-            <option v-for="o in meta.containment" :key="o.id" :value="o.id">{{ o.name }}</option>
-          </select>
-          <p v-if="errors['props.containment_status']" class="error">{{ errors['props.containment_status'] }}</p>
-        </div>
+        <UiField id="dp-category" label="Категория" :error="errors['props.category']">
+          <UiSelect v-model="form.props.category" :options="categoryOptions" placeholder="не указана" :disabled="disabled" />
+        </UiField>
+        <UiField id="dp-containment" label="Статус содержания" :error="errors['props.containment_status']">
+          <UiSelect v-model="form.props.containment_status" :options="containmentOptions" placeholder="не указан" :disabled="disabled" />
+        </UiField>
       </div>
-      <FormField id="dp-dept" v-model="form.props.department" label="Отдел" hint="Шифр отдела или филиала: ОТД-2, ОБ-14." :error="errors['props.department']" :maxlength="20" :disabled="disabled" />
-      <FormField id="dp-place" v-model="form.props.discovery_place" label="Место обнаружения" :error="errors['props.discovery_place']" :maxlength="500" :disabled="disabled" />
+      <UiField id="dp-dept" label="Отдел" hint="Шифр отдела или филиала: ОТД-2, ОБ-14." :error="errors['props.department']">
+        <UiInput v-model="form.props.department" :maxlength="20" :disabled="disabled" />
+      </UiField>
+      <UiField id="dp-place" label="Место обнаружения" :error="errors['props.discovery_place']">
+        <UiInput v-model="form.props.discovery_place" :maxlength="500" :disabled="disabled" />
+      </UiField>
     </fieldset>
   </fieldset>
 </template>
 
 <style scoped>
-.props { margin: 0; padding: 0; border: 0; min-width: 0; }
-.group { margin: 0 0 var(--space-3); padding: var(--space-3); border: 1px solid var(--rule); min-width: 0; }
-.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0 var(--space-3); }
-.date-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: var(--space-3); }
-.date-row :deep(.field) { margin-bottom: 0; }
-.field { margin-bottom: var(--space-3); }
-label, legend {
-  display: block;
-  margin-bottom: var(--space-1);
+.props {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0 var(--space-4);
+}
+.group {
+  min-width: 0;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-2);
+}
+.group legend {
+  padding: 0 var(--space-2);
   font-family: var(--font-head);
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
-select {
-  width: 100%;
-  min-width: 0;
-  padding: 0.55rem 0.7rem;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  background: #f4eedc;
-  color: var(--ink);
-  font: inherit;
+.date-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 var(--space-3);
 }
-select:disabled { opacity: 0.7; }
-.field--invalid select { border-color: var(--stamp-red); }
-.hint { margin: var(--space-1) 0 0; font-size: 0.85rem; color: var(--ink-soft); }
-.error { margin: var(--space-1) 0 0; color: var(--stamp-red); font-weight: 700; }
+.error {
+  margin: 0 0 var(--space-2);
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
 </style>

@@ -27,7 +27,7 @@ test('прод: регистрация, Secure-кука, вход пережив
   try {
     await page.goto('/')
     await openAuth(page, 'Регистрация')
-    const question = page.locator('.captcha-question')
+    const question = page.locator('.captcha__question')
     await expect(question).not.toHaveText(/Загрузка|недоступен/)
     const text = await question.innerText()
     await page.getByLabel('Логин', { exact: true }).fill(login)

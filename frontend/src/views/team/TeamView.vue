@@ -1,37 +1,52 @@
-<script setup>
+<script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { useAuthStore } from '../../stores/auth.js'
+import UiPageHeader from '@/ui/UiPageHeader.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const route = useRoute()
 </script>
 
 <template>
-  <article class="team">
-    <h1>Панель команды</h1>
+  <div class="team">
+    <UiPageHeader title="Панель команды" kicker="Рабочее место сотрудника архива" />
     <nav class="sections" aria-label="Разделы панели команды">
-      <RouterLink :to="{ name: 'team' }" exact-active-class="" :aria-current="route.name === 'team' ? 'page' : undefined">Роли и права</RouterLink>
-      <RouterLink :to="{ name: 'team-documents' }" :aria-current="String(route.name).startsWith('team-document') ? 'page' : undefined">Документы</RouterLink>
-      <RouterLink v-if="auth.can('manage_team')" :to="{ name: 'team-members' }">Команда</RouterLink>
+      <!-- Раздел помечается вручную: /team — префикс всех адресов панели, и роутер отметил бы «Роли и права» всегда -->
+      <RouterLink :to="{ name: 'team' }" active-class="" exact-active-class="" :aria-current="route.name === 'team' ? 'page' : undefined">Роли и права</RouterLink>
+      <RouterLink :to="{ name: 'team-documents' }" active-class="" exact-active-class="" :aria-current="String(route.name).startsWith('team-document') ? 'page' : undefined">Документы</RouterLink>
+      <RouterLink v-if="auth.can('manage_team')" :to="{ name: 'team-members' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-members' ? 'page' : undefined">Команда</RouterLink>
     </nav>
     <RouterView />
-  </article>
+  </div>
 </template>
 
 <style scoped>
-.sections { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); border-bottom: 2px solid var(--ink); }
+.sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+}
 .sections a {
-  margin-bottom: -2px;
-  padding: 0.5rem 1.2rem;
-  border: 2px solid transparent;
-  border-bottom: 0;
-  color: var(--ink);
+  min-height: var(--control-h);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+  border: 1.5px solid var(--line-on-bg);
+  border-radius: var(--radius-2);
+  color: var(--on-bg);
   font-family: var(--font-head);
-  font-size: 1.05rem;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--tracking-caps);
   text-decoration: none;
   text-transform: uppercase;
 }
-.sections a:hover { background: rgb(0 0 0 / 0.06); }
-.sections a[aria-current='page'] { border-color: var(--ink); background: var(--paper); font-weight: 700; }
+.sections a:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+.sections a[aria-current='page'] {
+  border-color: var(--paper-100);
+  background: var(--paper-100);
+  color: var(--ink-900);
+  font-weight: 700;
+}
 </style>

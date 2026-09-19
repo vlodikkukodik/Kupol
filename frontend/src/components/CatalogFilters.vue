@@ -1,14 +1,22 @@
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CATEGORY_NAMES, CONTAINMENT_NAMES, hasFilters } from '../lib/catalog.js'
+import type { LocationQuery } from 'vue-router'
+import UiButton from '@/ui/UiButton.vue'
+import UiField from '@/ui/UiField.vue'
+import UiInput from '@/ui/UiInput.vue'
+import UiSelect from '@/ui/UiSelect.vue'
+import type { Summary } from '@/api/generated/documents'
+import { CATEGORY_NAMES, CONTAINMENT_NAMES, hasFilters } from '@/lib/catalog'
 
-const props = defineProps({
-  query: { type: Object, required: true }, // query адреса
-  summary: { type: Object, default: null }, // /documents/summary: какие типы, отделы и классы есть
-})
-const emit = defineEmits(['change', 'reset'])
+const props = defineProps<{
+  /** query адреса */
+  query: LocationQuery
+  /** /documents/summary: какие типы, отделы и классы есть */
+  summary?: Summary | null
+}>()
+const emit = defineEmits<{ change: [changes: Record<string, string>]; reset: [] }>()
 
-const one = (v) => (Array.isArray(v) ? v[0] : v) || ''
+const one = (v: LocationQuery[string] | undefined): string => (Array.isArray(v) ? (v[0] ?? '') : (v ?? '')) || ''
 const active = computed(() => hasFilters(props.query))
 
 // Годы держим в локальных полях: Vue при каждой перерисовке заново выставляет `value` из шаблона, и, пока человек
@@ -19,58 +27,44 @@ const to = ref(one(props.query.to))
 watch(() => one(props.query.from), (v) => (from.value = v))
 watch(() => one(props.query.to), (v) => (to.value = v))
 
-function change(name, event) {
-  emit('change', { [name]: event.target.value })
-}
+const typeOptions = computed(() => (props.summary?.types ?? []).map((t) => ({ value: t.type, label: `${t.name} (${t.count})` })))
+const classOptions = computed(() => (props.summary?.classes ?? []).map((c) => ({ value: String(c.class), label: `${c.class} (${c.count})` })))
+const deptOptions = computed(() => (props.summary?.departments ?? []).map((d) => ({ value: d.code, label: `${d.code} (${d.count})` })))
+const categoryOptions = Object.entries(CATEGORY_NAMES).map(([value, label]) => ({ value, label }))
+const containmentOptions = Object.entries(CONTAINMENT_NAMES).map(([value, label]) => ({ value, label }))
 </script>
 
 <template>
   <form class="filters" aria-label="Фильтры каталога" @submit.prevent>
-    <div class="field">
-      <label for="f-type">Тип</label>
-      <select id="f-type" :value="one(query.type)" @change="change('type', $event)">
-        <option value="">Все типы</option>
-        <option v-for="t in summary?.types ?? []" :key="t.type" :value="t.type">{{ t.name }} ({{ t.count }})</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="f-class">Класс опасности</label>
-      <select id="f-class" :value="one(query.class)" @change="change('class', $event)">
-        <option value="">Любой</option>
-        <option v-for="c in summary?.classes ?? []" :key="c.class" :value="c.class">{{ c.class }} ({{ c.count }})</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="f-dept">Отдел</label>
-      <select id="f-dept" :value="one(query.dept)" @change="change('dept', $event)">
-        <option value="">Любой</option>
-        <option v-for="d in summary?.departments ?? []" :key="d.code" :value="d.code">{{ d.code }} ({{ d.count }})</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="f-category">Категория</label>
-      <select id="f-category" :value="one(query.category)" @change="change('category', $event)">
-        <option value="">Любая</option>
-        <option v-for="(name, key) in CATEGORY_NAMES" :key="key" :value="key">{{ name }}</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="f-containment">Статус содержания</label>
-      <select id="f-containment" :value="one(query.containment)" @change="change('containment', $event)">
-        <option value="">Любой</option>
-        <option v-for="(name, key) in CONTAINMENT_NAMES" :key="key" :value="key">{{ name }}</option>
-      </select>
-    </div>
-    <div class="field field--year">
-      <label for="f-from">Период, год</label>
-      <div class="range">
-        <input id="f-from" v-model="from" type="number" min="1900" max="2099" inputmode="numeric" placeholder="с" aria-label="Год не ранее" @change="change('from', $event)">
+    <UiField id="f-type" label="Тип">
+      <UiSelect :model-value="one(query.type)" :options="typeOptions" placeholder="Все типы" @update:model-value="emit('change', { type: $event })" />
+    </UiField>
+    <UiField id="f-class" label="Класс опасности">
+      <UiSelect :model-value="one(query.class)" :options="classOptions" placeholder="Любой" @update:model-value="emit('change', { class: $event })" />
+    </UiField>
+    <UiField id="f-dept" label="Отдел">
+      <UiSelect :model-value="one(query.dept)" :options="deptOptions" placeholder="Любой" @update:model-value="emit('change', { dept: $event })" />
+    </UiField>
+    <UiField id="f-category" label="Категория">
+      <UiSelect :model-value="one(query.category)" :options="categoryOptions" placeholder="Любая" @update:model-value="emit('change', { category: $event })" />
+    </UiField>
+    <UiField id="f-containment" label="Статус содержания">
+      <UiSelect :model-value="one(query.containment)" :options="containmentOptions" placeholder="Любой" @update:model-value="emit('change', { containment: $event })" />
+    </UiField>
+    <fieldset class="years">
+      <legend>Период, год</legend>
+      <div class="years__row">
+        <UiField id="f-from" label="Год не ранее" hide-label>
+          <UiInput v-model="from" type="number" :min="1900" :max="2099" inputmode="numeric" placeholder="с" @change="emit('change', { from })" />
+        </UiField>
         <span aria-hidden="true">—</span>
-        <input id="f-to" v-model="to" type="number" min="1900" max="2099" inputmode="numeric" placeholder="по" aria-label="Год не позднее" @change="change('to', $event)">
+        <UiField id="f-to" label="Год не позднее" hide-label>
+          <UiInput v-model="to" type="number" :min="1900" :max="2099" inputmode="numeric" placeholder="по" @change="emit('change', { to })" />
+        </UiField>
       </div>
-    </div>
-    <div v-if="active" class="field field--reset">
-      <button type="button" class="form-link" @click="emit('reset')">Сбросить фильтры</button>
+    </fieldset>
+    <div v-if="active" class="reset">
+      <UiButton variant="link" icon="refresh" @click="emit('reset')">Сбросить фильтры</UiButton>
     </div>
   </form>
 </template>
@@ -79,30 +73,37 @@ function change(name, event) {
 .filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3);
-  border: 1px solid var(--ink);
-  background: var(--paper-shade);
+  gap: 0 var(--space-4);
+  align-items: end;
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--ink-900);
 }
-label {
-  display: block;
-  margin-bottom: 0.2rem;
+.years {
+  min-width: 0;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+}
+.years legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
   font-family: var(--font-head);
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
-select, input {
-  width: 100%;
-  min-width: 0;
-  padding: 0.4rem 0.5rem;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  background: #f4eedc;
-  color: var(--ink);
-  font: inherit;
+.years__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
-.range { display: flex; align-items: center; gap: var(--space-2); }
-.field--reset { align-self: end; }
+.years__row :deep(.ui-field) {
+  flex: 1;
+  margin-bottom: 0;
+}
+.reset {
+  margin-bottom: var(--space-4);
+}
 </style>

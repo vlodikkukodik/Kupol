@@ -1,28 +1,31 @@
-<script setup>
+<script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
-import { ariaSort, nextSort } from '../lib/catalog.js'
+import type { Item } from '@/api/generated/documents'
+import { ariaSort, nextSort, type SortKey } from '@/lib/catalog'
 
-defineProps({
-  items: { type: Array, required: true },
-  showStatus: { type: Boolean, default: false }, // Директорат видит статус документа
-})
+defineProps<{
+  items: Item[]
+  /** Директорат видит статус документа */
+  showStatus?: boolean
+}>()
 
 const route = useRoute()
 const router = useRouter()
 
 // Неопубликованное видит только Директорат; статус в реестре — словами архива.
-const STATUS_NAMES = { draft: 'черновик', review: 'на проверке', archived: 'в архиве' }
+const STATUS_NAMES: Record<string, string> = { draft: 'черновик', review: 'на проверке', archived: 'в архиве' }
 
-const COLUMNS = [
+const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'code', label: '№' },
   { key: 'title', label: 'Название' },
   { key: 'class', label: 'Класс' },
   { key: 'year', label: 'Год' },
   { key: 'deviation', label: 'П.о.' },
 ]
+const ARROWS = { ascending: '↑', descending: '↓', none: '' }
 
-function sortBy(key) {
-  router.push({ query: nextSort(route.query, key) })
+function sortBy(key: SortKey) {
+  void router.push({ query: nextSort(route.query, key) })
 }
 </script>
 
@@ -35,7 +38,7 @@ function sortBy(key) {
           <th v-for="c in COLUMNS" :key="c.key" scope="col" :aria-sort="ariaSort(route.query, c.key)">
             <button type="button" class="sort" @click="sortBy(c.key)">
               {{ c.label }}
-              <span class="arrow" aria-hidden="true">{{ { ascending: '↑', descending: '↓', none: '' }[ariaSort(route.query, c.key)] }}</span>
+              <span class="arrow" aria-hidden="true">{{ ARROWS[ariaSort(route.query, c.key)] }}</span>
             </button>
           </th>
         </tr>
@@ -59,27 +62,74 @@ function sortBy(key) {
 </template>
 
 <style scoped>
-.wrap { overflow-x: auto; }
-.registry { width: 100%; border-collapse: collapse; }
-th, td { padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
-thead th { border-bottom: 2px solid var(--ink); background: var(--paper-shade); white-space: nowrap; }
-.sort {
+.wrap {
+  overflow-x: auto;
+}
+.registry {
+  width: 100%;
+  border-collapse: collapse;
+}
+.registry th {
   padding: 0;
+  border-bottom: 2px solid var(--ink-900);
+  text-align: left;
+}
+.sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0 var(--space-3);
   border: 0;
-  background: none;
-  color: var(--ink);
+  background: transparent;
   font-family: var(--font-head);
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   cursor: pointer;
 }
-.sort:hover { text-decoration: underline; }
-.arrow { display: inline-block; min-width: 1ch; }
-.code { white-space: nowrap; font-weight: 700; }
-.title { min-width: 12rem; overflow-wrap: anywhere; }
-.sub { display: block; font-size: 0.8rem; color: var(--ink-soft); }
-.num { text-align: right; white-space: nowrap; }
-td a { color: var(--ink); }
-td a:hover { color: var(--stamp-red); }
+.sort:hover {
+  background: var(--surface-strong);
+}
+th[aria-sort='ascending'] .sort,
+th[aria-sort='descending'] .sort {
+  background: var(--surface-strong);
+  font-weight: 700;
+}
+.arrow {
+  min-width: 1ch;
+}
+.registry td {
+  padding: var(--space-3);
+  border-bottom: 1px dashed var(--border-strong);
+  vertical-align: top;
+}
+.registry tbody tr:hover {
+  background: rgb(255 255 255 / 0.4);
+}
+.code {
+  white-space: nowrap;
+  font-family: var(--font-doc);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.title a {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+.sub {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.num {
+  font-family: var(--font-doc);
+  text-align: right;
+  white-space: nowrap;
+}
+.registry th:nth-child(n + 3) .sort {
+  justify-content: flex-end;
+}
 </style>

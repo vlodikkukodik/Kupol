@@ -1,28 +1,24 @@
-<script setup>
-import Stamp from '../components/Stamp.vue'
+<script setup lang="ts">
+import UiButton from '@/ui/UiButton.vue'
+import UiNotice from '@/ui/UiNotice.vue'
 
-defineProps({
-  requestId: { type: String, default: '' },
-  retrying: { type: Boolean, default: false },
-})
-defineEmits(['retry'])
+defineProps<{ requestId?: string; retrying?: boolean }>()
+defineEmits<{ retry: [] }>()
 </script>
 
 <template>
-  <article class="notice" role="alert">
-    <Stamp text="Сбой" />
-    <h1>Сбой архива</h1>
+  <UiNotice stamp="Сбой" title="Сбой архива" role="alert">
     <p>Архив временно недоступен. Повторите попытку позже.</p>
-    <p>
-      <button type="button" class="btn" :disabled="retrying" @click="$emit('retry')">
-        {{ retrying ? 'Проверка…' : 'Повторить' }}
-      </button>
-    </p>
-    <p v-if="requestId" class="ref">Номер обращения: {{ requestId }}</p>
-  </article>
+    <p v-if="requestId" class="ref">Номер обращения: <code>{{ requestId }}</code></p>
+    <template #actions>
+      <UiButton variant="primary" :loading="retrying" icon="refresh" @click="$emit('retry')">{{ retrying ? 'Проверка…' : 'Повторить' }}</UiButton>
+    </template>
+  </UiNotice>
 </template>
 
 <style scoped>
-.notice h1 { margin-top: var(--space-4); }
-.ref { font-size: 0.85rem; color: var(--ink-soft); }
+.ref {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
 </style>

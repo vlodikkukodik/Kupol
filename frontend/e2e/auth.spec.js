@@ -22,7 +22,7 @@ const uniq = () => `e2e${Math.random().toString(36).slice(2, 10)}`
 const PASSWORD = 'секретный пароль 1'
 
 async function answerCaptcha(page) {
-  const question = page.locator('.captcha-question')
+  const question = page.locator('.captcha__question')
   await expect(question).not.toHaveText(/Загрузка|недоступен/)
   const text = await question.innerText()
   const hit = CAPTCHA_ANSWERS.find(([re]) => re.test(text))
@@ -143,7 +143,7 @@ test('клиентская проверка формы регистрации: �
   await page.goto('/')
   await openAuth(page, 'Регистрация')
   const submit = page.getByRole('button', { name: 'Оформить допуск' })
-  await expect(page.locator('.captcha-question')).not.toHaveText(/Загрузка/)
+  await expect(page.locator('.captcha__question')).not.toHaveText(/Загрузка/)
 
   // всё пусто
   await submit.click()
@@ -201,7 +201,7 @@ test('занятый логин (без учёта регистра) — оши�
   await other.getByLabel('Пароль', { exact: true }).fill(PASSWORD)
   await other.getByLabel('Пароль ещё раз').fill(PASSWORD)
   await answerCaptcha(other)
-  const before = await other.locator('.captcha-question').innerText()
+  const before = await other.locator('.captcha__question').innerText()
   await other.getByRole('button', { name: 'Оформить допуск' }).click()
 
   const loginInput = other.getByLabel('Логин', { exact: true })
@@ -450,7 +450,7 @@ test('телефон 375 px: формы, экран кода и личное д�
   await page.screenshot({ path: 'e2e/results/menu-mobile.png' })
   await page.getByRole('button', { name: 'Войти или зарегистрироваться' }).click()
   await page.getByRole('tab', { name: 'Регистрация' }).click()
-  await expect(page.locator('.captcha-question')).not.toHaveText(/Загрузка/)
+  await expect(page.locator('.captcha__question')).not.toHaveText(/Загрузка/)
   expect(await overflow()).toBeLessThanOrEqual(0)
   await page.screenshot({ path: 'e2e/results/auth-register-mobile.png', fullPage: true })
 

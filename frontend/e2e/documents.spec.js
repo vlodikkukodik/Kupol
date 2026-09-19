@@ -24,7 +24,7 @@ const fragmentLevels = [3, 4, 3] // зачернённые фрагменты в
 const plateLevels = [2, 4, 6] // закрытые блоки (два подряд блока уровня 4 сливаются в одну плашку)
 const closedLinkLevels = [2, 5] // ссылки на О-9002 (допуск 2) и О-9003 (допуск 5)
 
-const body = (page) => page.locator('article.dossier')
+const body = (page) => page.locator('article.paper')
 
 async function openDossier(page, ref = 'O-9001') {
   await page.goto(`/doc/${ref}`)

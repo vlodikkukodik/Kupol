@@ -1,97 +1,204 @@
-*, *::before, *::after { box-sizing: border-box; }
+/* Базовые стили: сброс, типографика, доступность, общие мелочи. Значения — только из tokens.css. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
 html {
-  background: var(--desk);
-  color-scheme: light;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  background: var(--bg);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
   min-height: 100dvh;
+  color: var(--on-bg);
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
   background:
-    radial-gradient(ellipse at 50% 0%, rgb(255 255 255 / 0.06), transparent 60%),
-    var(--desk);
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.6;
+    radial-gradient(120% 70% at 50% -10%, rgb(255 244 214 / 0.09), transparent 60%),
+    var(--texture-desk),
+    var(--bg);
+  background-attachment: fixed;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 {
+#app {
+  min-height: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 var(--space-3);
   font-family: var(--font-head);
   font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: 0.03em;
+  text-wrap: balance;
+}
+h1 {
+  font-size: clamp(var(--text-2xl), 5vw, var(--text-4xl));
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+h2 {
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+h3 {
+  font-size: var(--text-lg);
+  font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  line-height: 1.15;
-  margin: 0 0 var(--space-3);
 }
-h1 { font-size: clamp(2rem, 6vw, 3.25rem); }
-h2 { font-size: 1.35rem; }
+h4 {
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+}
 
-p { margin: 0 0 var(--space-3); }
+p {
+  margin: 0 0 var(--space-4);
+  text-wrap: pretty;
+}
 
-a { color: var(--stamp-red); text-underline-offset: 0.2em; }
-a:hover { color: var(--ink); }
+a {
+  color: var(--link);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+a:hover {
+  color: var(--link-hover);
+}
 
-button { font: inherit; }
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
 
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: var(--space-5) 0;
+}
+
+code,
+kbd {
+  font-family: var(--font-doc);
+  font-size: 0.92em;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+::selection {
+  background: var(--amber-300);
+  color: var(--ink-950);
+}
+
+/* ---- доступность ------------------------------------------------------------------------------------- */
+
+/* Двойное кольцо видно и на тёмном столе, и на светлой бумаге. */
 :focus-visible {
-  outline: 3px solid var(--stamp-red);
-  outline-offset: 3px;
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--focus-inner);
+  border-radius: var(--radius-1);
 }
-
-/* Открыто меню или окно входа: страница под ними не прокручивается. */
-html.scroll-locked { overflow: hidden; }
-
-.skip-link {
-  position: absolute;
-  left: var(--space-3);
-  top: -4rem;
-  z-index: 10;
-  padding: var(--space-2) var(--space-3);
-  background: var(--paper);
-  color: var(--ink);
-  border: 2px solid var(--ink);
-  font-family: var(--font-head);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+:focus:not(:focus-visible) {
+  outline: none;
 }
-.skip-link:focus { top: var(--space-3); }
+/* Заголовок, основная область и окна получают фокус только программно (после перехода, при открытии): кольцо на них — шум. */
+h1[tabindex='-1']:focus,
+main[tabindex='-1']:focus,
+[role='dialog'][tabindex='-1']:focus {
+  outline: none;
+  box-shadow: none;
+}
 
 .visually-hidden {
   position: absolute !important;
-  width: 1px; height: 1px;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
+  border: 0;
 }
 
-/* Кнопка-«бланк» */
-.btn {
-  display: inline-block;
-  padding: 0.6rem 1.4rem;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--font-head);
-  font-size: 1rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  text-decoration: none;
-  cursor: pointer;
+.skip-link {
+  position: absolute;
+  top: -4rem;
+  left: var(--space-4);
+  z-index: calc(var(--z-overlay) + 10);
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-50);
+  color: var(--ink-900);
+  font-weight: 700;
+  border-radius: var(--radius-2);
+  transition: top var(--dur-fast) var(--ease);
 }
-.btn:hover { background: var(--ink); color: var(--paper); }
-.btn:disabled { opacity: 0.6; cursor: progress; }
+.skip-link:focus {
+  top: var(--space-4);
+}
+
+html.scroll-locked {
+  overflow: hidden;
+}
+
+/* ---- полезное ------------------------------------------------------------------------------------------ */
+
+.container {
+  width: min(100% - 2 * var(--gutter), var(--page-max));
+  margin-inline: auto;
+}
+
+.caps {
+  font-family: var(--font-head);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.muted {
+  color: var(--text-muted);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ---- печать: страница документа без интерфейса ------------------------------------------------------------ */
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000;
+  }
+  .no-print {
+    display: none !important;
   }
 }

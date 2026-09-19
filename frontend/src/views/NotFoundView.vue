@@ -1,16 +1,14 @@
-<script setup>
-import Stamp from '../components/Stamp.vue'
+<script setup lang="ts">
+import UiButton from '@/ui/UiButton.vue'
+import UiNotice from '@/ui/UiNotice.vue'
 </script>
 
 <template>
-  <article class="notice">
-    <Stamp text="Изъято" />
-    <h1>Дело не найдено</h1>
+  <UiNotice stamp="Изъято" title="Дело не найдено">
     <p>Запрошенный документ отсутствует в архиве или изъят. Проверьте адрес.</p>
-    <p><RouterLink class="btn" to="/">На главную</RouterLink></p>
-  </article>
+    <template #actions>
+      <UiButton to="/" variant="primary" icon="home">На главную</UiButton>
+      <UiButton to="/catalog" icon="book">В каталог</UiButton>
+    </template>
+  </UiNotice>
 </template>
-
-<style scoped>
-.notice h1 { margin-top: var(--space-4); }
-</style>

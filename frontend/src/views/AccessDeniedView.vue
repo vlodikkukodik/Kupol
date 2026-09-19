@@ -1,15 +1,14 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import Stamp from '../components/Stamp.vue'
-import { levelName, requiredAccess } from '../lib/levels.js'
-import { useAuthStore } from '../stores/auth.js'
-import { useUiStore } from '../stores/ui.js'
+import UiButton from '@/ui/UiButton.vue'
+import UiNotice from '@/ui/UiNotice.vue'
+import { levelName, requiredAccess } from '@/lib/levels'
+import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 
-const props = defineProps({
-  /** Нужный уровень допуска из ответа сервера */
-  level: { type: Number, required: true },
-})
+/** Нужный уровень допуска из ответа сервера */
+const props = defineProps<{ level: number }>()
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -18,20 +17,14 @@ const mine = computed(() => (auth.user ? (auth.user.directorate ? 7 : auth.user.
 </script>
 
 <template>
-  <article class="notice" data-testid="access-denied">
-    <Stamp text="Доступ запрещён" />
-    <h1>Доступ запрещён</h1>
+  <UiNotice stamp="Доступ запрещён" title="Доступ запрещён" data-testid="access-denied">
     <p>Для этого дела нужен {{ requiredAccess(props.level) }}.</p>
-    <p v-if="!auth.user">
-      Вы не вошли в архив (уровень 0, {{ levelName(0) }}).
-      <!-- окно входа поверх документа; после входа читатель вернётся на этот же адрес (уровень мог вырасти) -->
-      <button type="button" class="form-link" @click="ui.openAuth({ next: route.fullPath })">Войти или зарегистрироваться</button>
-    </p>
+    <p v-if="!auth.user">Вы не вошли в архив (уровень 0, {{ levelName(0) }}). Возможно, после входа дело откроется.</p>
     <p v-else>Ваш допуск: уровень {{ mine }} ({{ auth.user.directorate ? 'Директорат' : levelName(mine) }}).</p>
-    <p><RouterLink class="btn" to="/catalog">В каталог</RouterLink></p>
-  </article>
+    <template #actions>
+      <!-- окно входа поверх документа; после входа читатель вернётся на этот же адрес (уровень мог вырасти) -->
+      <UiButton v-if="!auth.user" variant="primary" icon="user" @click="ui.openAuth({ next: route.fullPath })">Войти или зарегистрироваться</UiButton>
+      <UiButton to="/catalog" icon="book">В каталог</UiButton>
+    </template>
+  </UiNotice>
 </template>
-
-<style scoped>
-.notice h1 { margin-top: var(--space-4); }
-</style>

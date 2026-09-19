@@ -48,12 +48,12 @@ test.describe('боковое меню', () => {
   test('пока меню открыто, страница под ним недоступна и не прокручивается', async ({ page }) => {
     await page.goto('/catalog')
     await openMenu(page)
-    await expect(page.locator('.page')).toHaveAttribute('inert', '')
+    await expect(page.locator('.app')).toHaveAttribute('inert', '')
     await expect(page.locator('html')).toHaveClass(/scroll-locked/)
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe('hidden')
 
     await page.keyboard.press('Escape')
-    await expect(page.locator('.page')).not.toHaveAttribute('inert', /.*/)
+    await expect(page.locator('.app')).not.toHaveAttribute('inert', /.*/)
     await expect(page.locator('html')).not.toHaveClass(/scroll-locked/)
   })
 
@@ -120,7 +120,7 @@ test.describe('окно входа', () => {
     await expect(modal(page)).toHaveAttribute('aria-modal', 'true')
     await expect(page.getByRole('dialog', { name: 'Допуск в архив' })).toBeVisible()
     await expect(page.getByLabel('Логин', { exact: true })).toBeFocused()
-    await expect(page.locator('.page')).toHaveAttribute('inert', '')
+    await expect(page.locator('.app')).toHaveAttribute('inert', '')
   })
 
   test('Esc закрывает окно, фокус — на бургере', async ({ page }) => {
@@ -129,7 +129,7 @@ test.describe('окно входа', () => {
     await page.keyboard.press('Escape')
     await expect(modal(page)).toHaveCount(0)
     await expect(burger(page)).toBeFocused()
-    await expect(page.locator('.page')).not.toHaveAttribute('inert', /.*/)
+    await expect(page.locator('.app')).not.toHaveAttribute('inert', /.*/)
     await expect(page.locator('html')).not.toHaveClass(/scroll-locked/)
   })
 
@@ -179,7 +179,7 @@ test.describe('окно входа', () => {
     const page = await ctx.newPage()
     await page.goto('/')
     await openAuth(page, 'Регистрация')
-    await expect(page.locator('.captcha-question')).not.toHaveText(/Загрузка/)
+    await expect(page.locator('.captcha__question')).not.toHaveText(/Загрузка/)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     const submit = page.getByRole('button', { name: 'Оформить допуск' })
     await submit.scrollIntoViewIfNeeded()

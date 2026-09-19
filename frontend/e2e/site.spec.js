@@ -33,29 +33,38 @@ test('главная: «дверь» показана, связь с архив�
   await page.screenshot({ path: 'e2e/results/home-desktop.png', fullPage: true })
 })
 
-test('шрифты: свои файлы, кириллица PT Mono и Oswald реально загружены', async ({ page, baseURL }) => {
+test('шрифты: свои файлы, кириллица PT Sans, Oswald и IBM Plex Mono реально загружены', async ({ page, baseURL }) => {
   const fontUrls = []
   page.on('response', (r) => {
     if (/\.woff2?$/.test(new URL(r.url()).pathname)) fontUrls.push(new URL(r.url()).host)
   })
-  await page.goto('/')
+  await page.goto('/catalog') // в реестре есть и интерфейс, и шифры «машинкой»
   await expect(page.locator('.status')).toHaveText('Связь с архивом: установлена')
+  await expect(page.locator('td.code').first()).toBeVisible() // реестр загружен: шифры набраны «машинкой»
 
   const loaded = await page.evaluate(async () => {
     await document.fonts.ready
     return [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family.replaceAll('"', ''))
   })
-  expect(loaded).toContain('PT Mono')
+  expect(loaded).toContain('PT Sans')
   expect(loaded).toContain('Oswald')
+  expect(loaded).toContain('IBM Plex Mono')
   expect(fontUrls.length).toBeGreaterThan(0)
   expect(new Set(fontUrls)).toEqual(new Set([new URL(baseURL).host])) // только свои, никаких внешних CDN
 
   const families = await page.evaluate(() => ({
     body: getComputedStyle(document.body).fontFamily,
     h1: getComputedStyle(document.querySelector('h1')).fontFamily,
+    code: getComputedStyle(document.querySelector('td.code')).fontFamily,
   }))
-  expect(families.body).toContain('PT Mono')
+  expect(families.body).toContain('PT Sans')
   expect(families.h1).toContain('Oswald')
+  expect(families.code).toContain('IBM Plex Mono')
+
+  // документ набран «машинкой»
+  await page.goto('/doc/O-9001')
+  await expect(page.locator('article.paper')).toBeVisible()
+  expect(await page.locator('article.paper').evaluate((el) => getComputedStyle(el).fontFamily)).toContain('IBM Plex Mono')
 })
 
 test('API через PHP-прокси: подпись принята Go, служебные заголовки не текут', async ({ request }) => {
@@ -112,7 +121,7 @@ test('prefers-reduced-motion: анимации отключены', async ({ bro
   const ctx = await browser.newContext({ reducedMotion: 'reduce' })
   const page = await ctx.newPage()
   await page.goto('/doc/O-999')
-  const stamp = page.locator('.stamp')
+  const stamp = page.locator('.ui-stamp')
   await expect(stamp).toBeVisible() // страница 404 подгружается лениво
   const duration = await stamp.evaluate((el) => getComputedStyle(el).animationDuration)
   expect(parseFloat(duration)).toBeLessThan(0.001)
@@ -121,7 +130,7 @@ test('prefers-reduced-motion: анимации отключены', async ({ bro
   const normal = await browser.newContext({ reducedMotion: 'no-preference' })
   const p2 = await normal.newPage()
   await p2.goto('/doc/O-999')
-  const d2 = await p2.locator('.stamp').evaluate((el) => getComputedStyle(el).animationDuration)
+  const d2 = await p2.locator('.ui-stamp').evaluate((el) => getComputedStyle(el).animationDuration)
   expect(parseFloat(d2)).toBeGreaterThan(0.3)
   await normal.close()
   await ctx.close()

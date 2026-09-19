@@ -1,42 +1,45 @@
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api } from '../../api/index.js'
-import { ApiError } from '../../api/client.js'
-import PaginationNav from '../../components/PaginationNav.vue'
-import { describeApiError } from '../../composables/useForm.js'
-import { useResource } from '../../composables/useResource.js'
-import { useQueryFilters } from '../../composables/useQueryFilters.js'
-import { formatDate } from '../../lib/format.js'
+import { keepPreviousData, useQuery } from '@tanstack/vue-query'
+import PaginationNav from '@/components/PaginationNav.vue'
+import UiAlert from '@/ui/UiAlert.vue'
+import UiButton from '@/ui/UiButton.vue'
+import UiCheckbox from '@/ui/UiCheckbox.vue'
+import UiField from '@/ui/UiField.vue'
+import UiInput from '@/ui/UiInput.vue'
+import UiSelect from '@/ui/UiSelect.vue'
+import UiSheet from '@/ui/UiSheet.vue'
+import UiSkeleton from '@/ui/UiSkeleton.vue'
+import UiTable from '@/ui/UiTable.vue'
+import { ApiError, isApiError } from '@/api/client'
+import { teamApi } from '@/api/endpoints'
+import type { MemberDTO, RoleInfoDTO } from '@/api/generated/httpapi'
+import { keys } from '@/api/query'
+import { describeApiError } from '@/composables/useForm'
+import { useQueryFilters } from '@/composables/useQueryFilters'
+import { formatDate } from '@/lib/format'
 import ErrorView from '../ErrorView.vue'
 
 const route = useRoute()
 const router = useRouter()
 
-const one = (v) => (Array.isArray(v) ? v[0] : v) || ''
+const one = (v: unknown): string => (Array.isArray(v) ? String(v[0] ?? '') : typeof v === 'string' ? v : '')
 const q = computed(() => one(route.query.q))
 const role = computed(() => one(route.query.role))
 const staff = computed(() => one(route.query.staff) === '1')
+const page = computed(() => Math.max(1, Number.parseInt(one(route.query.page), 10) || 1))
 
+const roleList = useQuery({ queryKey: keys.teamRoles, queryFn: ({ signal }) => teamApi.roles({ signal }) })
 // Состояние списка живёт в адресе (/team/members?q=vera&role=editor&staff=1&page=2).
-const params = computed(() => {
-  const p = new URLSearchParams()
-  if (q.value) p.set('q', q.value)
-  if (role.value) p.set('role', role.value)
-  if (staff.value) p.set('staff', '1')
-  const page = Number.parseInt(one(route.query.page), 10)
-  if (page > 1) p.set('page', String(page))
-  return p.toString()
+const list = useQuery({
+  queryKey: computed(() => keys.teamMembers(`${q.value}|${role.value}|${staff.value}|${page.value}`)),
+  queryFn: ({ signal }) => teamApi.members({ q: q.value, role: role.value, staff: staff.value, page: page.value }, { signal }),
+  placeholderData: keepPreviousData,
 })
 
-const roleList = useResource((signal) => api.get('/team/roles', { signal }))
-const list = useResource(
-  (signal) => api.get(params.value ? `/team/members?${params.value}` : '/team/members', { signal }),
-  () => params.value,
-)
-
 // Строки — копии ответа: после выдачи или снятия роли строка обновляется ответом сервера, без перезагрузки списка.
-const members = ref([])
+const members = ref<MemberDTO[]>([])
 watch(
   () => list.data.value,
   (d) => {
@@ -45,33 +48,29 @@ watch(
   { immediate: true },
 )
 
-const roles = computed(() => roleList.data.value?.roles ?? [])
+const roles = computed<RoleInfoDTO[]>(() => roleList.data.value?.roles ?? [])
+const roleOptions = computed(() => roles.value.map((r) => ({ value: r.id, label: r.name })))
 const search = ref(q.value)
 watch(q, (v) => (search.value = v))
 
 const filters = useQueryFilters()
-const setFilters = (changes) => filters.change(changes)
-function submitSearch() {
-  setFilters({ q: search.value.trim() })
-}
-function reset() {
-  router.push({ query: {} })
-}
+const setFilters = (changes: Record<string, string>) => filters.change(changes)
+const submitSearch = () => setFilters({ q: search.value.trim() })
+const reset = () => router.push({ query: {} })
 
 const busy = ref('') // «логин:роль» — для какой кнопки идёт запрос
 const status = ref('') // объявляется скринридерам после успеха
 const problem = ref('')
 
-const hasRole = (m, r) => m.roles.some((x) => x.id === r.id)
+const hasRole = (m: MemberDTO, r: RoleInfoDTO) => m.roles.some((x) => x.id === r.id)
 
-async function toggle(m, r) {
+async function toggle(m: MemberDTO, r: RoleInfoDTO) {
   const grant = !hasRole(m, r)
-  const url = `/team/members/${encodeURIComponent(m.login)}/roles/${r.id}`
   busy.value = `${m.login}:${r.id}`
   problem.value = ''
   status.value = ''
   try {
-    const res = grant ? await api.put(url) : await api.delete(url)
+    const res = grant ? await teamApi.grant(m.login, r.id) : await teamApi.revoke(m.login, r.id)
     Object.assign(m, res.member)
     status.value = grant ? `Роль «${r.name}» выдана: ${m.login}.` : `Роль «${r.name}» снята: ${m.login}.`
   } catch (err) {
@@ -81,43 +80,40 @@ async function toggle(m, r) {
     busy.value = ''
   }
 }
+
+const requestId = computed(() => (isApiError(list.error.value) ? list.error.value.requestId : ''))
 </script>
 
 <template>
-  <section aria-labelledby="members-title">
+  <UiSheet as="section" wide aria-labelledby="members-title" class="wide">
     <h2 id="members-title">Команда</h2>
     <p class="note">Выдайте пользователю роль — он получит её сразу, без повторного входа. Директорат подразумевает все роли.</p>
 
     <form class="filters" aria-label="Поиск пользователей" @submit.prevent="submitSearch">
-      <div class="field">
-        <label for="t-q">Логин</label>
-        <input id="t-q" v-model="search" type="search" maxlength="24" autocomplete="off" placeholder="часть логина" @change="submitSearch">
+      <UiField id="t-q" label="Логин">
+        <UiInput v-model="search" type="search" :maxlength="24" placeholder="часть логина" @change="submitSearch" />
+      </UiField>
+      <UiField id="t-role" label="Роль">
+        <UiSelect :model-value="role" :options="roleOptions" placeholder="Любая" @update:model-value="setFilters({ role: $event })" />
+      </UiField>
+      <div class="check">
+        <UiCheckbox :model-value="staff" label="Только команда" @update:model-value="setFilters({ staff: $event ? '1' : '' })" />
       </div>
-      <div class="field">
-        <label for="t-role">Роль</label>
-        <select id="t-role" :value="role" @change="setFilters({ role: $event.target.value })">
-          <option value="">Любая</option>
-          <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.name }}</option>
-        </select>
-      </div>
-      <div class="field field--check">
-        <label class="check"><input type="checkbox" :checked="staff" @change="setFilters({ staff: $event.target.checked ? '1' : '' })"> Только команда</label>
-      </div>
-      <div class="field field--actions">
-        <button type="submit" class="btn">Найти</button>
-        <button v-if="q || role || staff" type="button" class="form-link" @click="reset">Сбросить</button>
+      <div class="actions">
+        <UiButton type="submit" variant="primary">Найти</UiButton>
+        <UiButton v-if="q || role || staff" variant="link" @click="reset">Сбросить</UiButton>
       </div>
     </form>
 
     <p class="visually-hidden" role="status">{{ status }}</p>
-    <p v-if="problem" class="form-error" role="alert">{{ problem }}</p>
+    <UiAlert v-if="problem" tone="danger">{{ problem }}</UiAlert>
 
-    <ErrorView v-if="list.error.value" :request-id="list.error.value.requestId" :retrying="list.loading.value" @retry="list.reload" />
-    <p v-else-if="list.loading.value && !list.data.value" class="state" role="status">Загрузка…</p>
+    <ErrorView v-if="list.isError.value" :request-id="requestId" :retrying="list.isFetching.value" @retry="list.refetch()" />
+    <UiSkeleton v-else-if="list.isPending.value" :lines="5" />
 
     <template v-else-if="list.data.value">
       <p class="total" data-testid="members-total">Найдено: {{ list.data.value.total }}</p>
-      <div v-if="members.length" class="wrap" tabindex="0" role="region" aria-label="Пользователи и их роли">
+      <UiTable v-if="members.length" label="Пользователи и их роли">
         <table class="members" data-testid="members">
           <caption class="visually-hidden">Пользователи и их роли</caption>
           <thead>
@@ -129,8 +125,8 @@ async function toggle(m, r) {
           <tbody>
             <tr v-for="m in members" :key="m.login" :data-login="m.login">
               <th scope="row" class="who">
-                <span class="login">{{ m.login }}</span>
-                <span class="sub">{{ m.level_name }} · принят {{ formatDate(m.created_at) }}</span>
+                <span class="who__login">{{ m.login }}</span>
+                <span class="who__sub">{{ m.level_name }} · принят {{ formatDate(m.created_at) }}</span>
               </th>
               <td>
                 <p v-if="m.directorate" class="dir">Директорат: все роли и права</p>
@@ -152,70 +148,85 @@ async function toggle(m, r) {
             </tr>
           </tbody>
         </table>
-      </div>
+      </UiTable>
       <p v-else class="state" data-testid="members-empty">Никого не найдено.</p>
       <PaginationNav :page="list.data.value.page" :pages="list.data.value.pages" />
     </template>
-  </section>
+  </UiSheet>
 </template>
 
 <style scoped>
-.note, .state, .total { color: var(--ink-soft); }
+.wide {
+  width: 100%;
+}
+.note {
+  color: var(--text-muted);
+}
 .filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0 var(--space-4);
   align-items: end;
   margin-bottom: var(--space-4);
-  padding: var(--space-3);
-  border: 1px solid var(--ink);
-  background: var(--paper-shade);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--ink-900);
 }
-label {
+.check {
+  margin-bottom: var(--space-4);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.total {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.who__login {
   display: block;
-  margin-bottom: 0.2rem;
   font-family: var(--font-head);
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--text-lg);
+  letter-spacing: 0.05em;
 }
-input[type='search'], select {
-  width: 100%;
-  min-width: 0;
-  padding: 0.4rem 0.5rem;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  background: #f4eedc;
-  color: var(--ink);
-  font: inherit;
+.who__sub {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
-.check { display: flex; align-items: center; gap: var(--space-2); margin: 0; letter-spacing: 0.06em; cursor: pointer; }
-.check input { width: 1.2rem; height: 1.2rem; }
-.field--actions { display: flex; align-items: center; gap: var(--space-3); }
-.wrap { overflow-x: auto; }
-.members { width: 100%; border-collapse: collapse; }
-.members th, .members td { padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: middle; }
-.members thead th { border-bottom: 2px solid var(--ink); background: var(--paper-shade); font-family: var(--font-head); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
-.who { width: 40%; min-width: 9rem; }
-.login { display: block; font-weight: 700; overflow-wrap: anywhere; }
-.sub { display: block; font-size: 0.8rem; font-weight: 400; color: var(--ink-soft); }
-.dir { margin: 0; font-style: italic; }
-.toggles { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-@media (max-width: 34rem) {
-  .toggles { display: grid; grid-template-columns: 1fr 1fr; }
-  .toggle { padding-inline: 0.4rem; }
+.dir {
+  margin: 0;
+  font-weight: 700;
+}
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .toggle {
-  min-height: 2.75rem;
-  padding: 0.3rem 0.8rem;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
+  min-height: var(--control-h); /* цель нажатия не меньше 44 px */
+  padding: 0 var(--space-4);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-2);
   background: transparent;
-  color: var(--ink);
-  font: inherit;
   cursor: pointer;
 }
-.toggle:hover { background: var(--paper-shade); }
-.toggle[aria-pressed='true'] { background: var(--ink); color: var(--paper); font-weight: 700; }
-.toggle:disabled { opacity: 0.6; cursor: progress; }
+.toggle:hover:not(:disabled) {
+  border-color: var(--ink-900);
+}
+.toggle[aria-pressed='true'] {
+  border-color: var(--ink-900);
+  background: var(--ink-900);
+  color: var(--paper-50);
+  font-weight: 700;
+}
+.toggle:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.state {
+  padding: var(--space-5) 0;
+  font-size: var(--text-lg);
+}
 </style>

@@ -1,18 +1,15 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
-import { pageWindow } from '../lib/catalog.js'
+import { useRoute, type RouteLocationRaw } from 'vue-router'
+import { pageWindow } from '@/lib/catalog'
 
-const props = defineProps({
-  page: { type: Number, required: true },
-  pages: { type: Number, required: true },
-})
+const props = defineProps<{ page: number; pages: number; label?: string }>()
 
 const route = useRoute()
 const items = computed(() => pageWindow(props.page, props.pages))
 
 // Ссылки — настоящие адреса: «открыть в новой вкладке» и «назад» работают.
-function to(p) {
+function to(p: number): RouteLocationRaw {
   const query = { ...route.query }
   if (p <= 1) delete query.page
   else query.page = String(p)
@@ -21,7 +18,7 @@ function to(p) {
 </script>
 
 <template>
-  <nav v-if="pages > 1" class="pages" aria-label="Страницы каталога">
+  <nav v-if="pages > 1" class="pages" :aria-label="label ?? 'Страницы каталога'">
     <!-- Роутер сравнивает только путь, а не query, и сам поставил бы aria-current="page" на все ссылки:
          текущая страница помечена вручную, у ссылок метка выключена. -->
     <RouterLink v-if="page > 1" class="step" :to="to(page - 1)" rel="prev" aria-current-value="false">← Назад</RouterLink>
@@ -35,16 +32,36 @@ function to(p) {
 </template>
 
 <style scoped>
-.pages { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-4); }
-.num, .current, .step {
-  min-width: 2.2rem;
-  padding: 0.3rem 0.7rem;
-  border: 2px solid var(--ink);
-  text-align: center;
-  text-decoration: none;
-  color: var(--ink);
+.pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-5);
 }
-.current { background: var(--ink); color: var(--paper); font-weight: 700; }
-a:hover { background: var(--paper-shade); }
-.gap { padding: 0 0.2rem; color: var(--ink-soft); }
+.num,
+.current,
+.step {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 2px solid var(--ink-900);
+  border-radius: var(--radius-2);
+  color: var(--text);
+  text-decoration: none;
+}
+.current {
+  background: var(--ink-900);
+  color: var(--paper-50);
+  font-weight: 700;
+}
+a:hover {
+  background: var(--surface-strong);
+}
+.gap {
+  padding: 0 var(--space-1);
+  color: var(--text-muted);
+}
 </style>

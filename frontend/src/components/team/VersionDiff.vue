@@ -1,13 +1,15 @@
-<script setup>
-import { blockPreview, describeValue } from '../../lib/teamdoc.js'
+<script setup lang="ts">
+import type { BlockChange, Diff } from '@/api/generated/documents'
+import { blockPreview, describeValue } from '@/lib/teamdoc'
 
-defineProps({
-  diff: { type: Object, required: true }, // ответ /versions/:vid/diff
-  blockKindName: { type: Function, required: true },
-})
+defineProps<{
+  /** ответ /versions/:vid/diff */
+  diff: Diff
+  blockKindName: (id: string) => string
+}>()
 
-const CHANGE_NAMES = { added: 'Добавлен', removed: 'Удалён', changed: 'Изменён', moved: 'Перенесён' }
-const levelOf = (b) => b?.level ?? 0
+const CHANGE_NAMES: Record<string, string> = { added: 'Добавлен', removed: 'Удалён', changed: 'Изменён', moved: 'Перенесён' }
+const levelOf = (b: BlockChange['before']): number => b?.level ?? 0
 </script>
 
 <template>
@@ -29,7 +31,7 @@ const levelOf = (b) => b?.level ?? 0
       </table>
 
       <template v-if="diff.blocks.length">
-        <h4 class="sub">Блоки</h4>
+        <h4>Блоки</h4>
         <ul class="blocks">
           <li v-for="b in diff.blocks" :key="`${b.change}-${b.id}`" :class="`change change--${b.change}`" :data-change="b.change" :data-block="b.id">
             <span class="what">{{ CHANGE_NAMES[b.change] }}</span>
@@ -52,20 +54,78 @@ const levelOf = (b) => b?.level ?? 0
 </template>
 
 <style scoped>
-.same, .unchanged { color: var(--ink-soft); }
-.fields { width: 100%; margin-bottom: var(--space-3); border-collapse: collapse; }
-.fields caption, .sub { margin: 0 0 var(--space-2); font-family: var(--font-head); font-size: 1rem; letter-spacing: 0.08em; text-align: left; text-transform: uppercase; }
-.fields th, .fields td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-.fields thead th { border-bottom: 2px solid var(--ink); }
-.before { text-decoration: line-through; color: var(--ink-soft); }
-.after { font-weight: 700; }
-.blocks { margin: 0 0 var(--space-3); padding: 0; list-style: none; }
-.change { display: grid; gap: 0.15rem; margin-bottom: var(--space-2); padding: var(--space-2) var(--space-3); border-left: 4px solid var(--rule); background: var(--paper-shade); }
-.change--added { border-left-color: #2f6b34; }
-.change--removed { border-left-color: var(--stamp-red); }
-.change--changed { border-left-color: var(--ink); }
-.what { font-family: var(--font-head); letter-spacing: 0.08em; text-transform: uppercase; }
-.kind, .level { font-size: 0.85rem; color: var(--ink-soft); }
-.text { overflow-wrap: anywhere; }
-.text--before { text-decoration: line-through; color: var(--ink-soft); }
+.diff {
+  padding: var(--space-3) 0;
+}
+.same,
+.unchanged {
+  color: var(--text-muted);
+}
+.fields {
+  width: 100%;
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+}
+.fields caption {
+  margin-bottom: var(--space-1);
+  text-align: left;
+  font-family: var(--font-head);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.fields th,
+.fields td {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  text-align: left;
+  vertical-align: top;
+}
+.before {
+  background: #f8e6e1;
+  text-decoration: line-through;
+  text-decoration-color: rgb(140 34 24 / 0.5);
+}
+.after {
+  background: #e6efe2;
+}
+.blocks {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.change {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 5px solid var(--border-strong);
+  background: var(--surface-sunken);
+  font-size: var(--text-sm);
+}
+.change--added {
+  border-left-color: var(--green-700);
+}
+.change--removed {
+  border-left-color: var(--red-700);
+}
+.change--changed {
+  border-left-color: var(--amber-700);
+}
+.change--moved {
+  border-left-color: var(--blue-700);
+}
+.what {
+  font-family: var(--font-head);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.text--before {
+  color: var(--red-800);
+  text-decoration: line-through;
+  text-decoration-color: rgb(140 34 24 / 0.5);
+}
+.text--after {
+  color: #1c4529;
+}
 </style>

@@ -1,24 +1,131 @@
-/* Одна тема — «бумага на столе». Контраст всех пар проверен на WCAG AA (>= 5.29:1). */
+/*
+  Дизайн-токены КУПОЛ. Идея: «читальный зал» — тёмный стол под лампой и светлые листы бумаги на нём.
+  Интерфейс (меню, формы, панели) — спокойный и чёткий; документы — материальные: бумага, машинопись, штампы.
+
+  Здесь только значения. Компоненты используют СМЫСЛОВЫЕ токены (--text, --surface, --accent…), а не палитру:
+  так вид меняется в одном месте. Контраст каждой пары «текст на фоне» проверяется тестом tests/tokens.test.ts.
+*/
 :root {
-  --desk: #2f2a24;
-  --paper: #e9e0c8;
-  --paper-shade: #ddd2b4;
-  --ink: #1c1a17;
-  --ink-soft: #4a443a;
-  --stamp-red: #9c1f26;
-  --rule: #b9ac8a;
+  color-scheme: light;
 
-  --font-body: 'PT Mono', 'Courier New', ui-monospace, monospace;
-  --font-head: 'Oswald', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  /* ---- палитра ------------------------------------------------------------------------------------- */
+  /* стол: тёмный зелёно-серый, как сукно и линолеум читального зала */
+  --desk-950: #0e1412;
+  --desk-900: #141b19;
+  --desk-800: #1b2421;
+  --desk-700: #26312d;
+  --desk-600: #33413c;
+  /* бумага */
+  --paper-0: #fdfbf5;
+  --paper-50: #f8f4e8;
+  --paper-100: #f1ebd8;
+  --paper-200: #e6dcc0;
+  --paper-300: #d6c9a4;
+  --paper-400: #bfae82;
+  /* картон папок */
+  --kraft-200: #e0cd9f;
+  --kraft-300: #d2b98a;
+  --kraft-400: #b99a63;
+  /* чернила */
+  --ink-950: #101213;
+  --ink-900: #191c1e;
+  --ink-800: #2a2f32;
+  --ink-700: #3e4447;
+  --ink-600: #52585b;
+  /* штампы */
+  --red-800: #7a1712;
+  --red-700: #8f1c17;
+  --red-600: #a4231d;
+  --red-500: #c0332a;
+  --blue-800: #172f4d;
+  --blue-700: #1d3a5c;
+  --blue-600: #24466f;
+  /* состояния */
+  --green-700: #245635;
+  --amber-700: #77490a;
+  --amber-300: #f2b705;
 
+  /* ---- смысловые токены ---------------------------------------------------------------------------- */
+  --bg: var(--desk-900);
+  --bg-raised: var(--desk-800);
+  --on-bg: #ece6d2;
+  --on-bg-muted: #b4ae9a;
+  --line-on-bg: rgb(255 255 255 / 0.12);
+
+  --surface: var(--paper-50);
+  --surface-raised: var(--paper-0);
+  --surface-sunken: var(--paper-100);
+  --surface-strong: var(--paper-200);
+  --text: var(--ink-900);
+  --text-muted: var(--ink-600);
+  --text-inverse: var(--paper-50);
+  --border: #cfc3a0;
+  --border-strong: #8d8262;
+  --link: var(--blue-700);
+  --link-hover: var(--red-700);
+  --accent: var(--red-600);
+  --accent-text: var(--red-700);
+  --danger: var(--red-700);
+  --success: var(--green-700);
+  --warning: var(--amber-700);
+  --focus: var(--amber-300);
+  --focus-inner: var(--ink-950);
+  --redaction: #0c0d0e;
+
+  /* ---- шрифты -------------------------------------------------------------------------------------- */
+  --font-ui: 'PT Sans', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-head: 'Oswald', 'Arial Narrow', 'Roboto Condensed', 'PT Sans Narrow', sans-serif;
+  --font-doc: 'IBM Plex Mono', 'Courier New', ui-monospace, monospace;
+
+  /* ---- типографика (шкала ≈ 1.2) -------------------------------------------------------------------- */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: 3rem;
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-body: 1.55;
+  --tracking-caps: 0.09em;
+
+  /* ---- отступы и формы ------------------------------------------------------------------------------ */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
-  --space-3: 1rem;
-  --space-4: 1.5rem;
-  --space-5: 2.5rem;
-  --space-6: 4rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4.5rem;
+  --radius-1: 2px;
+  --radius-2: 4px;
+  --radius-3: 8px;
+  --control-h: 2.75rem;
+  --control-h-sm: 2.25rem;
+  --page-max: 72rem;
+  --sheet-max: 50rem;
+  --gutter: clamp(1rem, 4vw, 2rem);
 
-  --sheet-width: 52rem;
-  --radius: 2px;
-  --shadow-sheet: 0 1px 0 rgb(255 255 255 / 0.35) inset, 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 4px rgb(0 0 0 / 0.4);
+  /* ---- тени и слои ---------------------------------------------------------------------------------- */
+  --shadow-sheet:
+    0 1px 0 rgb(255 255 255 / 0.7) inset, 0 1px 1px rgb(0 0 0 / 0.3), 0 6px 14px rgb(0 0 0 / 0.22),
+    0 22px 40px -10px rgb(0 0 0 / 0.42);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.6) inset, 0 1px 2px rgb(0 0 0 / 0.18), 0 4px 10px rgb(0 0 0 / 0.12);
+  --shadow-pop: 0 2px 4px rgb(0 0 0 / 0.25), 0 12px 28px rgb(0 0 0 / 0.35);
+  --z-header: 30;
+  --z-overlay: 60;
+
+  /* ---- движение ------------------------------------------------------------------------------------- */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+
+  /* ---- текстуры (файлы в public/textures) ------------------------------------------------------------ */
+  --texture-paper: url('/textures/paper.svg');
+  --texture-desk: url('/textures/desk.svg');
+  --texture-ink: url('/textures/ink.svg');
 }
