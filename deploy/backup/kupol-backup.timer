@@ -1,0 +1,11 @@
+[Unit]
+Description=Резервная копия БД КУПОЛ каждую ночь
+
+[Timer]
+# 03:15 по времени сервера, плюс до 15 минут случайной задержки; пропущенный запуск (сервер был выключен) — при старте
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

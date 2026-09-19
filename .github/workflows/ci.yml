@@ -73,6 +73,23 @@ jobs:
       - run: npm run build
         working-directory: frontend
 
+  backup:
+    name: Резервные копии (age, pg_dump 17, FTP)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Инструменты (клиент PostgreSQL 17 — как у сервера в docker-compose)
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y age lftp postgresql-client-17
+      - run: make env
+      - run: make test-backup
+
   e2e:
     name: Сквозные (Chromium → Vite → PHP-прокси → Go → PostgreSQL)
     runs-on: ubuntu-24.04

@@ -55,7 +55,10 @@ test-deploy: db-up ## Скрипты деплоя на настоящих sshd �
 test-nginx: db-up ## Боевой конфиг nginx для VPS настоящим nginx (docker): подпись, X-Forwarded-For, лимиты
 	./scripts/test-nginx.sh
 
-test-infra: e2e-apache test-deploy test-nginx ## Всё, что проверяет инфраструктуру (нужен docker, lftp, sshd)
+test-backup: db-up ## Резервные копии: шифрование, согласованность под нагрузкой, восстановление, ротация, порча (age, pg_dump 17, FTP)
+	./scripts/test-backup.sh
+
+test-infra: e2e-apache test-deploy test-nginx test-backup ## Всё, что проверяет инфраструктуру (нужен docker, lftp, sshd, age)
 
 build-front: ## Сборка фронтенда в frontend/dist
 	cd frontend && npm ci && npm run build

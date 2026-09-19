@@ -119,9 +119,50 @@ deploy/check-site.sh https://kupol.vladinc.ru
 `upstream_unavailable`/`upstream_timeout` — прокси не достучался до Go (адрес, DNS, TLS, запущен ли `kupol`);
 `bad_proxy_signature` — секрет в `config.php` не совпадает с `KUPOL_PROXY_SECRET` или разошлись часы (допуск ±60 с).
 
+## 5. Резервные копии (ставятся до того, как авторы начнут писать)
+
+Каждую ночь `deploy/backup/kupol-backup.sh` снимает дамп БД **в согласованном снимке** (`pg_dump --snapshot`: даже если сайт пишет
+в БД во время копии, дамп и манифест — одной и той же БД), проверяет, что дамп читается, **шифрует `age`** публичным ключом
+и хранит последние 14 копий на VPS; затем кладёт копию на shared-хостинг по FTPS — другая машина и другой провайдер
+(последние 14). Если что-то не вышло, скрипт завершается с ошибкой (тревога мониторинга), а открытого дампа не остаётся никогда.
+
+**Ключи.** На машине автора: `age-keygen -o kupol-backup.key` — приватный ключ в менеджер паролей и на второй носитель
+(потеряете — копии не расшифровать; отдавать VPS его нельзя); `age-keygen -y kupol-backup.key` печатает публичный ключ.
+
+**Установка на VPS** (один раз, под root; выполняется только по вашей команде):
+```bash
+apt install age lftp                       # pg_dump уже есть вместе с PostgreSQL
+install -m 755 deploy/backup/kupol-backup.sh /usr/local/bin/kupol-backup
+install -m 600 -o kupol -g kupol deploy/backup/backup.env.example /etc/kupol/backup.env   # заполнить: БД, публичный ключ, FTP
+install -d -m 700 -o kupol -g kupol /var/backups/kupol
+install -m 644 deploy/backup/kupol-backup.{service,timer} /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now kupol-backup.timer
+systemctl start kupol-backup.service && journalctl -u kupol-backup -n 30   # первая копия сразу
+```
+FTP-каталог для копий — **вне** веб-каталога сайта (`kupol.vladinc.ru/backups`, рядом с `www`); лучше завести на хостинге
+отдельного FTP-пользователя только для копий: пароль хранится на VPS в `/etc/kupol/backup.env` (права 600).
+
+**Проверка восстановления — раз в неделю и после любых изменений схемы**, на машине с приватным ключом:
+```bash
+deploy/backup/kupol-restore-check.sh kupol-ГГГГММДД-ЧЧММСС.dump.age kupol-backup.key postgres://админ@localhost/postgres
+```
+Скрипт расшифровывает копию, восстанавливает её во **временную** БД, сверяет число строк каждой таблицы с манифестом и версию
+схемы, после чего удаляет временную БД и открытый дамп. Копия, которую ни разу не восстанавливали, — не копия.
+
+**Мониторинг:** в `backup.env` можно задать `HEALTHCHECK_URL` ([Healthchecks.io](https://healthchecks.io) и подобные): пинг
+отправляется только после успешной копии, а если пинга нет больше суток, приходит тревога.
+
+**Восстановление после потери БД:** `age -d -i kupol-backup.key -o kupol.dump kupol-….dump.age`, затем
+`pg_restore --no-owner -d kupol kupol.dump` в пустую БД с ICU (см. §1). Файлы загрузок (этап 6) будут копироваться так же.
+
 ## Что проверено автоматически, а что нет
 
-Проверено на настоящих компонентах (`make test-infra`): боевая сборка на Apache + PHP 8.3 (`.htaccess`, CSP, rewrite,
+Проверено на настоящих компонентах (`make test-infra`): резервные копии (`make test-backup`: шифрование, согласованность
+под параллельной записью, восстановление и сверка с манифестом, ротация на VPS и «хостинге», обнаружение порчи файла, чужого
+ключа и подменённого манифеста, сбои БД/ключа/хостинга без полкопии, запрет одновременного запуска),
+боевая сборка на Apache + PHP 8.3 (`.htaccess`, CSP, rewrite,
+прокси, браузерные тесты), скрипты деплоя на настоящих sshd и FTP (доставка, откат сломанной версии, `--wipe`, сохранность
+`config.php`), конфиг nginx (сырой URI и подпись, подделка `X-Forwarded-For`, лимит тела). боевая сборка на Apache + PHP 8.3 (`.htaccess`, CSP, rewrite,
 прокси, браузерные тесты), скрипты деплоя на настоящих sshd и FTP (доставка, откат сломанной версии, `--wipe`, сохранность
 `config.php`), конфиг nginx (сырой URI и подпись, подделка `X-Forwarded-For`, лимит тела).
 
