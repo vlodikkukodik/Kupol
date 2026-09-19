@@ -1,0 +1,38 @@
+/* Общие стили форм: бланки на бумаге. Цвета — из tokens.css (контраст проверен на WCAG AA). */
+
+.form { max-width: 34rem; }
+
+.form-error,
+.form-ok {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--stamp-red);
+  background: #f4e6df;
+  font-weight: 700;
+}
+.form-error { color: var(--stamp-red); }
+.form-ok { border-color: var(--ink); background: var(--paper-shade); color: var(--ink); }
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ссылка-кнопка в форме */
+.form-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--stamp-red);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.form-link:hover { color: var(--ink); }
+.form-link:disabled { opacity: 0.6; cursor: progress; }
+
+.btn--danger { border-color: var(--stamp-red); color: var(--stamp-red); }
+.btn--danger:hover { background: var(--stamp-red); color: var(--paper); }

@@ -1,0 +1,194 @@
+{
+  "documents": [
+    {
+      "code": "О-9001",
+      "type": "object",
+      "title": "[e2e] Открытый объект со всеми блоками",
+      "status": "published",
+      "level": 0,
+      "composed": { "year": 1979, "month": 3, "day": 14 },
+      "props": {
+        "danger_class": 3,
+        "deviation_points": 42,
+        "department": "ОТД-2",
+        "category": "entity",
+        "containment_status": "contained",
+        "discovery_place": "Заброшенная насосная станция под Череповцом"
+      },
+      "blocks": [
+        { "id": "head", "type": "dossier_header", "data": {} },
+        { "id": "h1", "type": "heading", "data": { "depth": 2, "text": "Общие сведения" } },
+        {
+          "id": "intro",
+          "type": "paragraph",
+          "data": {
+            "text": [
+              { "text": "Объект обнаружен в подвале насосной станции. " },
+              { "text": "Открытый жирный фрагмент", "bold": true },
+              { "text": " и " },
+              { "text": "курсив", "italic": true },
+              { "text": ". Дальше скрыто: " },
+              { "text": "СЕКРЕТ-ФРАГМЕНТ-УР3", "level": 3 },
+              { "text": " — конец." }
+            ]
+          }
+        },
+        {
+          "id": "features",
+          "type": "list",
+          "data": { "ordered": false, "items": ["Первый признак", "Второй признак", [{ "text": "Третий признак ", "italic": true }, { "text": "СЕКРЕТ-ПУНКТ-УР4", "level": 4 }]] }
+        },
+        { "id": "steps", "type": "list", "data": { "ordered": true, "items": ["Изолировать помещение", "Оформить акт"] } },
+        { "id": "cite", "type": "quote", "data": { "text": "Оно не приближается, пока на него смотрят.", "source": "показания свидетеля" } },
+        {
+          "id": "log",
+          "type": "experiment_log",
+          "level": 2,
+          "data": {
+            "title": "Журнал испытаний",
+            "entries": [
+              { "date": "12.04.1979", "participants": ["Дежурный", "Лаборант"], "text": "СЕКРЕТ-ЖУРНАЛ-УР2: объект помещён в камеру." }
+            ]
+          }
+        },
+        { "id": "stamp1", "type": "stamp", "data": { "text": "Совершенно секретно", "tone": "red", "tilt": -6 } },
+        {
+          "id": "memo1",
+          "type": "memo",
+          "data": {
+            "kind": "memo",
+            "number": "МЕМО-5",
+            "date": "20.03.1979",
+            "from": "Отдел 2",
+            "to": ["Директорат", "Архив"],
+            "subject": "О порядке содержания",
+            "body": ["Содержание осуществляется по стандартной форме.", "Дополнительных мер не требуется."],
+            "signature": "Начальник отдела"
+          }
+        },
+        {
+          "id": "clip1",
+          "type": "clipping",
+          "data": {
+            "kind": "newspaper",
+            "title": "Странные огни над водохранилищем",
+            "source": "Вечерний Череповец",
+            "date": "02.03.1979",
+            "paragraphs": ["Жители окрестных домов сообщают о необычном свечении.", "Официальные лица комментариев не дали."]
+          }
+        },
+        {
+          "id": "clip2",
+          "type": "clipping",
+          "data": {
+            "kind": "transcript",
+            "title": "Запись № 3",
+            "lines": [
+              { "speaker": "Следователь", "text": "Что вы видели?" },
+              { "speaker": "Свидетель", "text": "Свет, потом тишину." }
+            ]
+          }
+        },
+        {
+          "id": "tbl",
+          "type": "table",
+          "data": {
+            "caption": "Замеры",
+            "columns": ["Дата", "Показатель"],
+            "rows": [["01.04.1979", "12"], ["02.04.1979", [{ "text": "СЕКРЕТ-ЯЧЕЙКА-УР3", "level": 3 }]]]
+          }
+        },
+        { "id": "link-open", "type": "doc_link", "data": { "code": "О-9002", "note": "Смежный объект" } },
+        { "id": "link-closed", "type": "doc_link", "data": { "code": "О-9003", "note": "СЕКРЕТ-ПРИМЕЧАНИЕ-ССЫЛКИ" } },
+        { "id": "link-order", "type": "doc_link", "data": { "code": "ПРИКАЗ-1901-91" } },
+        { "id": "div1", "type": "divider", "data": { "style": "stars" } },
+        { "id": "pg", "type": "page", "data": { "number": "2" } },
+        { "id": "fn", "type": "footnote", "data": { "mark": "*", "text": "Сноска для проверки вёрстки." } },
+        { "id": "app", "type": "appendix", "data": { "number": "1", "title": "Схема расположения" } },
+        { "id": "block-l4", "type": "paragraph", "level": 4, "data": { "text": "СЕКРЕТ-БЛОК-УР4: абзац только для допуска 4." } },
+        { "id": "block-l4b", "type": "paragraph", "level": 4, "data": { "text": "СЕКРЕТ-БЛОК-УР4-ВТОРОЙ" } },
+        { "id": "block-l6", "type": "paragraph", "level": 6, "data": { "text": "СЕКРЕТ-БЛОК-УР6: абзац только для допуска 6." } },
+        { "id": "tail", "type": "paragraph", "data": { "text": "Заключительный открытый абзац." } }
+      ]
+    },
+    {
+      "code": "О-9002",
+      "type": "object",
+      "title": "[e2e] Объект допуска 2",
+      "status": "published",
+      "level": 2,
+      "direct_link": "forbidden",
+      "composed": { "year": 1981 },
+      "props": {
+        "danger_class": 1,
+        "deviation_points": 5,
+        "department": "ОТД-3",
+        "category": "person",
+        "containment_status": "studying"
+      },
+      "blocks": [{ "id": "body", "type": "paragraph", "data": { "text": "Содержимое дела допуска 2." } }]
+    },
+    {
+      "code": "О-9003",
+      "type": "object",
+      "title": "[e2e] СЕКРЕТ-НАЗВАНИЕ-УР5",
+      "status": "published",
+      "level": 5,
+      "direct_link": "not_found",
+      "composed": { "year": 1985, "month": 6 },
+      "props": {
+        "danger_class": 5,
+        "deviation_points": 300,
+        "department": "ОТД-2",
+        "category": "place",
+        "containment_status": "lost"
+      },
+      "blocks": [{ "id": "body", "type": "paragraph", "data": { "text": "Содержимое дела допуска 5." } }]
+    },
+    {
+      "code": "О-9004",
+      "type": "object",
+      "title": "[e2e] СЕКРЕТ-ЧЕРНОВИК",
+      "status": "draft",
+      "level": 0,
+      "composed": { "year": 1990 },
+      "props": { "danger_class": 2, "department": "ОТД-2", "category": "entity", "containment_status": "contained" },
+      "blocks": [{ "id": "body", "type": "paragraph", "data": { "text": "Неопубликованное." } }]
+    },
+    {
+      "code": "О-9007",
+      "type": "object",
+      "title": "[e2e] СЕКРЕТ-ДИРЕКТОРАТ",
+      "status": "published",
+      "level": 7,
+      "direct_link": "forbidden",
+      "composed": { "year": 1988 },
+      "props": { "danger_class": 5, "department": "ОТД-2", "category": "entity", "containment_status": "contained" },
+      "blocks": [{ "id": "body", "type": "paragraph", "data": { "text": "Только Директорат." } }]
+    },
+    {
+      "code": "ПРИКАЗ-1901-91",
+      "type": "order",
+      "title": "[e2e] Приказ об отчётности",
+      "status": "published",
+      "level": 0,
+      "composed": { "year": 1901, "month": 12, "day": 1 },
+      "blocks": [
+        {
+          "id": "ord",
+          "type": "memo",
+          "data": { "kind": "order", "number": "ПРИКАЗ-1901-91", "subject": "Об отчётности", "body": ["Отчёты сдавать ежемесячно."], "signature": "Председатель" }
+        }
+      ]
+    },
+    {
+      "code": "ИНЦ-1901-91",
+      "type": "incident",
+      "title": "[e2e] Инцидент в архиве",
+      "status": "published",
+      "level": 1,
+      "composed": { "year": 1901, "month": 5 },
+      "blocks": [{ "id": "body", "type": "paragraph", "data": { "text": "Описание инцидента." } }]
+    }
+  ]
+}

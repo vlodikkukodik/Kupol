@@ -1,0 +1,97 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  background: var(--desk);
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgb(255 255 255 / 0.06), transparent 60%),
+    var(--desk);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-head);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  margin: 0 0 var(--space-3);
+}
+h1 { font-size: clamp(2rem, 6vw, 3.25rem); }
+h2 { font-size: 1.35rem; }
+
+p { margin: 0 0 var(--space-3); }
+
+a { color: var(--stamp-red); text-underline-offset: 0.2em; }
+a:hover { color: var(--ink); }
+
+button { font: inherit; }
+
+:focus-visible {
+  outline: 3px solid var(--stamp-red);
+  outline-offset: 3px;
+}
+
+/* Открыто меню или окно входа: страница под ними не прокручивается. */
+html.scroll-locked { overflow: hidden; }
+
+.skip-link {
+  position: absolute;
+  left: var(--space-3);
+  top: -4rem;
+  z-index: 10;
+  padding: var(--space-2) var(--space-3);
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  font-family: var(--font-head);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.skip-link:focus { top: var(--space-3); }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Кнопка-«бланк» */
+.btn {
+  display: inline-block;
+  padding: 0.6rem 1.4rem;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-head);
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn:disabled { opacity: 0.6; cursor: progress; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

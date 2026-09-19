@@ -1,0 +1,24 @@
+/* Одна тема — «бумага на столе». Контраст всех пар проверен на WCAG AA (>= 5.29:1). */
+:root {
+  --desk: #2f2a24;
+  --paper: #e9e0c8;
+  --paper-shade: #ddd2b4;
+  --ink: #1c1a17;
+  --ink-soft: #4a443a;
+  --stamp-red: #9c1f26;
+  --rule: #b9ac8a;
+
+  --font-body: 'PT Mono', 'Courier New', ui-monospace, monospace;
+  --font-head: 'Oswald', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2.5rem;
+  --space-6: 4rem;
+
+  --sheet-width: 52rem;
+  --radius: 2px;
+  --shadow-sheet: 0 1px 0 rgb(255 255 255 / 0.35) inset, 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 4px rgb(0 0 0 / 0.4);
+}

@@ -1,0 +1,7 @@
+# Всё под /api/ уходит в PHP-прокси; REQUEST_URI при этом остаётся исходным.
+RewriteEngine On
+
+# Authorization для PHP (Apache в режиме CGI/FastCGI его иначе теряет)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+RewriteRule ^ index.php [L]

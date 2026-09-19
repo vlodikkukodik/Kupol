@@ -1,0 +1,17 @@
+*.local.md
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+backend/bin/
+frontend/e2e/results/
+frontend/playwright-report/
+*.log
+
+# Боевой конфиг PHP-прокси (секрет) — заливается на хостинг отдельно от сборки.
+frontend/public/api/config.php
+
+# Локальные боевые секреты деплоя (боевой config.php прокси и т.п.)
+deploy/.local/
