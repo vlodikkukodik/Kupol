@@ -87,6 +87,8 @@ jobs:
         run: |
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y age lftp postgresql-client-17
+          # на раннере уже есть клиент 16 и стоит в PATH раньше: pg_dump 16 не работает с сервером 17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
       - run: make env
       - run: make test-backup
 
