@@ -52,7 +52,8 @@ function reset() {
     </div>
     <p class="note">
       Здесь ваши документы в любом статусе<template v-if="auth.can('review') || auth.can('edit_published')">
-        и все документы, вышедшие из черновика</template>. Чужие черновики не видны никому, кроме Директората.
+        и все документы, вышедшие из черновика
+      </template>. Чужие черновики не видны никому, кроме Директората.
     </p>
 
     <form class="filters" aria-label="Отбор документов" @submit.prevent="filters.change({ q: search.trim() })">

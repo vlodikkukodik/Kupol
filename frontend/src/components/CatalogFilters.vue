@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CATEGORY_NAMES, CONTAINMENT_NAMES, hasFilters } from '../lib/catalog.js'
 
 const props = defineProps({
@@ -10,6 +10,14 @@ const emit = defineEmits(['change', 'reset'])
 
 const one = (v) => (Array.isArray(v) ? v[0] : v) || ''
 const active = computed(() => hasFilters(props.query))
+
+// Годы держим в локальных полях: Vue при каждой перерисовке заново выставляет `value` из шаблона, и, пока человек
+// печатает год, а данные каталога догружаются, ещё не подтверждённое значение стиралось бы из поля.
+// Значение из адреса подтягивается, только когда сам адрес изменился (кнопка «назад», сброс фильтров).
+const from = ref(one(props.query.from))
+const to = ref(one(props.query.to))
+watch(() => one(props.query.from), (v) => (from.value = v))
+watch(() => one(props.query.to), (v) => (to.value = v))
 
 function change(name, event) {
   emit('change', { [name]: event.target.value })
@@ -56,9 +64,9 @@ function change(name, event) {
     <div class="field field--year">
       <label for="f-from">Период, год</label>
       <div class="range">
-        <input id="f-from" type="number" min="1900" max="2099" inputmode="numeric" placeholder="с" :value="one(query.from)" aria-label="Год не ранее" @change="change('from', $event)">
+        <input id="f-from" v-model="from" type="number" min="1900" max="2099" inputmode="numeric" placeholder="с" aria-label="Год не ранее" @change="change('from', $event)">
         <span aria-hidden="true">—</span>
-        <input id="f-to" type="number" min="1900" max="2099" inputmode="numeric" placeholder="по" :value="one(query.to)" aria-label="Год не позднее" @change="change('to', $event)">
+        <input id="f-to" v-model="to" type="number" min="1900" max="2099" inputmode="numeric" placeholder="по" aria-label="Год не позднее" @change="change('to', $event)">
       </div>
     </div>
     <div v-if="active" class="field field--reset">
