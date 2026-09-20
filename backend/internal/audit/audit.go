@@ -44,6 +44,8 @@ const (
 	GlossaryUpdated Action = "glossary.updated" // термин изменён
 	GlossaryDeleted Action = "glossary.deleted" // термин удалён
 
+	SiteUpdated Action = "site.updated" // изменены настройки сайта (контакты автора)
+
 	TimelineCreated Action = "timeline.created" // добавлено событие хронологии
 	TimelineUpdated Action = "timeline.updated" // событие хронологии изменено
 	TimelineDeleted Action = "timeline.deleted" // событие хронологии удалено
@@ -80,6 +82,8 @@ var titles = map[Action]string{
 	GlossaryCreated: "Заведён термин глоссария",
 	GlossaryUpdated: "Термин глоссария изменён",
 	GlossaryDeleted: "Термин глоссария удалён",
+
+	SiteUpdated: "Изменены настройки сайта",
 
 	TimelineCreated: "Добавлено событие хронологии",
 	TimelineUpdated: "Изменено событие хронологии",

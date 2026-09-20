@@ -1013,6 +1013,34 @@ export interface ImportReport {
 }
 
 //////////
+// source: site.go
+
+/**
+ * SiteSettings — настройки сайта.
+ */
+export interface SiteSettings {
+  /**
+   * Contact — как связаться с автором (почта, ссылка, ник); пусто — раздел контактов на странице не показывается.
+   */
+  contact: string;
+}
+/**
+ * SiteSettingsOut — настройки в team panel: с правом их менять.
+ */
+export interface SiteSettingsOut {
+  SiteSettings: SiteSettings;
+  updated_at?: string /* RFC 3339 */;
+  /**
+   * UpdatedBy — кто менял последним.
+   */
+  updated_by?: string;
+  /**
+   * CanEdit — вправе ли человек менять настройки (только Директорат).
+   */
+  can_edit: boolean;
+}
+
+//////////
 // source: team.go
 
 /**

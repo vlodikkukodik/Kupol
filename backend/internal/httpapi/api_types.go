@@ -159,6 +159,16 @@ type ResolveCommentRequest struct {
 	Resolved bool `json:"resolved"`
 }
 
+// SiteResponse — GET /api/site: публичные настройки сайта (контакты автора для страницы «О КУПОЛЕ»).
+type SiteResponse struct {
+	Site documents.SiteSettings `json:"site"`
+}
+
+// SiteSettingsResponse — GET/PUT /api/team/site: настройки для панели команды.
+type SiteSettingsResponse struct {
+	Site *documents.SiteSettingsOut `json:"site" tstype:",required"`
+}
+
 // TimelineResponse — GET /api/timeline: хронология «О КУПОЛЕ» для читателя.
 type TimelineResponse struct {
 	Items []documents.TimelineItem `json:"items"`

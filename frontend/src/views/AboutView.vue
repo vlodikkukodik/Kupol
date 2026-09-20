@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import AboutContent from '@/components/AboutContent.vue'
 import UiPageHeader from '@/ui/UiPageHeader.vue'
@@ -8,18 +9,20 @@ import { isApiError } from '@/api/client'
 import { documentsApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
 import { formatComposed } from '@/lib/format'
-import { AUTHOR_CONTACT } from '@/content/site'
 import ErrorView from './ErrorView.vue'
 
 // «О КУПОЛЕ»: справка, правила, политика конфиденциальности и живая хронология. Страница открыта всем и индексируется.
 const timeline = useQuery({ queryKey: keys.timeline, queryFn: ({ signal }) => documentsApi.timeline({ signal }), staleTime: 60_000 })
+// Контакты автора задаёт Директорат в панели команды («Сайт»); нет ответа или контакт пуст — раздела просто нет.
+const site = useQuery({ queryKey: keys.site, queryFn: ({ signal }) => documentsApi.site({ signal }), staleTime: 60_000, retry: false })
+const contact = computed(() => site.data.value?.contact ?? '')
 </script>
 
 <template>
   <div>
     <UiPageHeader title="О КУПОЛЕ" kicker="Справка и правила архива" />
     <UiSheet as="article" data-testid="about">
-      <AboutContent :contact="AUTHOR_CONTACT">
+      <AboutContent :contact="contact">
         <template #timeline>
           <section id="timeline" aria-labelledby="timeline-title" class="timeline" data-testid="timeline">
             <h2 id="timeline-title">Хронология</h2>

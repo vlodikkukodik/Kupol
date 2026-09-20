@@ -19,6 +19,40 @@ func (h *documentHandlers) timeline(c *gin.Context) {
 	c.JSON(http.StatusOK, TimelineResponse{Items: items})
 }
 
+// GET /api/site — публичные настройки сайта (контакты автора).
+func (h *documentHandlers) site(c *gin.Context) {
+	s, err := h.svc.SiteInfo(c.Request.Context())
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, SiteResponse{Site: s})
+}
+
+// GET /api/team/site — настройки для панели: читают члены команды, правит только Директорат.
+func (h *teamDocumentHandlers) siteGet(c *gin.Context) {
+	s, err := h.svc.SiteSettingsGet(c.Request.Context(), actorFrom(c))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, SiteSettingsResponse{Site: s})
+}
+
+// PUT /api/team/site {contact}
+func (h *teamDocumentHandlers) siteUpdate(c *gin.Context) {
+	var in documents.SiteSettings
+	if !bindJSONLimit(c, &in, maxDocumentBody) {
+		return
+	}
+	s, err := h.svc.SiteSettingsUpdate(c.Request.Context(), actorFrom(c), in)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, SiteSettingsResponse{Site: s})
+}
+
 // Хронология в team panel. Читают все члены команды (со всеми событиями, в том числе закрытыми уровнем); заводят, правят и удаляют —
 // те, у кого право manage_timeline (проверяет сервис по человеку).
 

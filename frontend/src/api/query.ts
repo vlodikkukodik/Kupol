@@ -37,6 +37,8 @@ export const keys = {
   teamTemplate: (id: number) => ['team', 'template', id] as const,
   teamGlossary: (q: string) => ['team', 'glossary', q] as const,
   teamTimeline: ['team', 'timeline'] as const,
+  teamSite: ['team', 'site'] as const,
+  site: ['documents', 'site'] as const,
   timeline: ['documents', 'timeline'] as const,
   teamDocument: (id: number) => ['team', 'document', id] as const,
   teamVersions: (id: number, page: number) => ['team', 'versions', id, page] as const,

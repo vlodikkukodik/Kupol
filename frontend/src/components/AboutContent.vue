@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ABOUT_INTRO, ABOUT_SECTIONS, AUTHOR_TEXT, LEVEL_ROWS, PRIVACY_INTRO, PRIVACY_ITEMS } from '@/content/about'
+import { linkifyContact } from '@/lib/contacts'
 
 // Неизменяемая часть страницы «О КУПОЛЕ»: справка, правила, политика конфиденциальности, об авторе. Не зависит ни от роутера, ни от
 // хранилищ, ни от API — поэтому её можно отрендерить на сервере при сборке (пререндер) и отдать поисковику готовым текстом.
@@ -70,7 +71,13 @@ defineProps<{ contact?: string }>()
     <section id="author" aria-labelledby="author-title" class="about__section">
       <h2 id="author-title">Об авторе и контакты</h2>
       <p>{{ AUTHOR_TEXT }}</p>
-      <p v-if="contact" class="about__contact" data-testid="author-contact">{{ contact }}</p>
+      <div v-if="contact" class="about__contact" data-testid="author-contact">
+        <p v-for="(line, i) in contact.split('\n')" :key="i" class="about__contact-line">
+          <template v-for="(part, j) in linkifyContact(line)" :key="j">
+            <a v-if="part.href" :href="part.href" rel="noopener noreferrer nofollow">{{ part.text }}</a><template v-else>{{ part.text }}</template>
+          </template>
+        </p>
+      </div>
     </section>
   </div>
 </template>
@@ -137,9 +144,13 @@ defineProps<{ contact?: string }>()
   margin: var(--space-1) 0 0;
 }
 .about__contact {
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-left: 4px solid var(--ink-900);
   background: var(--surface-sunken);
   overflow-wrap: anywhere;
+}
+.about__contact-line {
+  margin: var(--space-1) 0;
+  min-height: 1em;
 }
 </style>

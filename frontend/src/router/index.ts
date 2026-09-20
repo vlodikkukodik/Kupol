@@ -35,6 +35,7 @@ export const routes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'team', component: () => import('@/views/team/TeamDeskView.vue'), meta: { title: title('Рабочий стол — Панель команды') } },
       { path: 'templates', name: 'team-templates', component: () => import('@/views/team/TeamTemplatesView.vue'), meta: { title: title('Шаблоны — Панель команды') } },
+      { path: 'site', name: 'team-site', component: () => import('@/views/team/TeamSiteView.vue'), meta: { title: title('Сайт — Панель команды') } },
       { path: 'timeline', name: 'team-timeline', component: () => import('@/views/team/TeamTimelineView.vue'), meta: { title: title('Хронология — Панель команды') } },
       { path: 'glossary', name: 'team-glossary', component: () => import('@/views/team/TeamGlossaryView.vue'), meta: { title: title('Глоссарий — Панель команды') } },
       { path: 'roles', name: 'team-roles', component: () => import('@/views/team/TeamHomeView.vue'), meta: { title: title('Роли и права — Панель команды') } },

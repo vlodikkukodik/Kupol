@@ -184,6 +184,18 @@ export interface ResolveCommentRequest {
   resolved: boolean;
 }
 /**
+ * SiteResponse — GET /api/site: публичные настройки сайта (контакты автора для страницы «О КУПОЛЕ»).
+ */
+export interface SiteResponse {
+  site: any /* documents.SiteSettings */;
+}
+/**
+ * SiteSettingsResponse — GET/PUT /api/team/site: настройки для панели команды.
+ */
+export interface SiteSettingsResponse {
+  site: any /* documents.SiteSettingsOut */;
+}
+/**
  * TimelineResponse — GET /api/timeline: хронология «О КУПОЛЕ» для читателя.
  */
 export interface TimelineResponse {

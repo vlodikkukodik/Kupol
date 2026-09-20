@@ -99,6 +99,8 @@ func TestPreviewEqualsWhatTheReaderGets(t *testing.T) {
 		if err != nil {
 			t.Fatalf("уровень %d: Get: %v", level, err)
 		}
+		// «Упоминается в» и лист ознакомления — живые сведения о самом документе, в предпросмотре их нет: сравниваем то, что читатель видит в тексте
+		read.MentionedIn, read.ReadCount = nil, 0
 		if got, want := asJSON(t, res.Document), asJSON(t, read); got != want {
 			t.Errorf("уровень %d: предпросмотр расходится с чтением\nпредпросмотр: %s\nчтение:       %s", level, got, want)
 		}

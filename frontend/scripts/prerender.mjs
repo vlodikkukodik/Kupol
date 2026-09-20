@@ -66,8 +66,8 @@ async function main() {
     // index.html остаётся нейтральным: он же — страница SPA для всех остальных адресов и основа для og.php (предпросмотр документов)
     const template = readFileSync(resolve(DIST, 'index.html'), 'utf8')
 
-    // «О КУПОЛЕ» — контакт автора попадает в HTML, только если задан при сборке
-    const aboutBody = await renderToString(createSSRApp(AboutContent, { contact: site.AUTHOR_CONTACT || undefined }))
+    // «О КУПОЛЕ»: контакты автора живые (правит Директорат) — в пререндер не попадают, страница подставит их после загрузки
+    const aboutBody = await renderToString(createSSRApp(AboutContent))
     const aboutTitle = 'О КУПОЛЕ — вымышленный архив КУПОЛ'
     writeFileSync(
       resolve(DIST, 'about.html'),

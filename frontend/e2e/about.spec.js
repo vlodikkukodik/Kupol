@@ -14,11 +14,61 @@ const T = { open: `Открытое событие ${RUN}`, closed: `Закры�
 const created = []
 const origin = (baseURL) => ({ Origin: new URL(baseURL).origin })
 
+/** Контакты автора общие для сайта: перед началом и в конце файла возвращаем «пусто» (правит только Директорат). */
+async function clearContact(browser, baseURL) {
+  const boss = await newAuthor(browser, [], 6, true)
+  await boss.page.request.put('/api/team/site', { headers: origin(baseURL), data: { contact: '' } })
+  await boss.context.close()
+}
+
+test.beforeAll(async ({ browser, baseURL }) => clearContact(browser, baseURL))
+
 test.afterAll(async ({ browser, baseURL }) => {
   // убираем созданное: событие по номеру удаляет тот, у кого есть право
   const editor = await newAuthor(browser, ['author', 'editor'])
   for (const id of created) await editor.page.request.delete(`/api/team/timeline/${id}`, { headers: origin(baseURL) })
   await editor.context.close()
+  await clearContact(browser, baseURL)
+})
+
+test('Директорат правит контакты автора в панели («Сайт»); на странице они видны ссылками; остальные только читают', async ({ browser, baseURL, page }) => {
+  await page.goto('/about')
+  await expect(page.getByTestId('author-contact')).toHaveCount(0)
+
+  const boss = await newAuthor(browser, [], 6, true)
+  await boss.page.goto('/team/site')
+  await expect(boss.page.getByRole('navigation', { name: 'Разделы панели команды' }).getByRole('link', { name: 'Сайт' })).toHaveAttribute('aria-current', 'page')
+  await expect(boss.page.getByTestId('site-save')).toBeDisabled() // нечего сохранять
+  await boss.page.getByRole('textbox', { name: 'Контакты' }).fill(`Почта: kupol-${RUN}@example.org\nСайт: https://example.org/kupol-${RUN}.\n<b>не тег</b>`)
+  await boss.page.getByTestId('site-save').click()
+  await expect(boss.page.getByTestId('site-notice')).toContainText('видны на странице')
+
+  // на странице: строки, ссылки, а разметка — текстом
+  await page.reload()
+  const box = page.getByTestId('author-contact')
+  await expect(box).toBeVisible()
+  await expect(box.getByRole('link', { name: `kupol-${RUN}@example.org` })).toHaveAttribute('href', `mailto:kupol-${RUN}@example.org`)
+  await expect(box.getByRole('link', { name: `https://example.org/kupol-${RUN}` })).toHaveAttribute('href', `https://example.org/kupol-${RUN}`)
+  await expect(box.getByRole('link', { name: `https://example.org/kupol-${RUN}` })).toHaveAttribute('rel', /noopener/)
+  await expect(box).toContainText('<b>не тег</b>')
+  await expect(box.locator('b')).toHaveCount(0)
+
+  // Редактор видит то же, но поле закрыто; сервер править не даёт
+  const editor = await newAuthor(browser, ['author', 'editor'])
+  await editor.page.goto('/team/site')
+  await expect(editor.page.getByTestId('site-readonly')).toBeVisible()
+  await expect(editor.page.getByRole('textbox', { name: 'Контакты' })).toBeDisabled()
+  await expect(editor.page.getByTestId('site-save')).toHaveCount(0)
+  expect((await editor.page.request.put('/api/team/site', { headers: origin(baseURL), data: { contact: 'взлом' } })).status()).toBe(403)
+  await editor.context.close()
+
+  // очистка убирает раздел
+  await boss.page.getByRole('textbox', { name: 'Контакты' }).fill('')
+  await boss.page.getByTestId('site-save').click()
+  await expect(boss.page.getByTestId('site-notice')).toContainText('убраны')
+  await page.reload()
+  await expect(page.getByTestId('author-contact')).toHaveCount(0)
+  await boss.context.close()
 })
 
 test('страница «О КУПОЛЕ» открыта гостю: справка, уровни, конфиденциальность; содержание ведёт по якорям', async ({ page }) => {
