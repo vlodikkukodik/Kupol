@@ -105,6 +105,10 @@ func New(d Deps) (*gin.Engine, error) {
 	api.POST("/team/glossary", requireCapability(accounts.CapTeamPanel), tdocs.createTerm)
 	api.PUT("/team/glossary/:id", requireCapability(accounts.CapTeamPanel), tdocs.updateTerm)
 	api.DELETE("/team/glossary/:id", requireCapability(accounts.CapTeamPanel), tdocs.deleteTerm)
+	api.GET("/team/timeline", requireCapability(accounts.CapTeamPanel), tdocs.timelineList)
+	api.POST("/team/timeline", requireCapability(accounts.CapTeamPanel), tdocs.timelineCreate)
+	api.PUT("/team/timeline/:id", requireCapability(accounts.CapTeamPanel), tdocs.timelineUpdate)
+	api.DELETE("/team/timeline/:id", requireCapability(accounts.CapTeamPanel), tdocs.timelineDelete)
 	api.GET("/team/templates", requireCapability(accounts.CapTeamPanel), tdocs.templates)
 	api.POST("/team/templates", requireCapability(accounts.CapTeamPanel), tdocs.createTemplate)
 	api.GET("/team/templates/:id", requireCapability(accounts.CapTeamPanel), tdocs.template)
@@ -139,6 +143,7 @@ func New(d Deps) (*gin.Engine, error) {
 	docs := &documentHandlers{svc: d.Documents, log: d.Log}
 	api.GET("/documents", docs.list)
 	api.GET("/search", docs.search)
+	api.GET("/timeline", docs.timeline)
 	api.GET("/graph/:ref", docs.graph)
 	api.GET("/documents/summary", docs.summary)
 	api.GET("/documents/recent", docs.recent)

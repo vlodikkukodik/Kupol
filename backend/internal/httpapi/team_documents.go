@@ -35,6 +35,7 @@ func actorFrom(c *gin.Context) documents.Actor {
 		CanEditPublished:   u.Can(accounts.CapEditPublished),
 		CanManageTemplates: u.Can(accounts.CapManageTemplates),
 		CanManageGlossary:  u.Can(accounts.CapManageGlossary),
+		CanManageTimeline:  u.Can(accounts.CapManageTimeline),
 	}
 }
 
@@ -56,6 +57,8 @@ func (h *teamDocumentHandlers) fail(c *gin.Context, err error) {
 		Fail(c, http.StatusNotFound, CodeNotFound, "Шаблон не найден")
 	case errors.Is(err, documents.ErrTemplateNameTaken):
 		FailFields(c, http.StatusConflict, CodeNameTaken, "Шаблон с таким названием уже есть", map[string]string{"name": "Такое название уже занято: выберите другое"})
+	case errors.Is(err, documents.ErrEventNotFound):
+		Fail(c, http.StatusNotFound, CodeNotFound, "Событие не найдено")
 	case errors.Is(err, documents.ErrTermNotFound):
 		Fail(c, http.StatusNotFound, CodeNotFound, "Термин не найден")
 	case errors.Is(err, documents.ErrTermTaken):

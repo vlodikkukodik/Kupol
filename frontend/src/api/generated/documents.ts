@@ -1026,6 +1026,10 @@ export interface Actor {
    * CanManageGlossary — вести глоссарий канона
    */
   CanManageGlossary: boolean;
+  /**
+   * CanManageTimeline — вести хронологию «О КУПОЛЕ»
+   */
+  CanManageTimeline: boolean;
 }
 /**
  * ConflictError — документ изменился после того, как редактор его открыл.
@@ -1199,6 +1203,76 @@ export interface TemplateInput {
   description: string;
   doc_type: string;
   content: TemplateContent;
+}
+
+//////////
+// source: timeline.go
+
+/**
+ * TimelineEvent — запись хронологии (таблица timeline_events).
+ */
+export interface TimelineEvent {
+  ID: number /* int64 */;
+  Year: number /* int */;
+  Month?: number /* int */;
+  Day?: number /* int */;
+  Title: string;
+  Body: string;
+  Level: number /* int */;
+  DocumentCode?: string;
+  AuthorID?: number /* int64 */;
+  CreatedAt: string /* RFC 3339 */;
+  UpdatedAt: string /* RFC 3339 */;
+}
+/**
+ * TimelineDoc — документ, к которому относится событие (только доступный читателю).
+ */
+export interface TimelineDoc {
+  code: string;
+  slug: string;
+  title: string;
+}
+/**
+ * TimelineItem — событие в шкале для читателя.
+ */
+export interface TimelineItem {
+  id: number /* int64 */;
+  date: Composed;
+  title: string;
+  body?: string;
+  level: number /* int */;
+  document?: TimelineDoc;
+}
+/**
+ * TimelineEventOut — событие для редактора: со всеми полями, включая шифр документа, как его ввели.
+ */
+export interface TimelineEventOut {
+  id: number /* int64 */;
+  year: number /* int */;
+  month?: number /* int */;
+  day?: number /* int */;
+  title: string;
+  body: string;
+  level: number /* int */;
+  document_code?: string;
+  author?: string;
+  updated_at: string /* RFC 3339 */;
+  /**
+   * CanEdit — вправе ли человек менять и удалять события.
+   */
+  can_edit: boolean;
+}
+/**
+ * TimelineInput — что нужно, чтобы завести или изменить событие.
+ */
+export interface TimelineInput {
+  year: number /* int */;
+  month?: number /* int */;
+  day?: number /* int */;
+  title: string;
+  body: string;
+  level: number /* int */;
+  document_code: string;
 }
 
 //////////

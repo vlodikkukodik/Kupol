@@ -12,6 +12,7 @@ import type {
   SearchResult,
   TemplateContent,
   TemplateInput,
+  TimelineInput,
   TermInput,
   Summary,
   TeamListResult,
@@ -52,6 +53,9 @@ import type {
   TeamMembersResponse,
   TeamRolesResponse,
   TermResponse,
+  TimelineEventResponse,
+  TimelineEventsResponse,
+  TimelineResponse,
   TOTPCodesResponse,
   TOTPSetupResponse,
   TOTPStatusResponse,
@@ -105,6 +109,8 @@ export const documentsApi = {
   get: (ref: string, o?: RequestOptions) => api.get<DocumentResponse>(`/documents/${encodeURIComponent(ref)}`, o),
   /** «Доска с нитками»: документ, связанные с ним документы и ссылки между ними — только то, что читатель вправе видеть */
   graph: (ref: string, depth: 1 | 2, o?: RequestOptions) => api.get<GraphResult>(`/graph/${encodeURIComponent(ref)}${qs({ depth })}`, o),
+  /** Хронология «О КУПОЛЕ»: события не выше допуска читателя */
+  timeline: (o?: RequestOptions) => api.get<TimelineResponse>('/timeline', o).then((r) => r.items),
   /** Поиск по названиям, шифрам и тексту блоков: в выдаче только то, что читатель вправе видеть */
   search: (params: URLSearchParams, o?: RequestOptions) => api.get<SearchResult>(`/search${qs(params)}`, o),
 }
@@ -153,6 +159,11 @@ export const teamApi = {
   updateTemplate: (id: number, body: { name: string; description: string; content?: TemplateContent }) =>
     api.put<TemplateResponse>(`/team/templates/${id}`, body).then((r) => r.template),
   deleteTemplate: (id: number) => api.delete<null>(`/team/templates/${id}`),
+  /** Хронология «О КУПОЛЕ» для редактирования: все события, ведёт право manage_timeline */
+  timeline: (o?: RequestOptions) => api.get<TimelineEventsResponse>('/team/timeline', o).then((r) => r.items),
+  createEvent: (body: TimelineInput) => api.post<TimelineEventResponse>('/team/timeline', body).then((r) => r.event),
+  updateEvent: (id: number, body: TimelineInput) => api.put<TimelineEventResponse>(`/team/timeline/${id}`, body).then((r) => r.event),
+  deleteEvent: (id: number) => api.delete<null>(`/team/timeline/${id}`),
   /** Глоссарий канона: читают все члены команды, ведёт право manage_glossary */
   glossary: (q: string, o?: RequestOptions) => api.get<GlossaryResponse>(`/team/glossary${qs({ q: q || undefined })}`, o).then((r) => r.items),
   createTerm: (body: TermInput) => api.post<TermResponse>('/team/glossary', body).then((r) => r.term),

@@ -61,7 +61,7 @@ test('Автор: панель есть, права показаны честн�
   await expect(rights.getByText('Создавать документы и править черновики')).not.toHaveClass(/off/)
   await expect(rights.locator('li', { hasText: 'Публиковать проверенные документы' })).toHaveClass(/off/)
   await expect(rights.locator('li', { hasText: 'Выдавать и снимать роли' })).toHaveClass(/off/)
-  await expect(page.getByRole('navigation', { name: 'Разделы панели команды' }).getByRole('link')).toHaveText(['Рабочий стол', 'Документы', 'Шаблоны', 'Глоссарий', 'Роли и права'])
+  await expect(page.getByRole('navigation', { name: 'Разделы панели команды' }).getByRole('link')).toHaveText(['Рабочий стол', 'Документы', 'Шаблоны', 'Глоссарий', 'Хронология', 'Роли и права'])
 
   // таблица «что даёт роль»: Автор не публикует, Редактор публикует
   const matrix = page.getByTestId('roles-matrix')

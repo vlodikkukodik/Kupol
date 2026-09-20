@@ -5,7 +5,7 @@ import { api } from '@/api'
 import type { UserDTO } from '@/api/generated/httpapi'
 
 /** Права, которые присылает сервер (accounts.Capability). Интерфейс из ролей ничего не выводит — решает сервер. */
-export type Capability = 'team_panel' | 'write_drafts' | 'review' | 'publish' | 'edit_published' | 'manage_glossary' | 'manage_templates' | 'manage_team'
+export type Capability = 'team_panel' | 'write_drafts' | 'review' | 'publish' | 'edit_published' | 'manage_glossary' | 'manage_templates' | 'manage_timeline' | 'manage_team'
 
 // Загрузка сессии — один запрос на всех, кто её ждёт (роутер, главная, шапка).
 let inflight: Promise<void> | null = null

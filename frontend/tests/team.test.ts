@@ -13,7 +13,7 @@ let session: { user: UserDTO | null } = { user: null } // что сервер о
 let mode: 'ok' | 'down' = 'ok'
 let sessionHits = 0
 
-const ALL: Capability[] = ['team_panel', 'write_drafts', 'review', 'publish', 'edit_published', 'manage_glossary', 'manage_templates', 'manage_team']
+const ALL: Capability[] = ['team_panel', 'write_drafts', 'review', 'publish', 'edit_published', 'manage_glossary', 'manage_templates', 'manage_timeline', 'manage_team']
 const user = (capabilities: string[], extra: Partial<UserDTO> = {}): UserDTO => ({
   login: 'tester',
   level: 1,

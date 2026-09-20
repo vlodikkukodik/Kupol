@@ -44,6 +44,10 @@ const (
 	GlossaryUpdated Action = "glossary.updated" // термин изменён
 	GlossaryDeleted Action = "glossary.deleted" // термин удалён
 
+	TimelineCreated Action = "timeline.created" // добавлено событие хронологии
+	TimelineUpdated Action = "timeline.updated" // событие хронологии изменено
+	TimelineDeleted Action = "timeline.deleted" // событие хронологии удалено
+
 	TOTPEnabled      Action = "account.totp_enabled"       // включён код из приложения
 	TOTPDisabled     Action = "account.totp_disabled"      // код из приложения выключен владельцем
 	TOTPReset        Action = "account.totp_reset"         // код из приложения снят автором командой на сервере
@@ -76,6 +80,10 @@ var titles = map[Action]string{
 	GlossaryCreated: "Заведён термин глоссария",
 	GlossaryUpdated: "Термин глоссария изменён",
 	GlossaryDeleted: "Термин глоссария удалён",
+
+	TimelineCreated: "Добавлено событие хронологии",
+	TimelineUpdated: "Изменено событие хронологии",
+	TimelineDeleted: "Удалено событие хронологии",
 
 	TOTPEnabled:      "Включён код из приложения",
 	TOTPDisabled:     "Код из приложения выключен",

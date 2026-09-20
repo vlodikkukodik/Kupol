@@ -184,6 +184,24 @@ export interface ResolveCommentRequest {
   resolved: boolean;
 }
 /**
+ * TimelineResponse — GET /api/timeline: хронология «О КУПОЛЕ» для читателя.
+ */
+export interface TimelineResponse {
+  items: any /* documents.TimelineItem */[];
+}
+/**
+ * TimelineEventsResponse — GET /api/team/timeline: все события для редактирования.
+ */
+export interface TimelineEventsResponse {
+  items: any /* documents.TimelineEventOut */[];
+}
+/**
+ * TimelineEventResponse — событие хронологии.
+ */
+export interface TimelineEventResponse {
+  event: any /* documents.TimelineEventOut */;
+}
+/**
  * DashboardResponse — GET /api/team/dashboard: рабочий стол человека.
  */
 export interface DashboardResponse {

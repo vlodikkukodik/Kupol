@@ -12,9 +12,9 @@ import (
 // (например, случайно дали Автору право публиковать) должно ломать этот тест.
 var wantCapabilities = map[Role][]Capability{
 	RoleAuthor:    {CapTeamPanel, CapWriteDrafts},
-	RoleEditor:    {CapTeamPanel, CapWriteDrafts, CapReview, CapPublish, CapEditPublished, CapManageGlossary, CapManageTemplates},
+	RoleEditor:    {CapTeamPanel, CapWriteDrafts, CapReview, CapPublish, CapEditPublished, CapManageGlossary, CapManageTemplates, CapManageTimeline},
 	RoleModerator: {CapTeamPanel},
-	RoleArchivist: {CapTeamPanel, CapManageGlossary, CapManageTemplates},
+	RoleArchivist: {CapTeamPanel, CapManageGlossary, CapManageTemplates, CapManageTimeline},
 }
 
 func TestRoleCapabilitiesMatrix(t *testing.T) {
@@ -80,7 +80,7 @@ func TestUserWithoutRolesHasNoCapabilities(t *testing.T) {
 
 func TestSeveralRolesUnionCapabilities(t *testing.T) {
 	u := User{Roles: []Role{RoleAuthor, RoleArchivist}}
-	want := []Capability{CapTeamPanel, CapWriteDrafts, CapManageGlossary, CapManageTemplates}
+	want := []Capability{CapTeamPanel, CapWriteDrafts, CapManageGlossary, CapManageTemplates, CapManageTimeline}
 	if got := u.Capabilities(); !slices.Equal(got, want) {
 		t.Errorf("права = %v, ожидалось %v", got, want)
 	}

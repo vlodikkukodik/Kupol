@@ -22,6 +22,7 @@ const title = (name: string) => `${name} — ${BASE_TITLE}`
 export const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: HomeView, meta: { title: 'КУПОЛ — Центральный архив', needsApi: false } },
   { path: '/catalog', name: 'catalog', component: () => import('@/views/CatalogView.vue'), meta: { title: title('Каталог'), needsApi: true } },
+  { path: '/about', name: 'about', component: () => import('@/views/AboutView.vue'), meta: { title: 'О КУПОЛЕ — вымышленный архив КУПОЛ', needsApi: false } },
   { path: '/search', name: 'search', component: () => import('@/views/SearchView.vue'), meta: { title: title('Поиск'), needsApi: true } },
   { path: '/graph/:ref', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: title('Связи документа'), needsApi: true } },
   { path: '/doc/:ref', name: 'document', component: () => import('@/views/DocumentView.vue'), meta: { title: title('Документ'), needsApi: true } },
@@ -34,6 +35,7 @@ export const routes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'team', component: () => import('@/views/team/TeamDeskView.vue'), meta: { title: title('Рабочий стол — Панель команды') } },
       { path: 'templates', name: 'team-templates', component: () => import('@/views/team/TeamTemplatesView.vue'), meta: { title: title('Шаблоны — Панель команды') } },
+      { path: 'timeline', name: 'team-timeline', component: () => import('@/views/team/TeamTimelineView.vue'), meta: { title: title('Хронология — Панель команды') } },
       { path: 'glossary', name: 'team-glossary', component: () => import('@/views/team/TeamGlossaryView.vue'), meta: { title: title('Глоссарий — Панель команды') } },
       { path: 'roles', name: 'team-roles', component: () => import('@/views/team/TeamHomeView.vue'), meta: { title: title('Роли и права — Панель команды') } },
       { path: 'documents', name: 'team-documents', component: () => import('@/views/team/TeamDocumentsView.vue'), meta: { title: title('Документы команды') } },
@@ -107,7 +109,8 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
   const router = createRouter({
     history,
     routes,
-    scrollBehavior: (_to, _from, saved) => saved || { top: 0 },
+    // Якоря «О КУПОЛЕ» (#privacy, #timeline) — статичные разделы страницы; якорь блока документа (#b-…) появляется после загрузки данных, им занят сам документ.
+    scrollBehavior: (to, _from, saved) => saved || (to.name === 'about' && to.hash ? { el: to.hash } : { top: 0 }),
   })
   router.beforeEach(authGuard)
   router.afterEach((to) => {

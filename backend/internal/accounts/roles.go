@@ -47,13 +47,14 @@ const (
 	CapEditPublished   Capability = "edit_published"   // править опубликованное «на месте»
 	CapManageGlossary  Capability = "manage_glossary"  // вести глоссарий канона
 	CapManageTemplates Capability = "manage_templates" // вести шаблоны документов и наборы блоков
+	CapManageTimeline  Capability = "manage_timeline"  // вести хронологию «О КУПОЛЕ»
 	CapManageTeam      Capability = "manage_team"      // выдавать и снимать роли
 )
 
 // AllCapabilities — права в порядке показа.
 var AllCapabilities = []Capability{
 	CapTeamPanel, CapWriteDrafts, CapReview, CapPublish, CapEditPublished,
-	CapManageGlossary, CapManageTemplates, CapManageTeam,
+	CapManageGlossary, CapManageTemplates, CapManageTimeline, CapManageTeam,
 }
 
 var capabilityNames = map[Capability]string{
@@ -64,6 +65,7 @@ var capabilityNames = map[Capability]string{
 	CapEditPublished:   "Править опубликованное на месте",
 	CapManageGlossary:  "Вести глоссарий канона",
 	CapManageTemplates: "Вести шаблоны и наборы блоков",
+	CapManageTimeline:  "Вести хронологию «О КУПОЛЕ»",
 	CapManageTeam:      "Выдавать и снимать роли",
 }
 
@@ -73,9 +75,9 @@ func (c Capability) Name() string { return capabilityNames[c] }
 // roleCapabilities — что даёт каждая роль. Директорат получает всё (см. User.Can).
 var roleCapabilities = map[Role][]Capability{
 	RoleAuthor:    {CapTeamPanel, CapWriteDrafts},
-	RoleEditor:    {CapTeamPanel, CapWriteDrafts, CapReview, CapPublish, CapEditPublished, CapManageGlossary, CapManageTemplates},
+	RoleEditor:    {CapTeamPanel, CapWriteDrafts, CapReview, CapPublish, CapEditPublished, CapManageGlossary, CapManageTemplates, CapManageTimeline},
 	RoleModerator: {CapTeamPanel},
-	RoleArchivist: {CapTeamPanel, CapManageGlossary, CapManageTemplates},
+	RoleArchivist: {CapTeamPanel, CapManageGlossary, CapManageTemplates, CapManageTimeline},
 }
 
 // Capabilities — права, которые даёт роль.

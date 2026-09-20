@@ -26,6 +26,8 @@ type Actor struct {
 	CanManageTemplates bool
 	// CanManageGlossary — вести глоссарий канона
 	CanManageGlossary bool
+	// CanManageTimeline — вести хронологию «О КУПОЛЕ»
+	CanManageTimeline bool
 }
 
 func (a Actor) owns(d *Document) bool { return d.AuthorID != nil && *d.AuthorID == a.UserID }

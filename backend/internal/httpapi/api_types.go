@@ -159,6 +159,21 @@ type ResolveCommentRequest struct {
 	Resolved bool `json:"resolved"`
 }
 
+// TimelineResponse — GET /api/timeline: хронология «О КУПОЛЕ» для читателя.
+type TimelineResponse struct {
+	Items []documents.TimelineItem `json:"items"`
+}
+
+// TimelineEventsResponse — GET /api/team/timeline: все события для редактирования.
+type TimelineEventsResponse struct {
+	Items []documents.TimelineEventOut `json:"items"`
+}
+
+// TimelineEventResponse — событие хронологии.
+type TimelineEventResponse struct {
+	Event *documents.TimelineEventOut `json:"event" tstype:",required"`
+}
+
 // DashboardResponse — GET /api/team/dashboard: рабочий стол человека.
 type DashboardResponse struct {
 	Dashboard *documents.Dashboard `json:"dashboard" tstype:",required"`

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, type RouteLocationNormalized } from 'vue-router'
 import AppMenu from '@/components/AppMenu.vue'
+import CookieNotice from '@/components/CookieNotice.vue'
 import PassCard from '@/components/PassCard.vue'
 import AuthModal from '@/components/auth/AuthModal.vue'
 import UiIcon from '@/ui/UiIcon.vue'
@@ -79,6 +80,7 @@ const statusText = computed(
       <nav class="masthead__nav" aria-label="Разделы">
         <RouterLink to="/catalog">Каталог</RouterLink>
         <RouterLink to="/search">Поиск</RouterLink>
+        <RouterLink to="/about">О КУПОЛЕ</RouterLink>
       </nav>
       <PassCard v-if="auth.user" class="masthead__pass" :login="auth.user.login" :level-name="auth.user.level_name" :level="auth.user.level" />
     </header>
@@ -89,8 +91,11 @@ const statusText = computed(
       <RouterView v-else />
     </main>
 
+    <!-- в потоке страницы, а не поверх неё: уведомление не должно перекрывать кнопки и текст -->
+    <CookieNotice />
+
     <footer class="colophon">
-      <span>Форма КУПОЛ-1 · Центральный архив</span>
+      <span>Форма КУПОЛ-1 · Центральный архив · <RouterLink to="/about#privacy">Конфиденциальность</RouterLink></span>
       <span class="status" :data-state="connection.state" role="status">{{ statusText }}</span>
       <p class="disclaimer">
         Примечание автора: КУПОЛ, его объекты, сотрудники и события — художественный вымысел. Любые совпадения
