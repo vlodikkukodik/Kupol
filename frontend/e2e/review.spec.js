@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import { canWrite } from './helpers/kupol.js'
 import { createDoc, newAuthor, stored } from './helpers/team.js'
+import { settle } from './helpers/ui.js'
 
 // Рецензия и публикация (этап 3.5): два настоящих человека, настоящий сервер. Автор отправляет документ, Редактор
 // комментирует и выносит вердикт, читатель видит опубликованное; линтер канона не пропускает битые ссылки.
@@ -258,6 +259,7 @@ test('телефон 375 px и доступность: панель хода, в
 
   await wf(editor.page, 'verdict').click()
   await expect(editor.page.getByTestId('wf-dialog')).toBeVisible()
+  await settle(editor.page) // окно проявляется плавно: пока оно полупрозрачное, контраст измерить нельзя
   result = await new AxeBuilder({ page: editor.page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
   expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`), 'окно вердикта').toEqual([])
   await editor.page.keyboard.press('Escape')
