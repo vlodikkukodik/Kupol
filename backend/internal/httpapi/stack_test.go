@@ -51,7 +51,7 @@ func newStack(t *testing.T, tweak func(*config.Config)) *stack {
 		t.Fatal(err)
 	}
 	limiter := ratelimit.New(nil)
-	svc, err := accounts.NewService(accounts.Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: testutil.Logger()})
+	svc, err := accounts.NewService(accounts.Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: testutil.Logger(), SecretKey: cfg.ProxySecret})
 	if err != nil {
 		t.Fatal(err)
 	}

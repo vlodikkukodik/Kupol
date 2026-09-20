@@ -15,7 +15,7 @@ import (
 func TestAuditCommand(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.NewMigratedDB(t)
-	svc, _, err := newAccounts(config.Config{Limits: config.DefaultLimits()}, db, testutil.Logger())
+	svc, _, err := newAccounts(config.Config{Limits: config.DefaultLimits(), ProxySecret: bytes.Repeat([]byte("k"), config.MinSecretBytes)}, db, testutil.Logger())
 	if err != nil {
 		t.Fatal(err)
 	}

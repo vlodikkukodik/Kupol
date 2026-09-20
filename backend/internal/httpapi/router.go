@@ -82,6 +82,11 @@ func New(d Deps) (*gin.Engine, error) {
 	me := api.Group("/me", requireAuth())
 	me.POST("/password", auth.changePassword)
 	me.DELETE("", auth.deleteAccount)
+	me.GET("/totp", auth.totpStatus)
+	me.POST("/totp/setup", auth.totpSetup)
+	me.POST("/totp/enable", auth.totpEnable)
+	me.POST("/totp/disable", auth.totpDisable)
+	me.POST("/totp/recovery-codes", auth.totpRenew)
 
 	// Team panel: роли и права проверяются на сервере (requireCapability), а не по тому, что показывает интерфейс.
 	team := &teamHandlers{svc: d.Accounts, log: d.Log}

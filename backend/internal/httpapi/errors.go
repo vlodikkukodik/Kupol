@@ -37,6 +37,11 @@ const (
 	CodeSelfReview         = "self_review"   // Редактор пытается проверить собственный документ
 	CodeInvalidState       = "invalid_state" // действие не подходит документу в его статусе
 	CodeLintFailed         = "lint_failed"   // документ не прошёл проверку канона; отчёт — в lint
+
+	CodeTOTPRequired       = "totp_required"        // пароль верен, но нужен код из приложения
+	CodeTOTPInvalid        = "totp_invalid"         // неверный, просроченный или уже использованный код
+	CodeTOTPAlreadyEnabled = "totp_already_enabled" // код из приложения уже включён
+	CodeTOTPNotEnabled     = "totp_not_enabled"     // код из приложения не включён (или подключение не начато)
 )
 
 type ErrorBody struct {

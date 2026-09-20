@@ -87,6 +87,8 @@ type Options struct {
 	Limiter *ratelimit.Limiter
 	Limits  config.Limits
 	Log     *slog.Logger
+	// SecretKey — общий секрет сервера (не короче 32 байт): из него выводится ключ, которым шифруются секреты кода из приложения.
+	SecretKey []byte
 	// Now — часы; nil — настоящее время (подмена нужна только тестам).
 	Now func() time.Time
 }
@@ -98,6 +100,7 @@ type Service struct {
 	limiter *ratelimit.Limiter
 	limits  config.Limits
 	log     *slog.Logger
+	box     *secretBox
 	now     func() time.Time
 }
 
@@ -120,7 +123,11 @@ func NewService(o Options) (*Service, error) {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &Service{db: o.DB, hasher: o.Hasher, limiter: o.Limiter, limits: l, log: o.Log, now: now}, nil
+	box, err := newSecretBox(o.SecretKey)
+	if err != nil {
+		return nil, fmt.Errorf("accounts: %w", err)
+	}
+	return &Service{db: o.DB, hasher: o.Hasher, limiter: o.Limiter, limits: l, log: o.Log, box: box, now: now}, nil
 }
 
 // ---------------------------------------------------------------- лимиты входа
@@ -401,12 +408,21 @@ func (s *Service) findByLogin(ctx context.Context, login string) (*User, error) 
 	return &u, err
 }
 
-// Login проверяет логин и пароль и создаёт сессию.
+// Login — вход по логину и паролю. Если у пользователя включён код из приложения, возвращает ErrTOTPRequired.
+func (s *Service) Login(ctx context.Context, login, password string, ci ClientInfo) (*AuthResult, error) {
+	return s.LoginWithCode(ctx, login, password, "", ci)
+}
+
+// LoginWithCode проверяет логин и пароль (и код из приложения или одноразовый код, если он включён) и создаёт сессию.
 //
 // Неверный логин и неверный пароль неразличимы ни по ответу, ни по времени (для несуществующего
 // логина считается «холостой» хеш). После LoginAttempts неудач с одного IP на один логин
 // (или LoginLockAttempts с любых IP) вход блокируется на окно, даже с верным паролем.
-func (s *Service) Login(ctx context.Context, login, password string, ci ClientInfo) (*AuthResult, error) {
+//
+// Код из приложения спрашивается только после верного пароля: ErrTOTPRequired не раскрывает постороннему, включена ли
+// защита. Верный пароль без кода счётчики неудач не сбрасывает (иначе код можно было бы перебирать «бесплатно»), неверный
+// код считается неудачей входа наравне с неверным паролем.
+func (s *Service) LoginWithCode(ctx context.Context, login, password, code string, ci ClientInfo) (*AuthResult, error) {
 	fields := map[string]string{}
 	if strings.TrimSpace(login) == "" {
 		fields["login"] = "Введите логин"
@@ -443,6 +459,23 @@ func (s *Service) Login(ctx context.Context, login, password string, ci ClientIn
 		s.recordLoginFailure(ci.IP, login)
 		s.log.Warn("вход: неверные данные", "ip", ci.IP, "login", LoginKey(login))
 		return nil, ErrInvalidCredentials
+	}
+	if user.TOTPEnabled() {
+		if strings.TrimSpace(code) == "" {
+			return nil, ErrTOTPRequired
+		}
+		kind, good, err := s.verifySecondFactor(ctx, user, code)
+		if err != nil {
+			return nil, err
+		}
+		if !good {
+			s.recordLoginFailure(ci.IP, login)
+			s.log.Warn("вход: неверный код из приложения", "ip", ci.IP, "login", LoginKey(login))
+			return nil, ErrTOTPInvalid
+		}
+		if kind == "recovery" {
+			s.log.Warn("вход по одноразовому коду", "user_id", user.ID, "ip", ci.IP)
+		}
 	}
 	s.recordLoginSuccess(ci.IP, login)
 
@@ -631,12 +664,11 @@ func (s *Service) RestoreAccess(ctx context.Context, login, backupCode, newPassw
 	var token string
 	var expires time.Time
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&User{}).Where("id = ?", user.ID).Updates(map[string]any{
-			"password_hash":       passHash,
-			"backup_code_hash":    newCodeHash,
-			"password_changed_at": now,
-			"last_login_at":       now,
-		}).Error; err != nil {
+		updates := map[string]any{"password_hash": passHash, "backup_code_hash": newCodeHash, "password_changed_at": now}
+		if !user.TOTPEnabled() {
+			updates["last_login_at"] = now
+		}
+		if err := tx.Model(&User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
 			return err
 		}
 		if err := audit.Record(tx, now, audit.AccessRestored, audit.Event{ActorID: &user.ID, TargetUserID: &user.ID}); err != nil {
@@ -645,6 +677,10 @@ func (s *Service) RestoreAccess(ctx context.Context, login, backupCode, newPassw
 		if err := s.revokeSessions(tx, user.ID, 0); err != nil {
 			return err
 		}
+		if user.TOTPEnabled() {
+			// Резервный код меняет пароль, но не заменяет код из приложения: вход — обычный, с обоими.
+			return nil
+		}
 		var serr error
 		token, expires, serr = s.createSession(tx, user.ID, ci)
 		return serr
@@ -652,11 +688,13 @@ func (s *Service) RestoreAccess(ctx context.Context, login, backupCode, newPassw
 	if err != nil {
 		return nil, err
 	}
-	user.LastLoginAt = &now
+	if token != "" {
+		user.LastLoginAt = &now
+	}
 	if err := s.loadRoles(s.db.WithContext(ctx), user); err != nil {
 		return nil, err
 	}
-	s.log.Info("доступ восстановлен по резервному коду", "user_id", user.ID, "ip", ci.IP)
+	s.log.Info("доступ восстановлен по резервному коду", "user_id", user.ID, "ip", ci.IP, "signed_in", token != "")
 	return &RestoreResult{AuthResult: AuthResult{User: *user, Token: token, ExpiresAt: expires}, BackupCode: newCode}, nil
 }
 

@@ -22,6 +22,7 @@ const user = (capabilities: string[], extra: Partial<UserDTO> = {}): UserDTO => 
   roles: [],
   capabilities,
   created_at: '2026-09-19T12:00:00Z',
+  totp_enabled: false,
   ...extra,
 })
 

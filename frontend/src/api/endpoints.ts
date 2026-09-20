@@ -38,6 +38,7 @@ import type {
   RegisterRequest,
   RegisterResponse,
   RestoreRequest,
+  RestoreResponse,
   ResolveCommentRequest,
   ReviewResponse,
   SaveDocumentRequest,
@@ -49,6 +50,9 @@ import type {
   TeamMembersResponse,
   TeamRolesResponse,
   TermResponse,
+  TOTPCodesResponse,
+  TOTPSetupResponse,
+  TOTPStatusResponse,
   VerdictRequest,
   VersionResponse,
 } from './generated/httpapi'
@@ -71,10 +75,21 @@ export const authApi = {
   captcha: (o?: RequestOptions) => api.get<CaptchaResponse>('/auth/captcha', o),
   login: (body: LoginRequest) => api.post<LoginResponse>('/auth/login', body),
   register: (body: RegisterRequest) => api.post<RegisterResponse>('/auth/register', body),
-  restore: (body: RestoreRequest) => api.post<RegisterResponse>('/auth/restore', body),
+  restore: (body: RestoreRequest) => api.post<RestoreResponse>('/auth/restore', body),
   logout: () => api.post<null>('/auth/logout'),
   changePassword: (body: ChangePasswordRequest) => api.post<null>('/me/password', body),
   deleteAccount: (password: string) => api.delete<null>('/me', { password }),
+}
+
+/** Код из приложения (TOTP) в личном деле: включается по желанию, все действия подтверждаются паролем. */
+export const totpApi = {
+  status: (o?: RequestOptions) => api.get<TOTPStatusResponse>('/me/totp', o),
+  /** Начать подключение: секрет и ссылка для QR. Защита включится только первым верным кодом (enable). */
+  setup: (password: string) => api.post<TOTPSetupResponse>('/me/totp/setup', { password }),
+  /** Подтвердить подключение первым кодом; в ответ — одноразовые коды (показываются один раз). */
+  enable: (code: string) => api.post<TOTPCodesResponse>('/me/totp/enable', { code }),
+  disable: (password: string, code: string) => api.post<null>('/me/totp/disable', { password, code }),
+  renewRecoveryCodes: (password: string, code: string) => api.post<TOTPCodesResponse>('/me/totp/recovery-codes', { password, code }),
 }
 
 export const healthApi = {

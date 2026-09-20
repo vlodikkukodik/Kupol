@@ -34,6 +34,8 @@ type UserDTO struct {
 	// сам права из ролей не выводит, решает сервер).
 	Roles        []RoleDTO `json:"roles"`
 	Capabilities []string  `json:"capabilities"`
+	// TOTPEnabled — включён ли вход с кодом из приложения.
+	TOTPEnabled bool `json:"totp_enabled"`
 }
 
 func toUserDTO(u accounts.User) UserDTO {
@@ -49,6 +51,7 @@ func toUserDTO(u accounts.User) UserDTO {
 		CreatedAt:    u.CreatedAt.UTC(),
 		Roles:        toRoleDTOs(u.Roles),
 		Capabilities: caps,
+		TOTPEnabled:  u.TOTPEnabled(),
 	}
 }
 
@@ -81,6 +84,14 @@ func (h *authHandlers) fail(c *gin.Context, err error, invalidCredentialsMsg str
 			map[string]string{"captcha_answer": "Неверный ответ. Вопрос обновлён — ответьте на новый."})
 	case errors.Is(err, accounts.ErrInvalidCredentials):
 		Fail(c, http.StatusUnauthorized, CodeInvalidCredentials, invalidCredentialsMsg)
+	case errors.Is(err, accounts.ErrTOTPRequired):
+		Fail(c, http.StatusUnauthorized, CodeTOTPRequired, "Введите код из приложения-аутентификатора")
+	case errors.Is(err, accounts.ErrTOTPInvalid):
+		FailFields(c, http.StatusUnprocessableEntity, CodeTOTPInvalid, "Неверный код", map[string]string{"totp": "Неверный или уже использованный код"})
+	case errors.Is(err, accounts.ErrTOTPAlreadyEnabled):
+		Fail(c, http.StatusConflict, CodeTOTPAlreadyEnabled, "Код из приложения уже включён")
+	case errors.Is(err, accounts.ErrTOTPNotEnabled):
+		Fail(c, http.StatusConflict, CodeTOTPNotEnabled, "Код из приложения не включён")
 	case errors.Is(err, accounts.ErrWrongPassword):
 		FailFields(c, http.StatusForbidden, CodeWrongPassword, "Неверный пароль", map[string]string{"current_password": "Неверный пароль"})
 	case errors.Is(err, accounts.ErrNoSession):
@@ -139,6 +150,9 @@ func (h *authHandlers) register(c *gin.Context) {
 type LoginRequest struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
+	// TOTP — код из приложения или одноразовый код; нужен, только если у пользователя включена защита кодом
+	// (без него сервер отвечает 401 totp_required — после проверки пароля).
+	TOTP string `json:"totp,omitempty"`
 }
 
 // POST /api/auth/login
@@ -147,7 +161,7 @@ func (h *authHandlers) login(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	res, err := h.svc.Login(c.Request.Context(), req.Login, req.Password, clientInfo(c))
+	res, err := h.svc.LoginWithCode(c.Request.Context(), req.Login, req.Password, req.TOTP, clientInfo(c))
 	if err != nil {
 		h.fail(c, err, "Неверный логин или пароль")
 		return
@@ -185,8 +199,14 @@ func (h *authHandlers) restore(c *gin.Context) {
 		h.fail(c, err, "Неверный логин или резервный код")
 		return
 	}
-	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusOK, RegisterResponse{User: toUserDTO(res.User), BackupCode: res.BackupCode})
+	resp := RestoreResponse{BackupCode: res.BackupCode}
+	// У кого включён код из приложения, тот после восстановления входит обычным путём — с новым паролем и кодом.
+	if res.Token != "" {
+		setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
+		u := toUserDTO(res.User)
+		resp.User = &u
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 type ChangePasswordRequest struct {

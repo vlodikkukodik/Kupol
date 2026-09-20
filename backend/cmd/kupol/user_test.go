@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"kupol/internal/accounts"
 	"kupol/internal/config"
 	"kupol/internal/testutil"
@@ -15,8 +17,14 @@ import (
 
 func newUserCLI(t *testing.T) (*accounts.Service, func(args ...string) (string, error)) {
 	t.Helper()
+	svc, _, run := newUserCLIWithDB(t)
+	return svc, run
+}
+
+func newUserCLIWithDB(t *testing.T) (*accounts.Service, *gorm.DB, func(args ...string) (string, error)) {
+	t.Helper()
 	db := testutil.NewMigratedDB(t)
-	cfg := config.Config{Limits: config.DefaultLimits()}
+	cfg := config.Config{Limits: config.DefaultLimits(), ProxySecret: bytes.Repeat([]byte("k"), config.MinSecretBytes)}
 	svc, _, err := newAccounts(cfg, db, testutil.Logger())
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +40,7 @@ func newUserCLI(t *testing.T) (*accounts.Service, func(args ...string) (string, 
 		err := runUser(context.Background(), svc, args, &out)
 		return out.String(), err
 	}
-	return svc, run
+	return svc, db, run
 }
 
 func TestUserShow(t *testing.T) {
@@ -178,10 +186,42 @@ func TestUserResetPassword(t *testing.T) {
 	}
 }
 
+func TestUserResetTOTP(t *testing.T) {
+	svc, db, run := newUserCLIWithDB(t)
+	if _, err := run("reset-totp", "Vladislav"); err == nil || !strings.Contains(err.Error(), "не включён") {
+		t.Errorf("сброс без защиты: %v", err)
+	}
+	if _, err := run("reset-totp", "Никто"); err == nil || !strings.Contains(err.Error(), "не найден") {
+		t.Errorf("сброс несуществующего: %v", err)
+	}
+
+	// защита включена (секрет — любые байты: сброс его не расшифровывает) и есть одноразовый код
+	if err := db.Exec(`UPDATE users SET totp_secret = '\x01', totp_enabled_at = now() WHERE login = 'Vladislav'`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`INSERT INTO totp_recovery_codes (user_id, code_hash, created_at) SELECT id, '\x02', now() FROM users WHERE login = 'Vladislav'`).Error; err != nil {
+		t.Fatal(err)
+	}
+	out, err := run("reset-totp", "vladislav")
+	if err != nil || !strings.Contains(out, "код из приложения и одноразовые коды сняты") {
+		t.Fatalf("сброс: %v %q", err, out)
+	}
+	if u, _ := svc.Find(context.Background(), "Vladislav"); u.TOTPEnabled() {
+		t.Error("защита осталась включённой")
+	}
+	var codes int64
+	if err := db.Raw("SELECT count(*) FROM totp_recovery_codes").Scan(&codes).Error; err != nil || codes != 0 {
+		t.Errorf("одноразовых кодов осталось %d (%v)", codes, err)
+	}
+	if _, err := run("reset-totp", "Vladislav"); err == nil {
+		t.Error("повторный сброс должен сообщать, что защиты нет")
+	}
+}
+
 func TestUserUsageErrors(t *testing.T) {
 	_, run := newUserCLI(t)
 	for _, args := range [][]string{
-		{}, {"show"}, {"show", "a", "b"}, {"reset-password", "Vladislav", "extra"}, {"fly", "Vladislav"},
+		{}, {"show"}, {"show", "a", "b"}, {"reset-password", "Vladislav", "extra"}, {"reset-totp", "Vladislav", "extra"}, {"fly", "Vladislav"},
 	} {
 		if _, err := run(args...); err == nil {
 			t.Errorf("%v должно завершаться ошибкой", args)

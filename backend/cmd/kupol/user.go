@@ -16,7 +16,8 @@ const userUsage = `использование:
   kupol user set-level <логин> <1-6>          задать уровень допуска
   kupol user set-directorate <логин> on|off   выдать или снять Директорат
   kupol user set-role <логин> <роль> on|off   выдать или снять роль команды: author, editor, moderator, archivist
-  kupol user reset-password <логин>           сбросить пароль (выводит временный, завершает все сессии)`
+  kupol user reset-password <логин>           сбросить пароль (выводит временный, завершает все сессии)
+  kupol user reset-totp <логин>               снять код из приложения (человек потерял телефон и одноразовые коды)`
 
 // runUser — административные команды над пользователями. Директорат выдаётся только здесь
 // (автор, на сервере), уровни 4–6 до появления админки (этап 7) — тоже.
@@ -138,6 +139,19 @@ func runUser(ctx context.Context, svc *accounts.Service, args []string, out io.W
 			return userErr(login, err)
 		}
 		fmt.Fprintf(out, "%s: пароль сброшен, все сессии завершены.\nВременный пароль (показывается один раз): %s\nПопросите пользователя сменить его в личном деле.\n", login, temp)
+		return nil
+
+	case "reset-totp":
+		if len(rest) != 0 {
+			return errors.New(userUsage)
+		}
+		if err := svc.AdminResetTOTP(ctx, login); err != nil {
+			if errors.Is(err, accounts.ErrTOTPNotEnabled) {
+				return fmt.Errorf("у %q код из приложения не включён", login)
+			}
+			return userErr(login, err)
+		}
+		fmt.Fprintf(out, "%s: код из приложения и одноразовые коды сняты. Вход — по паролю; включить защиту можно снова в личном деле.\n", login)
 		return nil
 	}
 	return fmt.Errorf("неизвестная команда user %q\n%s", cmd, userUsage)

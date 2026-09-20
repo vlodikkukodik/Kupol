@@ -26,12 +26,43 @@ export interface LoginResponse {
   user: UserDTO;
 }
 /**
- * RegisterResponse — POST /api/auth/register и POST /api/auth/restore: пользователь и резервный код,
- * который показывается ОДИН раз.
+ * RegisterResponse — POST /api/auth/register: пользователь и резервный код, который показывается ОДИН раз.
  */
 export interface RegisterResponse {
   user: UserDTO;
   backup_code: string;
+}
+/**
+ * RestoreResponse — POST /api/auth/restore: НОВЫЙ резервный код (показывается один раз) и, если человек вошёл, он сам.
+ * User = null — у него включён код из приложения: пароль сменён, но входить нужно обычным путём, с кодом.
+ */
+export interface RestoreResponse {
+  user?: UserDTO | null;
+  backup_code: string;
+}
+/**
+ * TOTPStatusResponse — GET /api/me/totp: состояние защиты кодом из приложения.
+ */
+export interface TOTPStatusResponse {
+  enabled: boolean;
+  /**
+   * RecoveryLeft — сколько одноразовых кодов ещё не потрачено (0, если защита выключена).
+   */
+  recovery_left: number /* int */;
+}
+/**
+ * TOTPSetupResponse — POST /api/me/totp/setup: что показать при подключении. Secret — для ручного ввода в приложение,
+ * URI — ссылка otpauth://, которую кодирует QR. Защита ещё не включена: её включает первый верный код (POST …/enable).
+ */
+export interface TOTPSetupResponse {
+  secret: string;
+  uri: string;
+}
+/**
+ * TOTPCodesResponse — одноразовые коды на случай потери телефона; показываются ОДИН раз.
+ */
+export interface TOTPCodesResponse {
+  recovery_codes: string[];
 }
 /**
  * RecentResponse — GET /api/documents/recent: лента «Поступило в ЦАК».
@@ -210,6 +241,10 @@ export interface UserDTO {
    */
   roles: RoleDTO[];
   capabilities: string[];
+  /**
+   * TOTPEnabled — включён ли вход с кодом из приложения.
+   */
+  totp_enabled: boolean;
 }
 export interface RegisterRequest {
   login: string;
@@ -220,6 +255,11 @@ export interface RegisterRequest {
 export interface LoginRequest {
   login: string;
   password: string;
+  /**
+   * TOTP — код из приложения или одноразовый код; нужен, только если у пользователя включена защита кодом
+   * (без него сервер отвечает 401 totp_required — после проверки пароля).
+   */
+  totp?: string;
 }
 export interface RestoreRequest {
   login: string;
@@ -337,6 +377,22 @@ export const CodeInvalidState = "invalid_state"; // действие не под
  * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
  */
 export const CodeLintFailed = "lint_failed"; // документ не прошёл проверку канона; отчёт — в lint
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeTOTPRequired = "totp_required"; // пароль верен, но нужен код из приложения
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeTOTPInvalid = "totp_invalid"; // неверный, просроченный или уже использованный код
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeTOTPAlreadyEnabled = "totp_already_enabled"; // код из приложения уже включён
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeTOTPNotEnabled = "totp_not_enabled"; // код из приложения не включён (или подключение не начато)
 export interface ErrorBody {
   error: ErrorDetail;
 }
@@ -468,3 +524,7 @@ export interface PreviewRequest {
   level: number /* int */;
   content?: documents.Content;
 }
+
+//////////
+// source: totp.go
+

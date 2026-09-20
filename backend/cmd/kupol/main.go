@@ -44,7 +44,7 @@ func newAccounts(cfg config.Config, db *gorm.DB, log *slog.Logger) (*accounts.Se
 		return nil, nil, err
 	}
 	limiter := ratelimit.New(nil)
-	svc, err := accounts.NewService(accounts.Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: log})
+	svc, err := accounts.NewService(accounts.Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: log, SecretKey: cfg.ProxySecret})
 	if err != nil {
 		return nil, nil, err
 	}

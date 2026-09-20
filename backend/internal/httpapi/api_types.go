@@ -26,11 +26,36 @@ type LoginResponse struct {
 	User UserDTO `json:"user"`
 }
 
-// RegisterResponse — POST /api/auth/register и POST /api/auth/restore: пользователь и резервный код,
-// который показывается ОДИН раз.
+// RegisterResponse — POST /api/auth/register: пользователь и резервный код, который показывается ОДИН раз.
 type RegisterResponse struct {
 	User       UserDTO `json:"user"`
 	BackupCode string  `json:"backup_code"`
+}
+
+// RestoreResponse — POST /api/auth/restore: НОВЫЙ резервный код (показывается один раз) и, если человек вошёл, он сам.
+// User = null — у него включён код из приложения: пароль сменён, но входить нужно обычным путём, с кодом.
+type RestoreResponse struct {
+	User       *UserDTO `json:"user" tstype:"UserDTO | null"`
+	BackupCode string   `json:"backup_code"`
+}
+
+// TOTPStatusResponse — GET /api/me/totp: состояние защиты кодом из приложения.
+type TOTPStatusResponse struct {
+	Enabled bool `json:"enabled"`
+	// RecoveryLeft — сколько одноразовых кодов ещё не потрачено (0, если защита выключена).
+	RecoveryLeft int `json:"recovery_left"`
+}
+
+// TOTPSetupResponse — POST /api/me/totp/setup: что показать при подключении. Secret — для ручного ввода в приложение,
+// URI — ссылка otpauth://, которую кодирует QR. Защита ещё не включена: её включает первый верный код (POST …/enable).
+type TOTPSetupResponse struct {
+	Secret string `json:"secret"`
+	URI    string `json:"uri"`
+}
+
+// TOTPCodesResponse — одноразовые коды на случай потери телефона; показываются ОДИН раз.
+type TOTPCodesResponse struct {
+	RecoveryCodes []string `json:"recovery_codes"`
 }
 
 // RecentResponse — GET /api/documents/recent: лента «Поступило в ЦАК».

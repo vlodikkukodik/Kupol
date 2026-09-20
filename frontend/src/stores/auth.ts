@@ -47,8 +47,9 @@ export const useAuthStore = defineStore('auth', () => {
     return inflight
   }
 
-  async function login(loginName: string, password: string) {
-    const res = await authApi.login({ login: loginName, password })
+  /** Вход. Если включён код из приложения, без totp сервер отвечает 401 totp_required (после проверки пароля). */
+  async function login(loginName: string, password: string, totp = '') {
+    const res = await authApi.login({ login: loginName, password, ...(totp ? { totp } : {}) })
     user.value = res.user
     status.value = 'ready'
   }
@@ -60,11 +61,18 @@ export const useAuthStore = defineStore('auth', () => {
     pendingBackupCode.value = res.backup_code
   }
 
-  async function restore(p: { login: string; backupCode: string; newPassword: string }) {
+  /**
+   * Восстановление доступа. Возвращает новый резервный код и признак «вошёл»: у кого включён код из приложения,
+   * пароль меняется, но сессии нет — входить нужно обычным путём. Тогда код показывает сам экран восстановления.
+   */
+  async function restore(p: { login: string; backupCode: string; newPassword: string }): Promise<{ signedIn: boolean; backupCode: string }> {
     const res = await authApi.restore({ login: p.login, backup_code: p.backupCode, new_password: p.newPassword })
-    user.value = res.user
+    if (res.user) {
+      user.value = res.user
+      pendingBackupCode.value = res.backup_code
+    }
     status.value = 'ready'
-    pendingBackupCode.value = res.backup_code
+    return { signedIn: res.user !== null, backupCode: res.backup_code }
   }
 
   /** Выход. Локальное состояние сбрасывается только после подтверждения сервером. */

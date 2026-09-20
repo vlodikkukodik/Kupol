@@ -43,6 +43,12 @@ const (
 	GlossaryCreated Action = "glossary.created" // заведён термин глоссария
 	GlossaryUpdated Action = "glossary.updated" // термин изменён
 	GlossaryDeleted Action = "glossary.deleted" // термин удалён
+
+	TOTPEnabled      Action = "account.totp_enabled"       // включён код из приложения
+	TOTPDisabled     Action = "account.totp_disabled"      // код из приложения выключен владельцем
+	TOTPReset        Action = "account.totp_reset"         // код из приложения снят автором командой на сервере
+	TOTPCodesRenewed Action = "account.totp_codes_renewed" // выданы новые коды на случай потери телефона
+	TOTPRecoveryUsed Action = "account.totp_recovery_used" // вход по одноразовому коду вместо кода из приложения
 )
 
 var titles = map[Action]string{
@@ -70,6 +76,12 @@ var titles = map[Action]string{
 	GlossaryCreated: "Заведён термин глоссария",
 	GlossaryUpdated: "Термин глоссария изменён",
 	GlossaryDeleted: "Термин глоссария удалён",
+
+	TOTPEnabled:      "Включён код из приложения",
+	TOTPDisabled:     "Код из приложения выключен",
+	TOTPReset:        "Код из приложения снят администратором",
+	TOTPCodesRenewed: "Выданы новые одноразовые коды",
+	TOTPRecoveryUsed: "Вход по одноразовому коду",
 }
 
 // Title — название события для людей; для неизвестного — само машинное имя.

@@ -80,11 +80,8 @@ const CAPTCHA_ANSWERS = [
 export const PASSWORD = 'секретный пароль 1'
 export const uniqueLogin = () => `e2e${Math.random().toString(36).slice(2, 10)}`
 
-/**
- * Регистрирует пользователя настоящим запросом к API и выдаёт ему уровень (и Директорат) командой сервера.
- * Сессия попадает в куки переданного контекста браузера: страницы этого контекста открываются уже «вошедшими».
- */
-export async function signUp(context, { level = 1, directorate = false, roles = [] } = {}) {
+/** Регистрирует пользователя настоящим запросом к API (сессия — в куки контекста); возвращает логин и резервный код. */
+export async function registerUser(context) {
   const login = uniqueLogin()
   const cap = await (await context.request.get('/api/auth/captcha')).json()
   const hit = CAPTCHA_ANSWERS.find(([re]) => re.test(cap.question))
@@ -93,6 +90,15 @@ export async function signUp(context, { level = 1, directorate = false, roles = 
     data: { login, password: PASSWORD, captcha_id: cap.id, captcha_answer: hit[1] },
   })
   if (!res.ok()) throw new Error(`регистрация не удалась: ${res.status()} ${await res.text()}`)
+  return { login, backupCode: (await res.json()).backup_code }
+}
+
+/**
+ * Регистрирует пользователя настоящим запросом к API и выдаёт ему уровень (и Директорат) командой сервера.
+ * Сессия попадает в куки переданного контекста браузера: страницы этого контекста открываются уже «вошедшими».
+ */
+export async function signUp(context, { level = 1, directorate = false, roles = [] } = {}) {
+  const { login } = await registerUser(context)
   if (level > 1) cli('user', 'set-level', login, String(level))
   if (directorate) cli('user', 'set-directorate', login, 'on')
   for (const role of roles) cli('user', 'set-role', login, role, 'on')

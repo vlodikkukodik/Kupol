@@ -59,7 +59,7 @@ func newEnvWith(t *testing.T, limits config.Limits) *env {
 		t.Fatal(err)
 	}
 	limiter := ratelimit.New(clock.Now)
-	svc, err := NewService(Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: limits, Log: testutil.Logger(), Now: clock.Now})
+	svc, err := NewService(Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: limits, Log: testutil.Logger(), SecretKey: testSecretKey, Now: clock.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +551,7 @@ func TestLoginRehashesWhenParamsAreWeaker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc2, err := NewService(Options{DB: e.db, Hasher: stronger, Limiter: ratelimit.New(nil), Limits: config.DefaultLimits(), Log: testutil.Logger(), Now: e.clock.Now})
+	svc2, err := NewService(Options{DB: e.db, Hasher: stronger, Limiter: ratelimit.New(nil), Limits: config.DefaultLimits(), Log: testutil.Logger(), SecretKey: testSecretKey, Now: e.clock.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1062,15 +1062,17 @@ func TestRunCleanupStopsOnCancel(t *testing.T) {
 func TestNewServiceValidatesOptions(t *testing.T) {
 	e := newEnv(t)
 	h, _ := passwords.NewHasher(fastParams, 1)
-	good := Options{DB: e.db, Hasher: h, Limiter: ratelimit.New(nil), Limits: config.DefaultLimits(), Log: testutil.Logger()}
+	good := Options{DB: e.db, Hasher: h, Limiter: ratelimit.New(nil), Limits: config.DefaultLimits(), Log: testutil.Logger(), SecretKey: testSecretKey}
 	if _, err := NewService(good); err != nil {
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*Options){
-		"нет БД":       func(o *Options) { o.DB = nil },
-		"нет хешера":   func(o *Options) { o.Hasher = nil },
-		"нет лимитера": func(o *Options) { o.Limiter = nil },
-		"нет логгера":  func(o *Options) { o.Log = nil },
+		"нет БД":          func(o *Options) { o.DB = nil },
+		"нет хешера":      func(o *Options) { o.Hasher = nil },
+		"нет лимитера":    func(o *Options) { o.Limiter = nil },
+		"нет логгера":     func(o *Options) { o.Log = nil },
+		"нет секрета":     func(o *Options) { o.SecretKey = nil },
+		"короткий секрет": func(o *Options) { o.SecretKey = []byte("short") },
 		"нулевые лимиты": func(o *Options) {
 			o.Limits = config.Limits{}
 		},

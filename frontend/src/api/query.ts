@@ -30,6 +30,7 @@ export const keys = {
   teamMembers: (params: string) => ['team', 'members', params] as const,
   teamDocuments: (params: string) => ['team', 'documents', params] as const,
   teamDashboard: ['team', 'dashboard'] as const,
+  totp: ['me', 'totp'] as const,
   teamTemplates: (kind: string) => ['team', 'templates', kind] as const,
   teamTemplate: (id: number) => ['team', 'template', id] as const,
   teamGlossary: (q: string) => ['team', 'glossary', q] as const,

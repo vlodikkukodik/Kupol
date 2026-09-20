@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ChangePasswordForm from '@/components/ChangePasswordForm.vue'
 import DeleteAccountForm from '@/components/DeleteAccountForm.vue'
+import TotpPanel from '@/components/TotpPanel.vue'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiPageHeader from '@/ui/UiPageHeader.vue'
@@ -73,6 +74,11 @@ async function logout() {
         <UiSheet as="section" aria-labelledby="pw-title">
           <h2 id="pw-title">Смена пароля</h2>
           <ChangePasswordForm />
+        </UiSheet>
+
+        <UiSheet as="section" aria-labelledby="totp-title">
+          <h2 id="totp-title">Код из приложения</h2>
+          <TotpPanel />
         </UiSheet>
 
         <UiSheet as="section" aria-labelledby="session-title">

@@ -203,7 +203,7 @@ describe('боковое меню и окно входа', () => {
   const mountWith = (component: Component) => mount(component, { attachTo: document.body, global: { plugins: [pinia, router] } })
   const text = () => document.body.textContent ?? ''
   const q = <T extends Element>(sel: string) => document.querySelector<T>(sel)
-  const userOf = (login: string): UserDTO => ({ login, level: 1, level_name: 'Посетитель', directorate: false, roles: [], capabilities: [], created_at: '2026-09-19T00:00:00Z' })
+  const userOf = (login: string): UserDTO => ({ login, level: 1, level_name: 'Посетитель', directorate: false, roles: [], capabilities: [], created_at: '2026-09-19T00:00:00Z', totp_enabled: false })
 
   it('закрытое меню не рисуется', () => {
     mountWith(AppMenu)

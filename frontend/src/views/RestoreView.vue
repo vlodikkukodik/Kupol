@@ -8,9 +8,13 @@ import UiInput from '@/ui/UiInput.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import { useForm } from '@/composables/useForm'
 import { validatePassword } from '@/lib/rules'
+import SecretCodesBox from '@/components/SecretCodesBox.vue'
+import UiCheckbox from '@/ui/UiCheckbox.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 
 const auth = useAuthStore()
+const ui = useUiStore()
 const router = useRouter()
 const form = useForm()
 
@@ -40,17 +44,55 @@ async function onSubmit() {
   else if (password.value !== password2.value) form.errors.new_password2 = 'Пароли не совпадают'
   if (Object.keys(form.errors).length > 0) return focusFirstError()
 
-  const ok = await form.submit(() => auth.restore({ login: login.value.trim(), backupCode: code.value, newPassword: password.value }))
-  if (ok) {
-    await router.push({ name: 'backup-code' })
+  let result: { signedIn: boolean; backupCode: string } | null = null
+  const ok = await form.submit(async () => {
+    result = await auth.restore({ login: login.value.trim(), backupCode: code.value, newPassword: password.value })
+  })
+  if (ok && result) {
+    const done = result as { signedIn: boolean; backupCode: string }
+    if (done.signedIn) {
+      await router.push({ name: 'backup-code' })
+      return undefined
+    }
+    // Включён код из приложения: пароль сменён, но сессии нет. Новый резервный код показываем здесь, вход — обычный.
+    restored.value = { login: login.value.trim(), backupCode: done.backupCode }
+    password.value = password2.value = code.value = ''
     return undefined
   }
   return focusFirstError()
 }
+
+// Без сессии (у человека включён код из приложения) новый резервный код показывается на этом же экране.
+const restored = ref<{ login: string; backupCode: string } | null>(null)
+const saved = ref(false)
+
+function signIn() {
+  restored.value = null
+  ui.openAuth()
+}
 </script>
 
 <template>
-  <UiSheet as="article" class="restore">
+  <UiSheet v-if="restored" as="article" class="restore" data-testid="restore-done">
+    <h1>Пароль изменён</h1>
+    <p>
+      У вас включён код из приложения, поэтому вход по-прежнему требует и его: войдите с новым паролем и кодом из приложения
+      (или одноразовым кодом). Прежний резервный код сгорел — ниже новый. Он показывается <strong>один раз</strong>.
+    </p>
+    <SecretCodesBox
+      :codes="[restored.backupCode]"
+      what="резервный код доступа"
+      :login="restored.login"
+      filename="kupol-backup-code.txt"
+      note="Код показывается один раз. По нему можно восстановить доступ, если вы забудете пароль. Храните его отдельно от пароля."
+    />
+    <div class="confirm">
+      <UiCheckbox v-model="saved" label="Я сохранил(а) код в надёжном месте" />
+    </div>
+    <UiButton variant="primary" :disabled="!saved" icon-end="check" data-testid="restore-sign-in" @click="signIn">Войти</UiButton>
+  </UiSheet>
+
+  <UiSheet v-else as="article" class="restore">
     <h1>Восстановление доступа</h1>
     <p>
       Введите логин, резервный код, полученный при регистрации, и новый пароль. После восстановления все прежние сеансы
@@ -90,6 +132,9 @@ async function onSubmit() {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-5);
+}
+.confirm {
+  margin: var(--space-4) 0 var(--space-3);
 }
 .note {
   margin: var(--space-5) 0 0;
