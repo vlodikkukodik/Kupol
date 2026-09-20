@@ -149,6 +149,16 @@ type TemplateResponse struct {
 	Template *documents.TemplateFull `json:"template" tstype:",required"`
 }
 
+// GlossaryResponse — GET /api/team/glossary.
+type GlossaryResponse struct {
+	Items []documents.TermOut `json:"items" tstype:",required"`
+}
+
+// TermResponse — термин глоссария (создание, правка).
+type TermResponse struct {
+	Term *documents.TermOut `json:"term" tstype:",required"`
+}
+
 // UpdateTemplateRequest — PUT /api/team/templates/:id. Без content меняются только название и описание.
 type UpdateTemplateRequest struct {
 	Name        string                     `json:"name"`

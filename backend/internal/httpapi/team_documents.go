@@ -34,6 +34,7 @@ func actorFrom(c *gin.Context) documents.Actor {
 		CanReview:          u.Can(accounts.CapReview),
 		CanEditPublished:   u.Can(accounts.CapEditPublished),
 		CanManageTemplates: u.Can(accounts.CapManageTemplates),
+		CanManageGlossary:  u.Can(accounts.CapManageGlossary),
 	}
 }
 
@@ -55,6 +56,10 @@ func (h *teamDocumentHandlers) fail(c *gin.Context, err error) {
 		Fail(c, http.StatusNotFound, CodeNotFound, "Шаблон не найден")
 	case errors.Is(err, documents.ErrTemplateNameTaken):
 		FailFields(c, http.StatusConflict, CodeNameTaken, "Шаблон с таким названием уже есть", map[string]string{"name": "Такое название уже занято: выберите другое"})
+	case errors.Is(err, documents.ErrTermNotFound):
+		Fail(c, http.StatusNotFound, CodeNotFound, "Термин не найден")
+	case errors.Is(err, documents.ErrTermTaken):
+		FailFields(c, http.StatusConflict, CodeNameTaken, "Такой термин уже есть", map[string]string{"term": "Такой термин уже есть в глоссарии"})
 	case errors.Is(err, documents.ErrSelfReview):
 		Fail(c, http.StatusForbidden, CodeSelfReview, "Свой документ проверяет другой Редактор")
 	case errors.Is(err, documents.ErrCommentNotFound):

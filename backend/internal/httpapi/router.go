@@ -96,6 +96,10 @@ func New(d Deps) (*gin.Engine, error) {
 	tdocs := &teamDocumentHandlers{svc: d.Documents, log: d.Log}
 	api.GET("/team/document-types", requireCapability(accounts.CapTeamPanel), tdocs.meta)
 	api.GET("/team/dashboard", requireCapability(accounts.CapTeamPanel), tdocs.dashboard)
+	api.GET("/team/glossary", requireCapability(accounts.CapTeamPanel), tdocs.glossary)
+	api.POST("/team/glossary", requireCapability(accounts.CapTeamPanel), tdocs.createTerm)
+	api.PUT("/team/glossary/:id", requireCapability(accounts.CapTeamPanel), tdocs.updateTerm)
+	api.DELETE("/team/glossary/:id", requireCapability(accounts.CapTeamPanel), tdocs.deleteTerm)
 	api.GET("/team/templates", requireCapability(accounts.CapTeamPanel), tdocs.templates)
 	api.POST("/team/templates", requireCapability(accounts.CapTeamPanel), tdocs.createTemplate)
 	api.GET("/team/templates/:id", requireCapability(accounts.CapTeamPanel), tdocs.template)

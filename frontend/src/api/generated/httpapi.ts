@@ -171,6 +171,18 @@ export interface TemplateResponse {
   template: any /* documents.TemplateFull */;
 }
 /**
+ * GlossaryResponse — GET /api/team/glossary.
+ */
+export interface GlossaryResponse {
+  items: any /* documents.TermOut */[];
+}
+/**
+ * TermResponse — термин глоссария (создание, правка).
+ */
+export interface TermResponse {
+  term: any /* documents.TermOut */;
+}
+/**
  * UpdateTemplateRequest — PUT /api/team/templates/:id. Без content меняются только название и описание.
  */
 export interface UpdateTemplateRequest {

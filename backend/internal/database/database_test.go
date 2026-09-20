@@ -44,6 +44,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 	auditTables := []string{"audit_events"}
 	reviewTables := []string{"review_comments", "review_events"}
 	templateTables := []string{"templates"}
+	glossaryTables := []string{"glossary_terms"}
 	collationExists := func() bool {
 		return exists("SELECT count(*) FROM pg_collation WHERE collname = ? AND collnamespace = 'public'::regnamespace", "kupol_natural")
 	}
@@ -51,15 +52,15 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateUp(ctx, db, log); err != nil {
 		t.Fatal(err)
 	}
-	if v := version(); v != 8 {
-		t.Fatalf("версия схемы %d, ожидалась 8", v)
+	if v := version(); v != 9 {
+		t.Fatalf("версия схемы %d, ожидалась 9", v)
 	}
 	for _, e := range []string{"citext", "pg_trgm"} {
 		if !extExists(e) {
 			t.Errorf("расширение %s не создано", e)
 		}
 	}
-	for _, tbl := range slices.Concat(accountTables, documentTables, roleTables, versionTables, auditTables, reviewTables, templateTables) {
+	for _, tbl := range slices.Concat(accountTables, documentTables, roleTables, versionTables, auditTables, reviewTables, templateTables, glossaryTables) {
 		if !tableExists(tbl) {
 			t.Errorf("таблица %s не создана", tbl)
 		}
@@ -77,18 +78,33 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateStatus(ctx, db, log, &out); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"0001_extensions.sql", "0002_accounts.sql", "0003_documents.sql", "0004_roles.sql", "0005_document_versions.sql", "0006_audit.sql", "0007_review.sql", "0008_templates.sql", "применена"} {
+	for _, want := range []string{"0001_extensions.sql", "0002_accounts.sql", "0003_documents.sql", "0004_roles.sql", "0005_document_versions.sql", "0006_audit.sql", "0007_review.sql", "0008_templates.sql", "0009_glossary.sql", "применена"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("status не содержит %q: %q", want, out.String())
 		}
 	}
 
-	// Откат — по одной миграции: шаблоны, рецензия, журнал, версии и замки, роли, документы, аккаунты, расширения.
+	// Откат — по одной миграции: глоссарий, шаблоны, рецензия, журнал, версии и замки, роли, документы, аккаунты, расширения.
+	if err := database.MigrateDown(ctx, db, log); err != nil {
+		t.Fatal(err)
+	}
+	if v := version(); v != 8 {
+		t.Fatalf("после первого down версия %d, ожидалась 8", v)
+	}
+	for _, tbl := range glossaryTables {
+		if tableExists(tbl) {
+			t.Errorf("таблица %s осталась после отката 0009", tbl)
+		}
+	}
+	if !tableExists("templates") || !tableExists("documents") {
+		t.Error("откат 0009 не должен трогать шаблоны и документы")
+	}
+
 	if err := database.MigrateDown(ctx, db, log); err != nil {
 		t.Fatal(err)
 	}
 	if v := version(); v != 7 {
-		t.Fatalf("после первого down версия %d, ожидалась 7", v)
+		t.Fatalf("после второго down версия %d, ожидалась 7", v)
 	}
 	for _, tbl := range templateTables {
 		if tableExists(tbl) {
@@ -103,7 +119,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v := version(); v != 6 {
-		t.Fatalf("после второго down версия %d, ожидалась 6", v)
+		t.Fatalf("после третьего down версия %d, ожидалась 6", v)
 	}
 	for _, tbl := range reviewTables {
 		if tableExists(tbl) {
@@ -118,7 +134,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v := version(); v != 5 {
-		t.Fatalf("после третьего down версия %d, ожидалась 5", v)
+		t.Fatalf("после четвёртого down версия %d, ожидалась 5", v)
 	}
 	for _, tbl := range auditTables {
 		if tableExists(tbl) {
@@ -133,7 +149,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v := version(); v != 4 {
-		t.Fatalf("после четвёртого down версия %d, ожидалась 4", v)
+		t.Fatalf("после пятого down версия %d, ожидалась 4", v)
 	}
 	for _, tbl := range versionTables {
 		if tableExists(tbl) {
@@ -148,7 +164,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v := version(); v != 3 {
-		t.Fatalf("после пятого down версия %d, ожидалась 3", v)
+		t.Fatalf("после шестого down версия %d, ожидалась 3", v)
 	}
 	for _, tbl := range roleTables {
 		if tableExists(tbl) {
@@ -163,7 +179,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v := version(); v != 2 {
-		t.Fatalf("после шестого down версия %d, ожидалась 2", v)
+		t.Fatalf("после седьмого down версия %d, ожидалась 2", v)
 	}
 	for _, tbl := range documentTables {
 		if tableExists(tbl) {
@@ -181,7 +197,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v := version(); v != 1 {
-		t.Fatalf("после седьмого down версия %d, ожидалась 1", v)
+		t.Fatalf("после восьмого down версия %d, ожидалась 1", v)
 	}
 	for _, tbl := range accountTables {
 		if tableExists(tbl) {
@@ -204,7 +220,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateUp(ctx, db, log); err != nil {
 		t.Fatalf("up после down: %v", err)
 	}
-	if v := version(); v != 8 || !tableExists("templates") || !tableExists("review_events") || !tableExists("audit_events") || !extExists("citext") || !tableExists("users") || !tableExists("documents") || !tableExists("user_roles") || !tableExists("document_versions") {
+	if v := version(); v != 9 || !tableExists("glossary_terms") || !tableExists("templates") || !tableExists("review_events") || !tableExists("audit_events") || !extExists("citext") || !tableExists("users") || !tableExists("documents") || !tableExists("user_roles") || !tableExists("document_versions") {
 		t.Errorf("после повторного up: версия %d", v)
 	}
 }

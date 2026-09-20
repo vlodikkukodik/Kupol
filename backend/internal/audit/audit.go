@@ -39,6 +39,10 @@ const (
 	TemplateCreated Action = "template.created" // заведён шаблон документа или набор блоков
 	TemplateUpdated Action = "template.updated" // шаблон изменён
 	TemplateDeleted Action = "template.deleted" // шаблон удалён
+
+	GlossaryCreated Action = "glossary.created" // заведён термин глоссария
+	GlossaryUpdated Action = "glossary.updated" // термин изменён
+	GlossaryDeleted Action = "glossary.deleted" // термин удалён
 )
 
 var titles = map[Action]string{
@@ -62,6 +66,10 @@ var titles = map[Action]string{
 	TemplateCreated: "Заведён шаблон",
 	TemplateUpdated: "Шаблон изменён",
 	TemplateDeleted: "Шаблон удалён",
+
+	GlossaryCreated: "Заведён термин глоссария",
+	GlossaryUpdated: "Термин глоссария изменён",
+	GlossaryDeleted: "Термин глоссария удалён",
 }
 
 // Title — название события для людей; для неизвестного — само машинное имя.

@@ -319,6 +319,45 @@ export interface Dashboard {
 }
 
 //////////
+// source: glossary.go
+
+/**
+ * GlossaryTerm — запись глоссария (таблица glossary_terms).
+ */
+export interface GlossaryTerm {
+  ID: number /* int64 */;
+  Term: string;
+  Definition: string;
+  Aliases: JSONText; // JSON-массив строк
+  AuthorID?: number /* int64 */;
+  CreatedAt: string /* RFC 3339 */;
+  UpdatedAt: string /* RFC 3339 */;
+}
+/**
+ * TermOut — термин в ответе.
+ */
+export interface TermOut {
+  id: number /* int64 */;
+  term: string;
+  definition: string;
+  aliases: string[];
+  author?: string;
+  updated_at: string /* RFC 3339 */;
+  /**
+   * CanEdit — вправе ли человек менять и удалять термины.
+   */
+  can_edit: boolean;
+}
+/**
+ * TermInput — что нужно, чтобы завести или изменить термин.
+ */
+export interface TermInput {
+  term: string;
+  definition: string;
+  aliases: string[];
+}
+
+//////////
 // source: input.go
 
 /**
@@ -818,6 +857,10 @@ export interface Actor {
    * CanManageTemplates — вести шаблоны документов и наборы блоков
    */
   CanManageTemplates: boolean;
+  /**
+   * CanManageGlossary — вести глоссарий канона
+   */
+  CanManageGlossary: boolean;
 }
 /**
  * ConflictError — документ изменился после того, как редактор его открыл.
