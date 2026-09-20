@@ -9,6 +9,7 @@ import type {
   PreviewResult,
   TemplateContent,
   TemplateInput,
+  TermInput,
   Summary,
   TeamListResult,
   VersionsPage,
@@ -24,6 +25,7 @@ import type {
   DashboardResponse,
   DiffResponse,
   DocumentResponse,
+  GlossaryResponse,
   HealthResponse,
   LintResponse,
   LockResponse,
@@ -45,6 +47,7 @@ import type {
   TemplatesResponse,
   TeamMembersResponse,
   TeamRolesResponse,
+  TermResponse,
   VerdictRequest,
   VersionResponse,
 } from './generated/httpapi'
@@ -128,6 +131,11 @@ export const teamApi = {
   updateTemplate: (id: number, body: { name: string; description: string; content?: TemplateContent }) =>
     api.put<TemplateResponse>(`/team/templates/${id}`, body).then((r) => r.template),
   deleteTemplate: (id: number) => api.delete<null>(`/team/templates/${id}`),
+  /** Глоссарий канона: читают все члены команды, ведёт право manage_glossary */
+  glossary: (q: string, o?: RequestOptions) => api.get<GlossaryResponse>(`/team/glossary${qs({ q: q || undefined })}`, o).then((r) => r.items),
+  createTerm: (body: TermInput) => api.post<TermResponse>('/team/glossary', body).then((r) => r.term),
+  updateTerm: (id: number, body: TermInput) => api.put<TermResponse>(`/team/glossary/${id}`, body).then((r) => r.term),
+  deleteTerm: (id: number) => api.delete<null>(`/team/glossary/${id}`),
   /** Проверка канона по сохранённому документу */
   lint: (id: number, o?: RequestOptions) => api.get<LintResponse>(`/team/documents/${id}/lint`, o),
   /** Ход рецензии и комментарии */
