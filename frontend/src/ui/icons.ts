@@ -44,6 +44,8 @@ export const ICONS = {
   redact: 'M3 8h18v8H3zM6 12h5M14 12h4',
   rows: 'M4 6h16v5H4zM4 13h16v5H4z',
   columns: 'M6 4h5v16H6zM13 4h5v16h-5z',
+  download: 'M12 4v11M7.5 10.5L12 15l4.5-4.5M5 20h14',
+  upload: 'M12 15V4M7.5 8.5L12 4l4.5 4.5M5 20h14',
 } as const
 
 export type IconName = keyof typeof ICONS

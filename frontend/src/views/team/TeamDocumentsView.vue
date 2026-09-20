@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import PaginationNav from '@/components/PaginationNav.vue'
+import ImportDocumentDialog from '@/components/team/ImportDocumentDialog.vue'
 import UiBadge from '@/ui/UiBadge.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiCheckbox from '@/ui/UiCheckbox.vue'
@@ -25,6 +26,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const { statuses, types, statusName } = useDocumentMeta()
+const importOpen = ref(false)
 
 const one = (v: unknown): string => (Array.isArray(v) ? String(v[0] ?? '') : typeof v === 'string' ? v : '')
 const status = computed(() => one(route.query.status))
@@ -62,7 +64,10 @@ const tone = (s: string) => (s === 'published' ? 'published' : s === 'review' ? 
   <UiSheet as="section" wide aria-labelledby="docs-title" class="wide">
     <div class="head">
       <h2 id="docs-title">Документы</h2>
-      <UiButton v-if="auth.can('write_drafts')" variant="primary" icon="plus" :to="{ name: 'team-document-new' }">Новый документ</UiButton>
+      <div v-if="auth.can('write_drafts')" class="head__actions">
+        <UiButton icon="upload" data-testid="import-open" @click="importOpen = true">Загрузить из файла</UiButton>
+        <UiButton variant="primary" icon="plus" :to="{ name: 'team-document-new' }">Новый документ</UiButton>
+      </div>
     </div>
     <p class="note">{{ note }}</p>
 
@@ -127,6 +132,7 @@ const tone = (s: string) => (s === 'published' ? 'published' : s === 'review' ? 
       </p>
       <PaginationNav :page="list.data.value.page" :pages="list.data.value.pages" label="Страницы списка документов" />
     </template>
+    <ImportDocumentDialog v-if="auth.can('write_drafts')" v-model:open="importOpen" />
   </UiSheet>
 </template>
 
@@ -140,6 +146,11 @@ const tone = (s: string) => (s === 'published' ? 'published' : s === 'review' ? 
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+}
+.head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .note {
   color: var(--text-muted);

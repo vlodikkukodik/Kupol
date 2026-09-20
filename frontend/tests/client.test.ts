@@ -93,6 +93,12 @@ beforeAll(async () => {
       case '/api/badjson':
         res.writeHead(200, { 'Content-Type': 'application/json' })
         return res.end('{not json')
+      case '/api/file':
+        res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Content-Disposition': 'attachment; filename="MEMO-1.md"' })
+        return res.end('# Заголовок\n')
+      case '/api/file-unnamed':
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+        return res.end('x')
       case '/api/slow':
         return void setTimeout(() => json(200, { late: true }), 1500)
     }
@@ -269,6 +275,23 @@ describe('createClient', () => {
     expect(err).not.toBeInstanceOf(ApiError)
     expect(err.name).toBe('AbortError')
     expect(events).toEqual([])
+  })
+
+  it('download: содержимое файла и имя из Content-Disposition; ошибки — как у обычных запросов', async () => {
+    const events: ApiEvent[] = []
+    const api = createClient({ base })
+    api.subscribe((e) => events.push(e))
+    const file = await api.download('/file')
+    expect(file.filename).toBe('MEMO-1.md')
+    expect(await file.blob.text()).toBe('# Заголовок\n')
+    expect(file.blob.type).toContain('text/markdown')
+    expect((await api.download('/file-unnamed')).filename).toBe('file') // без заголовка — имя по умолчанию
+    expect(events).toEqual([{ ok: true }, { ok: true }])
+
+    const err = await caught(api.download('/missing'))
+    expect(err).toMatchObject({ status: 404, code: 'not_found', requestId: 'rid-404' })
+    expect(events[2]).toMatchObject({ ok: false })
+    await expect(api.download('file')).rejects.toThrow(TypeError)
   })
 
   it('путь без ведущего "/" отвергается сразу', async () => {

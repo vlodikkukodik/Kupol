@@ -74,8 +74,16 @@ export interface RequestOptions {
   headers?: Record<string, string>
 }
 
+/** Файл, который отдал сервер (экспорт документа): содержимое и имя из Content-Disposition */
+export interface Download {
+  blob: Blob
+  filename: string
+}
+
 export interface Client {
   request<T = unknown>(path: string, opts?: RequestOptions): Promise<T>
+  /** GET файла: тело — не JSON, ошибки — как у обычных запросов */
+  download(path: string, opts?: RequestOptions): Promise<Download>
   get<T = unknown>(path: string, opts?: RequestOptions): Promise<T>
   post<T = unknown>(path: string, body?: unknown, opts?: RequestOptions): Promise<T>
   put<T = unknown>(path: string, body?: unknown, opts?: RequestOptions): Promise<T>
@@ -170,7 +178,8 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
   const listeners = new Set<(event: ApiEvent) => void>()
   const notify = (event: ApiEvent) => listeners.forEach((fn) => fn(event))
 
-  async function request<T>(path: string, { method = 'GET', body, signal, headers = {} }: RequestOptions = {}): Promise<T> {
+  /** Отправляет запрос и возвращает успешный ответ; сбой связи и коды не 2xx — ApiError (и событие для сторов связи). */
+  async function send({ path, method = 'GET', body, signal, headers = {} }: RequestOptions & { path: string }): Promise<Response> {
     if (!path.startsWith('/')) throw new TypeError(`путь API должен начинаться с "/": ${path}`)
 
     const init: RequestInit = { method, headers: { Accept: 'application/json', ...headers }, credentials: 'same-origin' }
@@ -202,7 +211,11 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
       notify({ ok: false, error: err })
       throw err
     }
+    return res
+  }
 
+  async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+    const res = await send({ path, ...opts })
     notify({ ok: true })
     if (res.status === 204) return null as T
     const text = await res.text()
@@ -216,8 +229,17 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
     }
   }
 
+  async function download(path: string, opts: RequestOptions = {}): Promise<Download> {
+    const res = await send({ path, ...opts, method: 'GET', headers: { Accept: '*/*', ...opts.headers } })
+    const blob = await res.blob()
+    notify({ ok: true })
+    const named = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')
+    return { blob, filename: named?.[1] ?? 'file' }
+  }
+
   return {
     request,
+    download,
     get: (path, opts) => request(path, { ...opts, method: 'GET' }),
     post: (path, body, opts) => request(path, { ...opts, method: 'POST', body }),
     put: (path, body, opts) => request(path, { ...opts, method: 'PUT', body }),

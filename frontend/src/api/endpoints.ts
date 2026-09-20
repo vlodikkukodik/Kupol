@@ -4,6 +4,7 @@ import { api } from './index'
 import type { RequestOptions } from './client'
 import type {
   Content,
+  ImportResult,
   ListResult,
   Meta,
   PreviewResult,
@@ -136,6 +137,13 @@ export const teamApi = {
   createTerm: (body: TermInput) => api.post<TermResponse>('/team/glossary', body).then((r) => r.term),
   updateTerm: (id: number, body: TermInput) => api.put<TermResponse>(`/team/glossary/${id}`, body).then((r) => r.term),
   deleteTerm: (id: number) => api.delete<null>(`/team/glossary/${id}`),
+  /** Экспорт документа в файл: json — формат загрузки (круг экспорт → правка → импорт), md — для чтения и правки текста */
+  exportDocument: (id: number, format: 'json' | 'md', o?: RequestOptions) => api.download(`/team/documents/${id}/export${qs({ format })}`, o),
+  /**
+   * Черновик из файла формата загрузки (содержимое файла, уже разобранное как JSON). С dryRun файл только проверяется:
+   * те же замечания с путями, но ничего не создаётся.
+   */
+  importDocument: (file: unknown, dryRun = false) => api.post<ImportResult>(`/team/documents/import${qs({ dry_run: dryRun ? '1' : undefined })}`, file),
   /** Проверка канона по сохранённому документу */
   lint: (id: number, o?: RequestOptions) => api.get<LintResponse>(`/team/documents/${id}/lint`, o),
   /** Ход рецензии и комментарии */

@@ -319,6 +319,49 @@ export interface Dashboard {
 }
 
 //////////
+// source: exchange.go
+
+/**
+ * ExportFormat — вид файла экспорта.
+ */
+export type ExportFormat = string;
+export const ExportJSON: ExportFormat = "json";
+export const ExportMarkdown: ExportFormat = "md";
+/**
+ * ExportFile — готовый файл для скачивания.
+ */
+export interface ExportFile {
+  Filename: string;
+  ContentType: string;
+  Data: string /* []byte */;
+}
+/**
+ * ImportResult — итог загрузки файла в интерфейсе.
+ */
+export interface ImportResult {
+  /**
+   * DryRun — файл только проверен, ничего не создано.
+   */
+  dry_run: boolean;
+  type: string;
+  /**
+   * TypeName — тип по-русски.
+   */
+  type_name: string;
+  code?: string;
+  title: string;
+  blocks: number /* int */;
+  /**
+   * StatusIgnored — статус из файла отброшен: документ всегда создаётся черновиком.
+   */
+  status_ignored?: string;
+  /**
+   * Document — созданный черновик; при проверке (DryRun) его нет.
+   */
+  document?: TeamDocument;
+}
+
+//////////
 // source: glossary.go
 
 /**

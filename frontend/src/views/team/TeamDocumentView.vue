@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import BlockEditor from '@/components/editor/BlockEditor.vue'
 import DocumentPreview from '@/components/team/DocumentPreview.vue'
+import ExportButtons from '@/components/team/ExportButtons.vue'
 import ReviewPanel from '@/components/team/ReviewPanel.vue'
 import SaveTemplateDialog from '@/components/team/SaveTemplateDialog.vue'
 import WorkflowBar from '@/components/team/WorkflowBar.vue'
@@ -466,6 +467,7 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
         <UiButton type="submit" form="doc-form" variant="primary" icon="check" :disabled="!editable" :loading="saving">{{ saving ? 'Сохраняем…' : 'Сохранить' }}</UiButton>
         <UiButton v-if="dirty && editable" variant="link" @click="revert">Отменить правки</UiButton>
         <UiButton v-if="auth.can('manage_templates')" variant="link" icon="layers" data-testid="save-as-template" @click="templateOpen = true">Сохранить как шаблон</UiButton>
+        <ExportButtons :doc-id="doc.id" :dirty="dirty" />
         <UiButton
           v-if="mineLock && !lockedBy"
           variant="link"
