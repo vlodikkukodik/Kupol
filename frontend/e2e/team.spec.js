@@ -35,7 +35,7 @@ test('пользователь без ролей: панели нет ни в м
   await page.goto('/')
   expect(await menuLinks(page)).not.toContain('Панель команды')
 
-  for (const path of ['/team', '/team/members']) {
+  for (const path of ['/team', '/team/roles', '/team/members']) {
     await page.goto(path)
     await expect(notFound(page)).toBeVisible()
     await expect(page).toHaveURL(new RegExp(`${path}$`))
@@ -54,14 +54,14 @@ test('Автор: панель есть, права показаны честн�
   await page.goto('/')
   expect(await menuLinks(page)).toContain('Панель команды')
 
-  await page.goto('/team')
+  await page.goto('/team/roles')
   await expect(page.getByRole('heading', { name: 'Панель команды', level: 1 })).toBeVisible()
   await expect(page.getByTestId('my-roles')).toHaveText('Автор')
   const rights = page.getByTestId('my-rights')
   await expect(rights.getByText('Создавать документы и править черновики')).not.toHaveClass(/off/)
   await expect(rights.locator('li', { hasText: 'Публиковать проверенные документы' })).toHaveClass(/off/)
   await expect(rights.locator('li', { hasText: 'Выдавать и снимать роли' })).toHaveClass(/off/)
-  await expect(page.getByRole('navigation', { name: 'Разделы панели команды' }).getByRole('link')).toHaveText(['Роли и права', 'Документы'])
+  await expect(page.getByRole('navigation', { name: 'Разделы панели команды' }).getByRole('link')).toHaveText(['Рабочий стол', 'Документы', 'Роли и права'])
 
   // таблица «что даёт роль»: Автор не публикует, Редактор публикует
   const matrix = page.getByTestId('roles-matrix')
@@ -100,7 +100,7 @@ test('Директорат выдаёт и снимает роль; получа
   await expect(dir.page.getByRole('status').filter({ hasText: `Роль «Редактор» выдана: ${login}` })).toBeAttached()
 
   // получатель: та же сессия, обычный переход — панель открывается
-  await worker.page.goto('/team')
+  await worker.page.goto('/team/roles')
   await expect(worker.page.getByTestId('my-roles')).toHaveText('Редактор')
   await expect(worker.page.getByTestId('my-rights').locator('li', { hasText: 'Публиковать проверенные документы' })).not.toHaveClass(/off/)
   expect(await menuLinks(worker.page)).toContain('Панель команды')
@@ -227,7 +227,7 @@ test('доступность: панель, «Команда» и таблица
   dir.page.on('response', (r) => {
     if (r.url().includes('/api/') && r.status() >= 400) failed.push(`${r.status()} ${new URL(r.url()).pathname}${new URL(r.url()).search}`)
   })
-  for (const path of ['/team', '/team/members']) {
+  for (const path of ['/team/roles', '/team/members']) {
     await dir.page.goto(path)
     await expect(dir.page.getByRole('heading', { name: 'Панель команды', level: 1 })).toBeVisible()
     if (path.endsWith('members')) await expect(dir.page.getByTestId('members-total')).toBeVisible({ timeout: 10_000 }).catch(() => {})

@@ -19,6 +19,7 @@ import type {
   ChangePasswordRequest,
   CommentResponse,
   CreateDocumentRequest,
+  DashboardResponse,
   DiffResponse,
   DocumentResponse,
   HealthResponse,
@@ -97,6 +98,8 @@ export const teamApi = {
   revoke: (login: string, role: string) =>
     api.delete<MemberRoleResponse>(`/team/members/${encodeURIComponent(login)}/roles/${encodeURIComponent(role)}`),
 
+  /** Рабочий стол: мои документы по состояниям, возвращённые на доработку, очередь на проверку (рецензентам) */
+  dashboard: (o?: RequestOptions) => api.get<DashboardResponse>('/team/dashboard', o).then((r) => r.dashboard),
   meta: (o?: RequestOptions) => api.get<Meta>('/team/document-types', o),
   documents: (params: TeamListParams, o?: RequestOptions) => api.get<TeamListResult>(`/team/documents${qs({ ...params, mine: params.mine ? '1' : undefined })}`, o),
   create: (body: CreateDocumentRequest) => api.post<TeamDocumentResponse>('/team/documents', body),

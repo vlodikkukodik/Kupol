@@ -133,3 +133,8 @@ type AddCommentRequest struct {
 type ResolveCommentRequest struct {
 	Resolved bool `json:"resolved"`
 }
+
+// DashboardResponse — GET /api/team/dashboard: рабочий стол человека.
+type DashboardResponse struct {
+	Dashboard *documents.Dashboard `json:"dashboard" tstype:",required"`
+}

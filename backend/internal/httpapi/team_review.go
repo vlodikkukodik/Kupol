@@ -169,3 +169,13 @@ func (h *teamDocumentHandlers) deleteComment(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// GET /api/team/dashboard — рабочий стол: мои документы, возвращённые на доработку, очередь на проверку (рецензентам).
+func (h *teamDocumentHandlers) dashboard(c *gin.Context) {
+	d, err := h.svc.TeamDashboard(c.Request.Context(), actorFrom(c))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, DashboardResponse{Dashboard: d})
+}

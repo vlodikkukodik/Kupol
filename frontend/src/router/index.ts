@@ -30,7 +30,8 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('@/views/team/TeamView.vue'),
     meta: { title: title('Панель команды'), needsApi: true, requiresAuth: true, capability: 'team_panel' },
     children: [
-      { path: '', name: 'team', component: () => import('@/views/team/TeamHomeView.vue') },
+      { path: '', name: 'team', component: () => import('@/views/team/TeamDeskView.vue'), meta: { title: title('Рабочий стол — Панель команды') } },
+      { path: 'roles', name: 'team-roles', component: () => import('@/views/team/TeamHomeView.vue'), meta: { title: title('Роли и права — Панель команды') } },
       { path: 'documents', name: 'team-documents', component: () => import('@/views/team/TeamDocumentsView.vue'), meta: { title: title('Документы команды') } },
       {
         path: 'documents/new',

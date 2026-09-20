@@ -260,6 +260,65 @@ export interface Content {
 export type JSONText = string /* []byte */;
 
 //////////
+// source: dashboard.go
+
+/**
+ * DashboardItem — документ в списках рабочего стола.
+ */
+export interface DashboardItem {
+  id: number /* int64 */;
+  code?: string;
+  type: string;
+  type_name: string;
+  title: string;
+  status: string;
+  revision: number /* int */;
+  author?: string;
+  updated_at: string /* RFC 3339 */;
+  /**
+   * SubmittedAt — когда документ отправили на проверку (последний раз); у документов «на проверке».
+   */
+  submitted_at?: string /* RFC 3339 */;
+  /**
+   * OpenComments — комментарии рецензента, ещё не отмеченные исправленными.
+   */
+  open_comments: number /* int */;
+  /**
+   * ReturnNote и ReturnedBy — причина и рецензент, если документ вернули на доработку и автор его ещё не отправил заново.
+   */
+  return_note?: string;
+  returned_by?: string;
+}
+/**
+ * DashboardCounts — сколько у человека документов в каждом статусе.
+ */
+export interface DashboardCounts {
+  draft: number /* int */;
+  review: number /* int */;
+  published: number /* int */;
+  archived: number /* int */;
+}
+/**
+ * Dashboard — рабочий стол человека.
+ */
+export interface Dashboard {
+  counts: DashboardCounts;
+  /**
+   * Returned — мои черновики, которые вернули на доработку; Drafts — остальные мои черновики; InReview — мои документы на проверке.
+   */
+  returned: DashboardItem[];
+  drafts: DashboardItem[];
+  in_review: DashboardItem[];
+  /**
+   * Queue — очередь на проверку (только рецензентам): чужие документы, давно ждущие — первыми; QueueTotal — сколько всего.
+   */
+  queue: DashboardItem[];
+  queue_total: number /* int */;
+  can_review: boolean;
+  can_write: boolean;
+}
+
+//////////
 // source: input.go
 
 /**

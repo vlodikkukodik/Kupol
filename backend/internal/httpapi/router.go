@@ -95,6 +95,7 @@ func New(d Deps) (*gin.Engine, error) {
 	// здесь достаточно быть членом команды (Гражданину — 401, вошедшему без ролей — 403).
 	tdocs := &teamDocumentHandlers{svc: d.Documents, log: d.Log}
 	api.GET("/team/document-types", requireCapability(accounts.CapTeamPanel), tdocs.meta)
+	api.GET("/team/dashboard", requireCapability(accounts.CapTeamPanel), tdocs.dashboard)
 	td := api.Group("/team/documents", requireCapability(accounts.CapTeamPanel))
 	td.GET("", tdocs.list)
 	td.POST("", tdocs.create)

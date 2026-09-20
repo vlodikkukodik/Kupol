@@ -266,3 +266,35 @@ func TestReviewMutationsRejectForeignOriginAndBadBodies(t *testing.T) {
 		t.Errorf("мусор вместо номера комментария: %d", r.Code)
 	}
 }
+
+func TestTeamDashboardOverHTTP(t *testing.T) {
+	_, actors := teamStackWithActors(t)
+	author, editor := actors["author"], actors["editor"]
+	id, rev := author.createObject(t, "Для стола")
+	author.client.do("POST", teamDocPath(id, "/submit"), map[string]any{"base_revision": rev})
+
+	for name, want := range map[string]int{"guest": 401, "plain": 403, "moderator": 200, "archivist": 200, "author": 200, "editor": 200, "director": 200} {
+		if got := actors[name].client.do("GET", "/api/team/dashboard", nil).Code; got != want {
+			t.Errorf("%s: рабочий стол = %d, ожидалось %d", name, got, want)
+		}
+	}
+
+	a := author.client.do("GET", "/api/team/dashboard", nil).json()["dashboard"].(map[string]any)
+	if a["can_review"] != false || len(a["queue"].([]any)) != 0 || len(a["in_review"].([]any)) != 1 || a["counts"].(map[string]any)["review"].(float64) != 1 {
+		t.Errorf("рабочий стол автора: %v", a)
+	}
+	e := editor.client.do("GET", "/api/team/dashboard", nil).json()["dashboard"].(map[string]any)
+	queue := e["queue"].([]any)
+	if e["can_review"] != true || len(queue) != 1 || int64(queue[0].(map[string]any)["id"].(float64)) != id || e["queue_total"].(float64) != 1 {
+		t.Errorf("очередь Редактора: %v", e)
+	}
+	// у документа без замечаний и возвратов лишних полей нет, списки — массивы, а не null
+	for _, key := range []string{"returned", "drafts", "in_review", "queue"} {
+		if _, ok := a[key].([]any); !ok {
+			t.Errorf("%s: %T вместо массива", key, a[key])
+		}
+	}
+	if r := author.client.do("POST", "/api/team/dashboard", map[string]any{}); r.Code != 405 && r.Code != 404 {
+		t.Errorf("POST на рабочий стол: %d", r.Code)
+	}
+}

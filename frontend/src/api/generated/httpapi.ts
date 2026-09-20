@@ -152,6 +152,12 @@ export interface AddCommentRequest {
 export interface ResolveCommentRequest {
   resolved: boolean;
 }
+/**
+ * DashboardResponse — GET /api/team/dashboard: рабочий стол человека.
+ */
+export interface DashboardResponse {
+  dashboard: any /* documents.Dashboard */;
+}
 
 //////////
 // source: auth.go
