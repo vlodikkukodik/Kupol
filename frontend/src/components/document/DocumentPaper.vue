@@ -4,6 +4,7 @@ import { asDocBlocks } from '@/api/blocks'
 import type { OutDocument } from '@/api/generated/documents'
 import BlockRenderer from '@/components/document/BlockRenderer.vue'
 import { provideDocument } from '@/components/document/context'
+import { archiveMark, archiveMarkText, classification, copyText } from '@/lib/realism'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiStamp from '@/ui/UiStamp.vue'
 
@@ -13,16 +14,19 @@ const props = defineProps<{ doc: OutDocument }>()
 const docRef = computed(() => props.doc)
 provideDocument(docRef) // шапка досье берёт свойства документа отсюда
 const blocks = computed(() => asDocBlocks(props.doc.blocks))
+const mark = computed(() => archiveMark(props.doc))
 </script>
 
 <template>
   <UiSheet as="article" class="paper" :data-code="doc.code" fold>
     <header class="paper__head">
-      <div class="paper__strip">
+      <div class="paper__strip" data-testid="strip-top">
         <span>{{ doc.grif }}</span>
+        <span class="paper__class" data-testid="classification">{{ classification(doc.level) }}</span>
         <span>{{ doc.code }}</span>
       </div>
       <p class="paper__kicker">{{ doc.type_name }} · {{ doc.code }}</p>
+      <p class="paper__mark" data-testid="archive-mark">{{ archiveMarkText(mark) }} · {{ copyText(doc.copy_number) }}</p>
       <h1 data-doc-title tabindex="-1">{{ doc.title }}</h1>
       <UiStamp v-if="doc.status && doc.status !== 'published'" class="paper__status" :text="doc.status === 'draft' ? 'Черновик' : doc.status === 'review' ? 'На проверке' : 'Архив'" tone="ink" size="sm" />
     </header>
@@ -45,7 +49,18 @@ const blocks = computed(() => asDocBlocks(props.doc.blocks))
       </ul>
     </section>
 
+    <!-- Лист ознакомления: сколько читателей открыло документ — без имён, история чтения закрыта -->
+    <section v-if="doc.read_count > 0" class="paper__sheet" aria-labelledby="acquaint-title" data-testid="acquaint">
+      <h2 id="acquaint-title">Лист ознакомления</h2>
+      <p>Ознакомлено читателей: <strong>{{ doc.read_count }}</strong></p>
+    </section>
+
     <footer v-if="doc.author" class="paper__foot">Составил(а): <strong>{{ doc.author }}</strong></footer>
+    <div class="paper__strip paper__strip--bottom" data-testid="strip-bottom">
+      <span>{{ classification(doc.level) }}</span>
+      <span>{{ copyText(doc.copy_number) }}</span>
+      <span>{{ doc.grif }}</span>
+    </div>
   </UiSheet>
 </template>
 
@@ -72,6 +87,48 @@ const blocks = computed(() => asDocBlocks(props.doc.blocks))
   font-size: var(--text-xs);
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+/* гриф секретности по центру колонтитула; нижний колонтитул повторяет его вместе с номером экземпляра */
+.paper__class {
+  flex: 1;
+  color: var(--red-800);
+  font-weight: 700;
+  text-align: center;
+}
+.paper__strip--bottom {
+  margin: var(--space-6) 0 0;
+  padding: var(--space-1) 0 0;
+  border-top: 3px double var(--ink-900);
+  border-bottom: 0;
+}
+.paper__strip--bottom span:first-child {
+  color: var(--red-800);
+  font-weight: 700;
+}
+/* архивный шифр «Фонд · Опись · Дело · Листов» и экземпляр — служебная строка под видом документа */
+.paper__mark {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-family: var(--font-head);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.paper__sheet {
+  margin-top: var(--space-5);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--border-strong);
+}
+.paper__sheet h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.paper__sheet p {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
 }
 .paper__kicker {
   margin: 0 0 var(--space-1);

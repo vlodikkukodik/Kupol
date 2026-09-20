@@ -349,6 +349,18 @@ type OutDocument struct {
 	Blocks            []OutBlock `json:"blocks"`
 	// MentionedIn — документы, ссылающиеся на этот, из числа доступных читателю («Упоминается в»). В предпросмотре не заполняется.
 	MentionedIn []Mention `json:"mentioned_in,omitempty"`
+	// CopyNumber — номер экземпляра читателя, как у нумерованных копий секретных документов: «0042» из номера аккаунта, у Гражданина — «б/н».
+	CopyNumber string `json:"copy_number"`
+	// ReadCount — сколько зарегистрированных читателей ознакомилось с документом («лист ознакомления»; без имён — история чтения закрыта).
+	ReadCount int `json:"read_count"`
+}
+
+// copyNumber — номер экземпляра читателя.
+func copyNumber(v Viewer) string {
+	if v.UserID == 0 {
+		return "б/н"
+	}
+	return fmt.Sprintf("%04d", v.UserID)
 }
 
 // docRow — документ вместе с ником автора.
@@ -408,6 +420,12 @@ func (s *Service) Get(ctx context.Context, v Viewer, ref string) (*OutDocument, 
 	if v.UserID != 0 && d.Status == string(StatusPublished) {
 		s.recordRead(ctx, v.UserID, d.ID)
 	}
+	// Лист ознакомления считается после записи чтения: сам читатель уже в счёте.
+	var reads int64
+	if err := s.db.WithContext(ctx).Raw("SELECT count(*) FROM document_reads WHERE document_id = ?", d.ID).Scan(&reads).Error; err != nil {
+		return nil, err
+	}
+	out.ReadCount = int(reads)
 	return out, nil
 }
 
@@ -420,7 +438,7 @@ func outDocument(d *Document, authorLogin *string, blocks []OutBlock, v Viewer) 
 		Composed:    Composed{Year: d.ComposedYear, Month: d.ComposedMonth, Day: d.ComposedDay},
 		DangerClass: d.DangerClass, DeviationPoints: d.DeviationPoints, Department: d.Department,
 		Category: d.Category, ContainmentStatus: d.ContainmentStatus, DiscoveryPlace: d.DiscoveryPlace,
-		Author: authorLogin, Blocks: blocks,
+		Author: authorLogin, Blocks: blocks, CopyNumber: copyNumber(v),
 	}
 	if d.Category != nil {
 		out.CategoryName = Category(*d.Category).Name()
