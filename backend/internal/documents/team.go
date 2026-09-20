@@ -286,13 +286,15 @@ type TeamDocument struct {
 	CanBreakLock bool       `json:"can_break_lock"`
 	Lock         *LockInfo  `json:"lock,omitempty"`
 	Draft        *DraftInfo `json:"draft,omitempty"`
+	// Workflow — что человек может сделать с документом: отправить на проверку, вынести вердикт, убрать в архив…
+	Workflow Workflow `json:"workflow"`
 }
 
 func (s *Service) teamDocument(db *gorm.DB, a Actor, d *Document) (*TeamDocument, error) {
 	out := &TeamDocument{
 		ID: d.ID, Code: d.Code, Slug: d.Slug, Type: d.Type, TypeName: Type(d.Type).Name(), Status: d.Status, Revision: d.Revision,
 		CreatedAt: d.CreatedAt.UTC(), UpdatedAt: d.UpdatedAt.UTC(), Content: contentFromDocument(d), CanEdit: a.CanEdit(d),
-		CanBreakLock: a.CanEdit(d) && a.CanBreakLocks(),
+		CanBreakLock: a.CanEdit(d) && a.CanBreakLocks(), Workflow: a.Workflow(d),
 	}
 	if d.PublishedAt != nil {
 		t := d.PublishedAt.UTC()

@@ -33,6 +33,9 @@ const (
 	CodeLocked             = "locked"    // документ правит другой человек
 	CodeConflict           = "conflict"  // документ изменён после того, как его открыл редактор
 	CodeCodeTaken          = "code_taken"
+	CodeSelfReview         = "self_review"   // Редактор пытается проверить собственный документ
+	CodeInvalidState       = "invalid_state" // действие не подходит документу в его статусе
+	CodeLintFailed         = "lint_failed"   // документ не прошёл проверку канона; отчёт — в lint
 )
 
 type ErrorBody struct {
@@ -55,6 +58,8 @@ type ErrorDetail struct {
 	// Lock — кто правит документ (409 locked); CurrentRevision — актуальная редакция (409 conflict).
 	Lock            *LockDetail `json:"lock,omitempty"`
 	CurrentRevision int         `json:"current_revision,omitempty"`
+	// Lint — отчёт линтера канона (422 lint_failed): что мешает отправить или опубликовать документ.
+	Lint *documents.LintReport `json:"lint,omitempty"`
 }
 
 type LockDetail struct {

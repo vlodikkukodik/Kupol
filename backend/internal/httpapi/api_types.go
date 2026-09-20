@@ -90,3 +90,46 @@ type VersionResponse struct {
 type DiffResponse struct {
 	Diff *documents.Diff `json:"diff" tstype:",required"`
 }
+
+// ReviewResponse — GET /api/team/documents/:id/review: ход рецензии и комментарии.
+type ReviewResponse struct {
+	Review *documents.ReviewInfo `json:"review" tstype:",required"`
+}
+
+// LintResponse — GET /api/team/documents/:id/lint.
+type LintResponse struct {
+	Lint *documents.LintReport `json:"lint" tstype:",required"`
+}
+
+// CommentResponse — комментарий рецензента.
+type CommentResponse struct {
+	Comment *documents.CommentOut `json:"comment" tstype:",required"`
+}
+
+// SubmitRequest — POST /api/team/documents/:id/submit. BaseRevision — редакция, которую видел автор.
+type SubmitRequest struct {
+	BaseRevision int `json:"base_revision"`
+}
+
+// NoteRequest — тело действий с необязательным пояснением (забрать с проверки, в архив, из архива).
+type NoteRequest struct {
+	Comment string `json:"comment"`
+}
+
+// VerdictRequest — POST /api/team/documents/:id/verdict. BaseRevision — редакция, которую читал рецензент.
+type VerdictRequest struct {
+	Verdict      string `json:"verdict" tstype:"'approve' | 'return' | 'reject'"`
+	Comment      string `json:"comment"`
+	BaseRevision int    `json:"base_revision"`
+}
+
+// AddCommentRequest — POST /api/team/documents/:id/comments. Без block_id комментарий относится к документу целиком.
+type AddCommentRequest struct {
+	BlockID *string `json:"block_id,omitempty"`
+	Body    string  `json:"body"`
+}
+
+// ResolveCommentRequest — PUT /api/team/documents/:id/comments/:cid.
+type ResolveCommentRequest struct {
+	Resolved bool `json:"resolved"`
+}

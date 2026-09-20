@@ -101,6 +101,57 @@ export interface VersionResponse {
 export interface DiffResponse {
   diff: documents.Diff;
 }
+/**
+ * ReviewResponse — GET /api/team/documents/:id/review: ход рецензии и комментарии.
+ */
+export interface ReviewResponse {
+  review: any /* documents.ReviewInfo */;
+}
+/**
+ * LintResponse — GET /api/team/documents/:id/lint.
+ */
+export interface LintResponse {
+  lint: any /* documents.LintReport */;
+}
+/**
+ * CommentResponse — комментарий рецензента.
+ */
+export interface CommentResponse {
+  comment: any /* documents.CommentOut */;
+}
+/**
+ * SubmitRequest — POST /api/team/documents/:id/submit. BaseRevision — редакция, которую видел автор.
+ */
+export interface SubmitRequest {
+  base_revision: number /* int */;
+}
+/**
+ * NoteRequest — тело действий с необязательным пояснением (забрать с проверки, в архив, из архива).
+ */
+export interface NoteRequest {
+  comment: string;
+}
+/**
+ * VerdictRequest — POST /api/team/documents/:id/verdict. BaseRevision — редакция, которую читал рецензент.
+ */
+export interface VerdictRequest {
+  verdict: 'approve' | 'return' | 'reject';
+  comment: string;
+  base_revision: number /* int */;
+}
+/**
+ * AddCommentRequest — POST /api/team/documents/:id/comments. Без block_id комментарий относится к документу целиком.
+ */
+export interface AddCommentRequest {
+  block_id?: string;
+  body: string;
+}
+/**
+ * ResolveCommentRequest — PUT /api/team/documents/:id/comments/:cid.
+ */
+export interface ResolveCommentRequest {
+  resolved: boolean;
+}
 
 //////////
 // source: auth.go
@@ -232,6 +283,18 @@ export const CodeConflict = "conflict"; // документ изменён по�
  * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
  */
 export const CodeCodeTaken = "code_taken";
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeSelfReview = "self_review"; // Редактор пытается проверить собственный документ
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeInvalidState = "invalid_state"; // действие не подходит документу в его статусе
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeLintFailed = "lint_failed"; // документ не прошёл проверку канона; отчёт — в lint
 export interface ErrorBody {
   error: ErrorDetail;
 }
@@ -261,6 +324,10 @@ export interface ErrorDetail {
    */
   lock?: LockDetail;
   current_revision?: number /* int */;
+  /**
+   * Lint — отчёт линтера канона (422 lint_failed): что мешает отправить или опубликовать документ.
+   */
+  lint?: any /* documents.LintReport */;
 }
 export interface LockDetail {
   holder: string;

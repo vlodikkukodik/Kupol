@@ -176,6 +176,69 @@ export interface Code {
 export const MaxObjectNumber = 9999;
 
 //////////
+// source: comments.go
+
+/**
+ * Comment — комментарий рецензента (таблица review_comments).
+ */
+export interface Comment {
+  ID: number /* int64 */;
+  DocumentID: number /* int64 */;
+  BlockID?: string;
+  Revision: number /* int */;
+  AuthorID?: number /* int64 */;
+  Body: string;
+  ResolvedAt?: string /* RFC 3339 */;
+  ResolvedBy?: number /* int64 */;
+  CreatedAt: string /* RFC 3339 */;
+}
+/**
+ * CommentOut — комментарий в ответе.
+ */
+export interface CommentOut {
+  id: number /* int64 */;
+  block_id?: string;
+  revision: number /* int */;
+  author?: string;
+  body: string;
+  resolved: boolean;
+  resolved_by?: string;
+  resolved_at?: string /* RFC 3339 */;
+  created_at: string /* RFC 3339 */;
+  /**
+   * CanResolve — вправе ли человек отметить комментарий исправленным или вернуть в открытые.
+   */
+  can_resolve: boolean;
+  /**
+   * CanDelete — вправе ли человек удалить комментарий (автор комментария и Директорат).
+   */
+  can_delete: boolean;
+}
+/**
+ * ReviewEventOut — событие хода рецензии в ответе.
+ */
+export interface ReviewEventOut {
+  id: number /* int64 */;
+  kind: string;
+  kind_name: string;
+  revision: number /* int */;
+  actor?: string;
+  comment?: string;
+  created_at: string /* RFC 3339 */;
+}
+/**
+ * ReviewInfo — вся рецензия документа: ход (старые сверху) и комментарии.
+ */
+export interface ReviewInfo {
+  events: ReviewEventOut[];
+  comments: CommentOut[];
+  /**
+   * Open — сколько комментариев ещё не отмечено исправленными.
+   */
+  open: number /* int */;
+}
+
+//////////
 // source: content.go
 
 /**
@@ -229,6 +292,69 @@ export interface Props {
   category?: string;
   containment_status?: string;
   discovery_place?: string;
+}
+
+//////////
+// source: lint.go
+
+/**
+ * Тяжесть замечания линтера.
+ */
+export const LintError = "error";
+/**
+ * Тяжесть замечания линтера.
+ */
+export const LintWarning = "warning";
+/**
+ * Коды замечаний (для тестов и интерфейса).
+ */
+export const LintNoBlocks = "no_blocks";
+/**
+ * Коды замечаний (для тестов и интерфейса).
+ */
+export const LintBrokenLink = "broken_link";
+/**
+ * Коды замечаний (для тестов и интерфейса).
+ */
+export const LintUnpublishedLink = "unpublished_link";
+/**
+ * Коды замечаний (для тестов и интерфейса).
+ */
+export const LintSelfLink = "self_link";
+/**
+ * Коды замечаний (для тестов и интерфейса).
+ */
+export const LintNoDossierHeader = "no_dossier_header";
+/**
+ * Коды замечаний (для тестов и интерфейса).
+ */
+export const LintDuplicateBlock = "duplicate_block";
+/**
+ * Коды замечаний (для тестов и интерфейса).
+ */
+export const LintUnknownDepartment = "unknown_department";
+/**
+ * LintIssue — одно замечание. BlockID — блок, к которому оно относится (пусто — к документу в целом).
+ */
+export interface LintIssue {
+  severity: 'error' | 'warning';
+  code: string;
+  message: string;
+  block_id?: string;
+}
+/**
+ * LintReport — итог проверки. Замечания упорядочены: сначала ошибки, затем предупреждения, внутри — по порядку блоков.
+ */
+export interface LintReport {
+  issues: LintIssue[];
+  errors: number /* int */;
+  warnings: number /* int */;
+}
+/**
+ * LintFailedError — документ не прошёл проверку канона (в отчёте есть ошибки).
+ */
+export interface LintFailedError {
+  Report?: LintReport;
 }
 
 //////////
@@ -706,6 +832,10 @@ export interface TeamDocument {
   can_break_lock: boolean;
   lock?: LockInfo;
   draft?: DraftInfo;
+  /**
+   * Workflow — что человек может сделать с документом: отправить на проверку, вынести вердикт, убрать в архив…
+   */
+  workflow: Workflow;
 }
 /**
  * CreateInput — что нужно, чтобы завести документ.
@@ -851,3 +981,79 @@ export interface Viewer {
   UserLevel: number /* int */; // уровень зарегистрированного пользователя, 1–6
   Directorate: boolean;
 }
+
+//////////
+// source: workflow.go
+
+/**
+ * Действия хода документа (для прав).
+ */
+export const ActionSubmit = "submit";
+/**
+ * Действия хода документа (для прав).
+ */
+export const ActionWithdraw = "withdraw";
+/**
+ * Действия хода документа (для прав).
+ */
+export const ActionReview = "review";
+/**
+ * Действия хода документа (для прав).
+ */
+export const ActionArchive = "archive";
+/**
+ * Действия хода документа (для прав).
+ */
+export const ActionUnarchive = "unarchive";
+/**
+ * ReviewKind — вид события хода рецензии (таблица review_events).
+ */
+export type ReviewKind = string;
+export const ReviewSubmit: ReviewKind = "submit";
+export const ReviewWithdraw: ReviewKind = "withdraw";
+export const ReviewApprove: ReviewKind = "approve";
+export const ReviewReturn: ReviewKind = "return";
+export const ReviewReject: ReviewKind = "reject";
+export const ReviewArchive: ReviewKind = "archive";
+export const ReviewUnarchive: ReviewKind = "unarchive";
+/**
+ * MaxReviewText — предел причины и комментария (знаков).
+ */
+export const MaxReviewText = 2000;
+/**
+ * StateError — действие не подходит документу в его нынешнем статусе (например, вердикт по черновику).
+ */
+export interface StateError {
+  Status: string;
+  Action: string;
+}
+/**
+ * Workflow — что человек может сделать с документом прямо сейчас. Права считает сервер, интерфейс их только показывает.
+ */
+export interface Workflow {
+  submit: boolean;
+  withdraw: boolean;
+  review: boolean;
+  comment: boolean;
+  archive: boolean;
+  unarchive: boolean;
+}
+/**
+ * ReviewEvent — запись хода рецензии (таблица review_events).
+ */
+export interface ReviewEvent {
+  ID: number /* int64 */;
+  DocumentID: number /* int64 */;
+  Kind: string;
+  Revision: number /* int */;
+  ActorID?: number /* int64 */;
+  Comment: string;
+  CreatedAt: string /* RFC 3339 */;
+}
+/**
+ * Verdict — вердикт рецензента.
+ */
+export type Verdict = string;
+export const VerdictApprove: Verdict = "approve"; // принять и опубликовать
+export const VerdictReturn: Verdict = "return"; // вернуть на доработку (причина обязательна)
+export const VerdictReject: Verdict = "reject"; // отклонить, документ уходит в архив (причина обязательна)

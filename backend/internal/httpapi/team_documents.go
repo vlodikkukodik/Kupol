@@ -42,12 +42,22 @@ func (h *teamDocumentHandlers) fail(c *gin.Context, err error) {
 		ve *documents.ValidationError
 		le *documents.LockedError
 		ce *documents.ConflictError
+		se *documents.StateError
+		lf *documents.LintFailedError
 	)
 	switch {
 	case errors.Is(err, documents.ErrNotFound):
 		Fail(c, http.StatusNotFound, CodeNotFound, "Документ не найден")
 	case errors.Is(err, documents.ErrForbidden):
 		Fail(c, http.StatusForbidden, CodeForbidden, "Недостаточно прав")
+	case errors.Is(err, documents.ErrSelfReview):
+		Fail(c, http.StatusForbidden, CodeSelfReview, "Свой документ проверяет другой Редактор")
+	case errors.Is(err, documents.ErrCommentNotFound):
+		Fail(c, http.StatusNotFound, CodeNotFound, "Комментарий не найден")
+	case errors.As(err, &se):
+		Fail(c, http.StatusConflict, CodeInvalidState, "Это действие не подходит документу в его нынешнем статусе")
+	case errors.As(err, &lf):
+		failDetail(c, http.StatusUnprocessableEntity, ErrorDetail{Code: CodeLintFailed, Message: "Документ не прошёл проверку канона: " + lf.Report.Summary(), Lint: lf.Report})
 	case errors.Is(err, documents.ErrCodeTaken):
 		FailFields(c, http.StatusConflict, CodeCodeTaken, "Этот шифр уже занят", map[string]string{"code": "Этот шифр уже занят другим документом"})
 	case errors.As(err, &le):

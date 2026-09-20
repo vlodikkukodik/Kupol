@@ -27,6 +27,14 @@ const (
 	PasswordChanged    Action = "account.password_changed"  // пароль сменён владельцем
 	AccessRestored     Action = "account.access_restored"   // доступ восстановлен по резервному коду
 	PasswordReset      Action = "account.password_reset"    // пароль сброшен автором командой на сервере
+
+	DocumentSubmitted  Action = "document.submitted"  // документ отправлен на проверку
+	DocumentWithdrawn  Action = "document.withdrawn"  // автор забрал документ с проверки
+	DocumentPublished  Action = "document.published"  // документ опубликован (вердикт «принять»)
+	DocumentReturned   Action = "document.returned"   // документ возвращён на доработку
+	DocumentRejected   Action = "document.rejected"   // документ отклонён и убран в архив
+	DocumentArchived   Action = "document.archived"   // опубликованный документ убран в архив
+	DocumentUnarchived Action = "document.unarchived" // документ возвращён из архива в опубликованные
 )
 
 var titles = map[Action]string{
@@ -38,6 +46,14 @@ var titles = map[Action]string{
 	PasswordChanged:    "Смена пароля",
 	AccessRestored:     "Восстановление доступа",
 	PasswordReset:      "Сброс пароля",
+
+	DocumentSubmitted:  "Документ отправлен на проверку",
+	DocumentWithdrawn:  "Документ забран с проверки",
+	DocumentPublished:  "Документ опубликован",
+	DocumentReturned:   "Документ возвращён на доработку",
+	DocumentRejected:   "Документ отклонён",
+	DocumentArchived:   "Документ убран в архив",
+	DocumentUnarchived: "Документ возвращён из архива",
 }
 
 // Title — название события для людей; для неизвестного — само машинное имя.
