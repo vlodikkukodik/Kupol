@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import BlockEditor from '@/components/editor/BlockEditor.vue'
 import DocumentPreview from '@/components/team/DocumentPreview.vue'
+import ReviewPanel from '@/components/team/ReviewPanel.vue'
+import WorkflowBar from '@/components/team/WorkflowBar.vue'
 import DocumentPropsForm from '@/components/team/DocumentPropsForm.vue'
 import VersionHistory from '@/components/team/VersionHistory.vue'
 import UiAlert from '@/ui/UiAlert.vue'
@@ -12,10 +14,11 @@ import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
 import { ApiError, isApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
-import type { Content, InputBlock, Problem, SaveResult, TeamDocument } from '@/api/generated/documents'
+import type { Content, InputBlock, LintReport, Problem, SaveResult, TeamDocument } from '@/api/generated/documents'
 import { useAutosave } from '@/composables/useAutosave'
 import { useDocumentMeta } from '@/composables/useDocumentMeta'
 import { describeApiError } from '@/composables/useForm'
+import { useReview } from '@/composables/useReview'
 import { blockIndexes } from '@/editor/problems'
 import { formatDateTime, formatTime } from '@/lib/format'
 import { canonicalContent, contentFromForm, formFromContent, problemsToFields, sameContent, type DocForm } from '@/lib/teamdoc'
@@ -27,8 +30,9 @@ const router = useRouter()
 const { meta, query: metaQuery, statusName, blockKindName } = useDocumentMeta()
 
 const id = computed(() => Number(route.params.id))
-type Tab = 'document' | 'preview' | 'history'
-const tab = computed<Tab>(() => (route.query.tab === 'history' ? 'history' : route.query.tab === 'preview' ? 'preview' : 'document'))
+type Tab = 'document' | 'preview' | 'review' | 'history'
+const TABS: Tab[] = ['preview', 'review', 'history']
+const tab = computed<Tab>(() => TABS.find((t) => t === route.query.tab) ?? 'document')
 // Уровень читателя в предпросмотре живёт в адресе: страницу можно переслать и обновить, не теряя выбор
 const previewLevel = computed(() => {
   const n = Number(route.query.level)
@@ -52,6 +56,8 @@ const conflict = ref(0) // редакция, до которой докумен�
 const saving = ref(false)
 const lockBusy = ref(false)
 const draftDismissed = ref(false)
+
+const { open: openComments } = useReview(doc, { withLint: false }) // счётчик на вкладке «Рецензия»
 
 const lockedBy = computed(() => (doc.value?.lock && !doc.value.lock.mine ? doc.value.lock : null))
 const mineLock = computed(() => Boolean(doc.value?.lock?.mine))
@@ -283,7 +289,27 @@ function setPreviewLevel(level: number) {
   void router.replace({ query: { ...route.query, tab: 'preview', level: String(level) } })
 }
 
-/** Из предпросмотра — к блоку, у которого замечание: вкладка «Документ» и фокус на блоке. */
+/** Документ перевели (отправили, вернули, опубликовали…): показать его новым и объявить итог. */
+function onFlowChanged(next: TeamDocument, message: string) {
+  autosave.cancel()
+  clearProblems()
+  applyDoc(next)
+  notice.value = message
+}
+
+/** Канон не пропустил: причины — на вкладке «Рецензия», в самом блоке проверки. */
+function onLintFailed(report: LintReport | null) {
+  notice.value = ''
+  failure.value = `Документ не прошёл проверку канона${report?.errors ? ` (ошибок: ${report.errors})` : ''}: исправьте отмеченное.`
+  void setTab('review')
+}
+
+function onFlowConflict(current: number) {
+  conflict.value = current
+  autosave.stop()
+}
+
+/** Из предпросмотра и рецензии — к блоку: вкладка «Документ» и фокус на блоке. */
 async function goToBlockFromPreview(id: string) {
   await setTab('document') // вкладка показывается после смены адреса: до этого поля блока скрыты и фокус в них не встанет
   await nextTick()
@@ -359,9 +385,14 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
       </p>
     </header>
 
+    <WorkflowBar :doc="doc" :dirty="dirty" @changed="onFlowChanged" @lint-failed="onLintFailed" @conflict="onFlowConflict" @failure="failure = $event" />
+
     <div class="views" role="group" aria-label="Раздел документа">
       <button type="button" class="view" :aria-pressed="tab === 'document' ? 'true' : 'false'" @click="void setTab('document')">Документ</button>
       <button type="button" class="view" :aria-pressed="tab === 'preview' ? 'true' : 'false'" data-testid="tab-preview" @click="void setTab('preview')">Предпросмотр</button>
+      <button type="button" class="view" :aria-pressed="tab === 'review' ? 'true' : 'false'" data-testid="tab-review" @click="void setTab('review')">
+        Рецензия<span v-if="openComments" class="view__count" data-testid="tab-review-count">{{ openComments }}</span>
+      </button>
       <button type="button" class="view" :aria-pressed="tab === 'history' ? 'true' : 'false'" @click="void setTab('history')">История</button>
     </div>
 
@@ -450,6 +481,15 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
       @go-to-block="goToBlockFromPreview"
     />
 
+    <ReviewPanel
+      v-else-if="tab === 'review'"
+      :doc="doc"
+      :blocks="form.blocks"
+      :dirty="dirty"
+      :kind-name="blockKindName"
+      @go-to-block="goToBlockFromPreview"
+    />
+
     <VersionHistory
       v-else-if="tab === 'history'"
       :doc-id="doc.id"
@@ -530,6 +570,17 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
     padding: 0 var(--space-2);
     font-size: var(--text-sm);
   }
+}
+.view__count {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-left: var(--space-2);
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: var(--red-700);
+  color: var(--paper-50);
+  font-size: var(--text-xs);
+  line-height: 1.5;
 }
 .view:hover {
   background: var(--surface-strong);

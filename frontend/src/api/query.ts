@@ -31,4 +31,7 @@ export const keys = {
   teamDocuments: (params: string) => ['team', 'documents', params] as const,
   teamDocument: (id: number) => ['team', 'document', id] as const,
   teamVersions: (id: number, page: number) => ['team', 'versions', id, page] as const,
+  // рецензия и линтер зависят от редакции и статуса: смена любого из них — новый запрос
+  teamReview: (id: number, revision: number, status: string) => ['team', 'review', id, revision, status] as const,
+  teamLint: (id: number, revision: number, status: string) => ['team', 'lint', id, revision, status] as const,
 }

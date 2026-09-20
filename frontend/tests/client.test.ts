@@ -57,6 +57,26 @@ beforeAll(async () => {
         return json(409, { error: { code: 'locked', message: 'Документ правит vera', lock: { holder: 'vera', expires_at: '2026-09-19T12:00:00Z' } } })
       case '/api/conflict':
         return json(409, { error: { code: 'conflict', message: 'Документ изменён', current_revision: 7 } })
+      case '/api/lint':
+        return json(422, {
+          error: {
+            code: 'lint_failed',
+            message: 'Документ не прошёл проверку канона',
+            lint: {
+              issues: [
+                { severity: 'error', code: 'broken_link', message: 'Ссылка на О-9998: такого документа нет', block_id: 'l' },
+                { severity: 'warning', code: 'no_dossier_header', message: 'Нет шапки досье' },
+                { severity: 'fatal', code: 'x', message: 'неизвестная тяжесть' },
+                { severity: 'error', code: 5, message: 'не строка' },
+                'мусор',
+              ],
+              errors: 99,
+              warnings: 99,
+            },
+          },
+        })
+      case '/api/lint-junk':
+        return json(422, { error: { code: 'lint_failed', message: 'x', lint: 'не объект' } })
       case '/api/denied':
         return json(403, {
           error: { code: 'access_denied', message: 'Доступ запрещён', request_id: 'rid-403', required_level: 4, required_level_name: 'Надзиратель' },
@@ -178,6 +198,22 @@ describe('createClient', () => {
     expect(locked).toMatchObject({ status: 409, code: 'locked', lock: { holder: 'vera', expiresAt: '2026-09-19T12:00:00Z' } })
     const conflict = await caught(api.get('/conflict'))
     expect(conflict).toMatchObject({ status: 409, code: 'conflict', currentRevision: 7, lock: null })
+  })
+
+  it('отчёт линтера: только верные замечания; итоги считаются по ним, а не берутся из ответа', async () => {
+    const api = createClient({ base })
+    const err = await caught(api.get('/lint'))
+    expect(err).toMatchObject({ status: 422, code: 'lint_failed' })
+    expect(err.lint).toEqual({
+      issues: [
+        { severity: 'error', code: 'broken_link', message: 'Ссылка на О-9998: такого документа нет', block_id: 'l' },
+        { severity: 'warning', code: 'no_dossier_header', message: 'Нет шапки досье' },
+      ],
+      errors: 1,
+      warnings: 1,
+    })
+    expect((await caught(api.get('/lint-junk'))).lint).toBeNull()
+    expect((await caught(api.get('/conflict'))).lint).toBeNull()
   })
 
   it('без fields — пустой объект, а не undefined', async () => {

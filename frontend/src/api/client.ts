@@ -1,7 +1,7 @@
 // Клиент API. Все обычные запросы идут на тот же домен (/api/...), где их принимает PHP-прокси и передаёт Go API.
 // Ошибки приводятся к единому виду ApiError; о каждом исходе можно узнать через subscribe (сторы связи и сессии).
 import type { ErrorBody } from './generated/httpapi'
-import type { Problem } from './generated/documents'
+import type { LintIssue, LintReport, Problem } from './generated/documents'
 
 export interface LockNotice {
   holder: string
@@ -27,6 +27,8 @@ export interface ApiErrorInit {
   lock?: LockNotice | null
   /** Актуальная редакция (409 conflict) */
   currentRevision?: number
+  /** Отчёт линтера канона (422 lint_failed) */
+  lint?: LintReport | null
 }
 
 export class ApiError extends Error {
@@ -40,6 +42,7 @@ export class ApiError extends Error {
   readonly problems: Problem[]
   readonly lock: LockNotice | null
   readonly currentRevision: number
+  readonly lint: LintReport | null
 
   constructor(init: ApiErrorInit) {
     super(init.message)
@@ -54,6 +57,7 @@ export class ApiError extends Error {
     this.problems = init.problems ?? []
     this.lock = init.lock ?? null
     this.currentRevision = init.currentRevision ?? 0
+    this.lint = init.lint ?? null
   }
 }
 
@@ -108,6 +112,18 @@ function cleanFields(raw: unknown): Record<string, string> {
   return out
 }
 
+/** Отчёт линтера из ответа сервера; неверная форма — как будто отчёта нет. */
+function cleanLint(raw: unknown): LintReport | null {
+  if (!isRecord(raw) || !Array.isArray(raw.issues)) return null
+  const issues: LintIssue[] = []
+  for (const i of raw.issues) {
+    if (isRecord(i) && (i.severity === 'error' || i.severity === 'warning') && typeof i.code === 'string' && typeof i.message === 'string') {
+      issues.push({ severity: i.severity, code: i.code, message: i.message, ...(typeof i.block_id === 'string' && i.block_id ? { block_id: i.block_id } : {}) })
+    }
+  }
+  return { issues, errors: issues.filter((i) => i.severity === 'error').length, warnings: issues.filter((i) => i.severity === 'warning').length }
+}
+
 const int = (v: unknown): number => (typeof v === 'number' && Number.isInteger(v) ? v : 0)
 
 /** Ошибка Go API / прокси: { error: { code, message, request_id } }. */
@@ -132,6 +148,7 @@ async function toApiError(res: Response): Promise<ApiError> {
       problems: cleanProblems(e.problems),
       lock: cleanLock(e.lock),
       currentRevision: int(e.current_revision),
+      lint: cleanLint(e.lint),
     })
   }
   return new ApiError({

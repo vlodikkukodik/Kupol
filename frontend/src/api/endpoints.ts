@@ -14,12 +14,15 @@ import type {
   AutosaveResult,
 } from './generated/documents'
 import type {
+  AddCommentRequest,
   CaptchaResponse,
   ChangePasswordRequest,
+  CommentResponse,
   CreateDocumentRequest,
   DiffResponse,
   DocumentResponse,
   HealthResponse,
+  LintResponse,
   LockResponse,
   LoginRequest,
   LoginResponse,
@@ -29,11 +32,15 @@ import type {
   RegisterRequest,
   RegisterResponse,
   RestoreRequest,
+  ResolveCommentRequest,
+  ReviewResponse,
   SaveDocumentRequest,
   SessionResponse,
+  SubmitRequest,
   TeamDocumentResponse,
   TeamMembersResponse,
   TeamRolesResponse,
+  VerdictRequest,
   VersionResponse,
 } from './generated/httpapi'
 
@@ -107,5 +114,18 @@ export const teamApi = {
     api.get<DiffResponse>(`/team/documents/${id}/versions/${versionId}/diff${qs({ against })}`, o),
   /** Документ глазами читателя уровня level (0–7): сервер фильтрует, как при чтении. content — несохранённые правки; без него — сохранённое */
   preview: (id: number, body: PreviewRequest, o?: RequestOptions) => api.post<PreviewResult>(`/team/documents/${id}/preview`, body, o),
+  /** Проверка канона по сохранённому документу */
+  lint: (id: number, o?: RequestOptions) => api.get<LintResponse>(`/team/documents/${id}/lint`, o),
+  /** Ход рецензии и комментарии */
+  review: (id: number, o?: RequestOptions) => api.get<ReviewResponse>(`/team/documents/${id}/review`, o),
+  submit: (id: number, baseRevision: number) => api.post<TeamDocumentResponse>(`/team/documents/${id}/submit`, { base_revision: baseRevision } satisfies SubmitRequest),
+  withdraw: (id: number, comment = '') => api.post<TeamDocumentResponse>(`/team/documents/${id}/withdraw`, { comment }),
+  verdict: (id: number, body: VerdictRequest) => api.post<TeamDocumentResponse>(`/team/documents/${id}/verdict`, body),
+  archive: (id: number, comment = '') => api.post<TeamDocumentResponse>(`/team/documents/${id}/archive`, { comment }),
+  unarchive: (id: number, comment = '') => api.post<TeamDocumentResponse>(`/team/documents/${id}/unarchive`, { comment }),
+  addComment: (id: number, body: AddCommentRequest) => api.post<CommentResponse>(`/team/documents/${id}/comments`, body),
+  resolveComment: (id: number, commentId: number, resolved: boolean) =>
+    api.put<CommentResponse>(`/team/documents/${id}/comments/${commentId}`, { resolved } satisfies ResolveCommentRequest),
+  deleteComment: (id: number, commentId: number) => api.delete<null>(`/team/documents/${id}/comments/${commentId}`),
   restore: (id: number, versionId: number) => api.post<SaveResult>(`/team/documents/${id}/versions/${versionId}/restore`),
 }

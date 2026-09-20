@@ -18,6 +18,12 @@ export function describeApiError(err: ApiError): string {
       return err.lock ? `Документ сейчас правит ${err.lock.holder}.` : 'Документ сейчас правит другой сотрудник.'
     case 'conflict':
       return 'Документ изменён после того, как вы его открыли.'
+    case 'self_review':
+      return 'Свой документ проверяет другой Редактор.'
+    case 'invalid_state':
+      return 'Это действие не подходит документу в его нынешнем статусе. Обновите страницу: возможно, его уже перевели.'
+    case 'lint_failed':
+      return err.message || 'Документ не прошёл проверку канона.'
     case 'internal':
     case 'upstream_unavailable':
     case 'upstream_timeout':
