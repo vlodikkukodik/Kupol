@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { canWrite, signUp } from './helpers/kupol.js'
-import { openAuth, openMenu } from './helpers/ui.js'
+import { openAuth, openMenu, settle } from './helpers/ui.js'
 
 // Автоматическая проверка доступности (WCAG 2.1 A/AA) на всех экранах. Экраны для вошедших требуют
 // регистрации, поэтому идут только там, где разрешена запись (как и остальные сценарии аккаунтов).
@@ -9,6 +9,8 @@ import { openAuth, openMenu } from './helpers/ui.js'
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 
 async function expectAccessible(page, what) {
+  // Окно входа после регистрации ещё тает, когда экран уже сменился: контраст полупрозрачного — ложное нарушение
+  await settle(page)
   const results = await new AxeBuilder({ page }).withTags(TAGS).analyze()
   const summary = results.violations.map((v) => `${v.id} (${v.impact}): ${v.help}\n  ${v.nodes.map((n) => n.target.join(' ')).join('\n  ')}`)
   expect(summary, `нарушения доступности: ${what}`).toEqual([])
