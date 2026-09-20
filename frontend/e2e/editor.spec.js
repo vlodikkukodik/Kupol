@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { canWrite } from './helpers/kupol.js'
-import { createDoc, newAuthor, stored } from './helpers/team.js'
+import { caretToEnd, createDoc, newAuthor, stored } from './helpers/team.js'
 
 // Редактор документов (этап 3.3): настоящий Chromium -> Vite -> PHP-прокси -> Go -> PostgreSQL.
 // Проверяется то, что видит и делает автор: набор, оформление, закрытие фрагментов, блоки, таблица, замечания сервера.
@@ -81,7 +81,7 @@ test('набор текста: правка сохраняется, дописа
   await open(page, id)
 
   await clickIn(page, editorOf(page).locator('p', { hasText: 'Обычный' }))
-  await page.keyboard.press('End')
+  await caretToEnd(page)
   await page.keyboard.type(' — дописано')
   await expect(dirtyMark(page)).toBeVisible()
   await expect(page.getByTestId('autosave-state')).toHaveAttribute('data-state', /pending|saving|saved/)
@@ -291,7 +291,7 @@ test('цитата и сноска: Enter — перенос строки вну
   const id = await createDoc(page, baseURL, { blocks: [{ id: 'q', type: 'quote', data: { text: [{ text: 'первая' }] } }] })
   await open(page, id)
   await clickIn(page, page.locator('.pm-quote .pm-content'))
-  await page.keyboard.press('End')
+  await caretToEnd(page)
   await page.keyboard.press('Enter')
   await page.keyboard.type('вторая')
   await saveButton(page).click()
@@ -310,7 +310,7 @@ test('отмена и возврат: панель и Ctrl+Z; «Отменить
   await expect(page.getByTestId('tb-undo')).toBeDisabled()
 
   await clickIn(page, p)
-  await page.keyboard.press('End')
+  await caretToEnd(page)
   await page.keyboard.type(' плюс')
   await expect(p).toHaveText('Исходный плюс')
   await page.getByTestId('tb-undo').click()
@@ -334,7 +334,7 @@ test('Ctrl+S сохраняет документ; несохранённое а�
   await open(page, id)
   const p = editorOf(page).locator('p', { hasText: 'Основа' })
   await clickIn(page, p)
-  await page.keyboard.press('End')
+  await caretToEnd(page)
   await page.keyboard.type(' раз')
   await page.keyboard.press('Control+s')
   await expect(page.getByText('Сохранено: редакция 2.').first()).toBeVisible()

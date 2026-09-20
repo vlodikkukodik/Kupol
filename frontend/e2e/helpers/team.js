@@ -18,3 +18,15 @@ export async function createDoc(page, baseURL, { title = '[e2e] Редактор
 }
 
 export const stored = async (page, id) => (await (await page.request.get(`/api/team/documents/${id}`)).json()).document
+
+/**
+ * Курсор в конец текущей строки текста и ожидание, пока редактор это примет: он узнаёт о выделении браузера не мгновенно,
+ * а Enter или набор в этот промежуток ушли бы в прежнее место. Живому человеку эта пауза незаметна.
+ */
+export async function caretToEnd(page) {
+  await page.keyboard.press('End')
+  await page.waitForFunction(() => {
+    const { $from, empty } = document.querySelector('.ProseMirror').editor.state.selection
+    return empty && $from.parentOffset === $from.parent.content.size
+  })
+}

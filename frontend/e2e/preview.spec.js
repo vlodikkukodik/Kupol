@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import { canWrite } from './helpers/kupol.js'
-import { createDoc, newAuthor, stored } from './helpers/team.js'
+import { caretToEnd, createDoc, newAuthor, stored } from './helpers/team.js'
 
 // Предпросмотр «глазами уровня N» (этап 3.4): документ строит сервер, браузер ничего не скрывает сам.
 test.skip(!canWrite, 'создаёт пользователей и документы: против внешнего адреса не запускается')
@@ -71,7 +71,7 @@ test('несохранённые правки попадают в предпро
   const p = editorOf(page).locator('p', { hasText: 'Основа' })
   await p.click()
   await page.waitForFunction(() => document.querySelector('.ProseMirror').editor.state.selection.$from.node(1)?.attrs.blockId === 'a')
-  await page.keyboard.press('End')
+  await caretToEnd(page)
   await page.keyboard.type(' — правка')
   await expect(page.getByRole('button', { name: 'Отменить правки' })).toBeVisible()
 
