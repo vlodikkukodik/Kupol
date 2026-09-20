@@ -401,6 +401,46 @@ export interface TermInput {
 }
 
 //////////
+// source: graph.go
+
+/**
+ * GraphNode — карточка на доске.
+ */
+export interface GraphNode {
+  code: string;
+  slug: string;
+  title: string;
+  type: string;
+  type_name: string;
+  level: number /* int */;
+  year: number /* int */;
+  /**
+   * Depth — расстояние от центра в нитях: 0 — сам документ, 1 — связанные с ним напрямую, 2 — через одного.
+   */
+  depth: number /* int */;
+}
+/**
+ * GraphEdge — нить: документ From ссылается на To.
+ */
+export interface GraphEdge {
+  from: string;
+  to: string;
+}
+/**
+ * GraphResult — доска вокруг одного документа.
+ */
+export interface GraphResult {
+  center: string;
+  depth: number /* int */;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  /**
+   * Truncated — связей больше, чем помещается на доске: показаны первые по шифру.
+   */
+  truncated?: boolean;
+}
+
+//////////
 // source: input.go
 
 /**

@@ -139,6 +139,7 @@ func New(d Deps) (*gin.Engine, error) {
 	docs := &documentHandlers{svc: d.Documents, log: d.Log}
 	api.GET("/documents", docs.list)
 	api.GET("/search", docs.search)
+	api.GET("/graph/:ref", docs.graph)
 	api.GET("/documents/summary", docs.summary)
 	api.GET("/documents/recent", docs.recent)
 	api.GET("/documents/:ref", docs.get)

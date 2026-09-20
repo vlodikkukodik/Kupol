@@ -23,6 +23,7 @@ export const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: HomeView, meta: { title: 'КУПОЛ — Центральный архив', needsApi: false } },
   { path: '/catalog', name: 'catalog', component: () => import('@/views/CatalogView.vue'), meta: { title: title('Каталог'), needsApi: true } },
   { path: '/search', name: 'search', component: () => import('@/views/SearchView.vue'), meta: { title: title('Поиск'), needsApi: true } },
+  { path: '/graph/:ref', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: title('Связи документа'), needsApi: true } },
   { path: '/doc/:ref', name: 'document', component: () => import('@/views/DocumentView.vue'), meta: { title: title('Документ'), needsApi: true } },
   { path: '/file', name: 'file', component: () => import('@/views/FileView.vue'), meta: { title: title('Личное дело'), needsApi: true, requiresAuth: true } },
   {

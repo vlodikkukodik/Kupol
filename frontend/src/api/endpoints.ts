@@ -4,6 +4,7 @@ import { api } from './index'
 import type { RequestOptions } from './client'
 import type {
   Content,
+  GraphResult,
   ImportResult,
   ListResult,
   Meta,
@@ -102,6 +103,8 @@ export const documentsApi = {
   summary: (o?: RequestOptions) => api.get<Summary>('/documents/summary', o),
   recent: (limit = 10, o?: RequestOptions) => api.get<RecentResponse>(`/documents/recent${qs({ limit })}`, o),
   get: (ref: string, o?: RequestOptions) => api.get<DocumentResponse>(`/documents/${encodeURIComponent(ref)}`, o),
+  /** «Доска с нитками»: документ, связанные с ним документы и ссылки между ними — только то, что читатель вправе видеть */
+  graph: (ref: string, depth: 1 | 2, o?: RequestOptions) => api.get<GraphResult>(`/graph/${encodeURIComponent(ref)}${qs({ depth })}`, o),
   /** Поиск по названиям, шифрам и тексту блоков: в выдаче только то, что читатель вправе видеть */
   search: (params: URLSearchParams, o?: RequestOptions) => api.get<SearchResult>(`/search${qs(params)}`, o),
 }

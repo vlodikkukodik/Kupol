@@ -25,6 +25,7 @@ export const keys = {
   summary: ['documents', 'summary'] as const,
   list: (query: string) => ['documents', 'list', query] as const,
   search: (query: string) => ['documents', 'search', query] as const,
+  graph: (ref: string, depth: number) => ['documents', 'graph', ref, depth] as const,
   document: (ref: string) => ['documents', 'item', ref] as const,
   teamMeta: ['team', 'meta'] as const,
   teamRoles: ['team', 'roles'] as const,
