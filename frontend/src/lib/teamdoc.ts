@@ -2,6 +2,7 @@
 // по полям, сравнение «есть ли несохранённые правки». Правила проверки — на сервере; здесь только то, без чего
 // запрос нельзя даже составить (год — число).
 import type { Content, InputBlock, Problem, Props } from '@/api/generated/documents'
+import { canonicalBlocks } from '@/editor/convert'
 
 export const PROP_FIELDS = ['danger_class', 'deviation_points', 'department', 'category', 'containment_status', 'discovery_place'] as const
 export type PropField = (typeof PROP_FIELDS)[number]
@@ -25,6 +26,15 @@ export interface DocForm {
 
 const str = (v: unknown): string => (v === null || v === undefined ? '' : String(v))
 
+/**
+ * Содержимое в той форме, в какой его ведёт редактор блоков (склеенные фрагменты, без пустых абзацев).
+ * Сохранённое содержимое приводится к ней перед сравнением: иначе «есть правки» вспыхивало бы у документа,
+ * который автор не трогал.
+ */
+export function canonicalContent(content: Content): Content {
+  return { ...content, blocks: canonicalBlocks(content.blocks) }
+}
+
 /** Поля формы из содержимого документа. */
 export function formFromContent(content: Partial<Content> | null | undefined, type: string): DocForm {
   const c = content ?? {}
@@ -39,7 +49,7 @@ export function formFromContent(content: Partial<Content> | null | undefined, ty
     month: str(composed?.month),
     day: str(composed?.day),
     props: type === 'object' ? props : null,
-    blocks: Array.isArray(c.blocks) ? c.blocks : [],
+    blocks: canonicalBlocks(c.blocks),
   }
 }
 

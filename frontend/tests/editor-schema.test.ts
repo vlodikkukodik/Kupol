@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Editor } from '@tiptap/core'
+import { UndoRedo } from '@tiptap/extensions'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { InputBlock } from '@/api/generated/documents'
@@ -22,7 +23,7 @@ beforeAll(() => {
 
 const editors: Editor[] = []
 function create(blocks: InputBlock[] = []): Editor {
-  const editor = new Editor({ element: document.createElement('div'), extensions: [...schemaExtensions, KupolKeys], content: blocksToDoc(blocks) })
+  const editor = new Editor({ element: document.createElement('div'), extensions: [...schemaExtensions, KupolKeys, UndoRedo], content: blocksToDoc(blocks) })
   editors.push(editor)
   editor.commands.normalizeBlockIds()
   return editor
@@ -288,6 +289,22 @@ describe('закрытие фрагмента', () => {
     e.view.dispatch(e.state.tr.setSelection(TextSelection.atEnd(e.state.doc)))
     e.commands.insertContent('открыто')
     expect(out(e)[0]!.data).toEqual({ text: [{ text: 'секрет', level: 3 }, { text: 'открыто' }] })
+  })
+})
+
+describe('защита блока при наборе', () => {
+  it('пока блок выделен целиком, набор текста его не заменяет', () => {
+    const e = create([block('stamp', { text: 'Копия', tone: 'ink' }, { id: 'st' }), block('paragraph', { text: [{ text: 'а' }] })])
+    e.view.dispatch(e.state.tr.setSelection(NodeSelection.create(e.state.doc, 0)))
+    const handled = e.view.someProp('handleTextInput', (f) => f(e.view, 0, 1, 'x', () => e.state.tr))
+    expect(handled).toBe(true)
+    expect(out(e)[0]).toMatchObject({ id: 'st', type: 'stamp' })
+  })
+
+  it('обычный набор в тексте не перехватывается', () => {
+    const e = create([block('paragraph', { text: [{ text: 'а' }] })])
+    cursorIn(e, 0)
+    expect(e.view.someProp('handleTextInput', (f) => f(e.view, 1, 1, 'x', () => e.state.tr))).toBeFalsy()
   })
 })
 

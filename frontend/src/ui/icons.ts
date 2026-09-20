@@ -35,6 +35,15 @@ export const ICONS = {
   refresh: 'M20 12a8 8 0 1 1-2.5-5.8M20 4v5h-5',
   layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5',
   cards: 'M4 8h13v11H4zM7 8V5h13v11h-3',
+  bold: 'M7 4h6a3.5 3.5 0 0 1 0 7H7zM7 11h7a3.5 3.5 0 0 1 0 7H7z',
+  italic: 'M10 4h8M6 20h8M14 4l-4 16',
+  undo: 'M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3',
+  redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
+  'arrow-up': 'M12 20V4M6 10l6-6 6 6',
+  'arrow-down': 'M12 4v16M6 14l6 6 6-6',
+  redact: 'M3 8h18v8H3zM6 12h5M14 12h4',
+  rows: 'M4 6h16v5H4zM4 13h16v5H4z',
+  columns: 'M6 4h5v16H6zM13 4h5v16h-5z',
 } as const
 
 export type IconName = keyof typeof ICONS

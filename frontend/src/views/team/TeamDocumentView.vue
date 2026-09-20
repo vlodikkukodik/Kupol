@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import BlockEditor from '@/components/editor/BlockEditor.vue'
 import DocumentPropsForm from '@/components/team/DocumentPropsForm.vue'
 import VersionHistory from '@/components/team/VersionHistory.vue'
 import UiAlert from '@/ui/UiAlert.vue'
@@ -10,12 +11,13 @@ import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
 import { ApiError, isApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
-import type { Content, Problem, SaveResult, TeamDocument } from '@/api/generated/documents'
+import type { Content, InputBlock, Problem, SaveResult, TeamDocument } from '@/api/generated/documents'
 import { useAutosave } from '@/composables/useAutosave'
 import { useDocumentMeta } from '@/composables/useDocumentMeta'
 import { describeApiError } from '@/composables/useForm'
+import { blockIndexes } from '@/editor/problems'
 import { formatDateTime, formatTime } from '@/lib/format'
-import { blockPreview, contentFromForm, formFromContent, problemsToFields, sameContent, type DocForm } from '@/lib/teamdoc'
+import { canonicalContent, contentFromForm, formFromContent, problemsToFields, sameContent, type DocForm } from '@/lib/teamdoc'
 import ErrorView from '../ErrorView.vue'
 import NotFoundView from '../NotFoundView.vue'
 
@@ -34,6 +36,9 @@ const form = ref<DocForm | null>(null) // поля формы (строки)
 const baseline = ref<Content | null>(null) // сохранённое содержимое: с ним сравнивается форма
 const errors = reactive<Record<string, string>>({}) // путь замечания → текст
 const otherProblems = ref<Problem[]>([]) // замечания без поля в форме (блоки и прочее)
+const sentBlocks = ref<InputBlock[] | null>(null) // блоки последнего сохранения: по ним замечания «blocks[3]…» находят свои блоки
+const editorKey = ref(0) // новое значение пересоздаёт редактор блоков (подмена содержимого целиком)
+const blockEditor = ref<InstanceType<typeof BlockEditor> | null>(null)
 const notice = ref('') // объявление об успехе (role=status)
 const failure = ref('') // общая ошибка (role=alert)
 const conflict = ref(0) // редакция, до которой документ успели изменить другие
@@ -51,21 +56,38 @@ const offeredDraft = computed(() => (doc.value?.draft && doc.value.can_edit && !
 function clearProblems() {
   for (const k of Object.keys(errors)) delete errors[k]
   otherProblems.value = []
+  sentBlocks.value = null
   failure.value = ''
 }
 
-function showProblems(problems: Problem[]) {
+function showProblems(problems: Problem[], sent: InputBlock[] | null = null) {
   const { byPath, other } = problemsToFields(problems)
   Object.assign(errors, byPath)
   otherProblems.value = other
+  sentBlocks.value = sent
   failure.value = 'Документ не прошёл проверку: исправьте отмеченное.'
 }
 
-/** Показать документ с сервера: форма и «сохранённое» — из его содержимого. */
-function applyDoc(d: TeamDocument) {
+/** Замечание сервера к блоку: какой это блок (номер и вид) и его идентификатор в редакторе. */
+function blockOf(problem: Problem): { number: number; kind: string; id: string } | null {
+  const index = blockIndexes([problem.path])[0]
+  const block = index === undefined ? undefined : sentBlocks.value?.[index]
+  return index === undefined || !block ? null : { number: index + 1, kind: blockKindName(block.type), id: block.id }
+}
+const problemRows = computed(() => otherProblems.value.map((p) => ({ ...p, block: blockOf(p) })))
+const problemBlockIds = computed(() => problemRows.value.map((p) => p.block?.id).filter((id): id is string => Boolean(id)))
+const fieldPath = (path: string) => path.replace(/^blocks\[\d+\]\.?/, '')
+
+function goToBlock(id: string) {
+  blockEditor.value?.focusBlock(id)
+}
+
+/** Показать документ с сервера: форма и «сохранённое» — из его содержимого. remount — пересоздать редактор блоков. */
+function applyDoc(d: TeamDocument, { remount = true } = {}) {
   doc.value = d
-  baseline.value = d.content
+  baseline.value = canonicalContent(d.content)
   form.value = formFromContent(d.content, d.type)
+  if (remount) editorKey.value++
   document.title = `${d.code ?? 'Документ без шифра'} — ${d.content.title} — Панель команды — КУПОЛ`
 }
 
@@ -108,7 +130,9 @@ const autosave = useAutosave(async () => {
 watch(
   form,
   () => {
-    if (editable.value && dirty.value) autosave.schedule()
+    if (!editable.value || !dirty.value) return
+    void ensureLock() // правка блоков (кнопка панели, набор текста) не всегда приходит событием ввода формы
+    autosave.schedule()
   },
   { deep: true },
 )
@@ -130,7 +154,9 @@ async function ensureLock() {
 
 const focusFirstInvalid = async () => {
   await nextTick()
-  document.querySelector<HTMLElement>('.editor [aria-invalid="true"]')?.focus()
+  const field = document.querySelector<HTMLElement>('.editor input[aria-invalid="true"], .editor select[aria-invalid="true"], .editor textarea[aria-invalid="true"]')
+  if (field) field.focus()
+  else if (problemBlockIds.value[0]) goToBlock(problemBlockIds.value[0])
 }
 
 async function save() {
@@ -147,12 +173,14 @@ async function save() {
   try {
     const res = await teamApi.save(id.value, { base_revision: doc.value.revision, content })
     autosave.cancel()
-    applyDoc(res.document)
+    // Редактор пересоздаётся, только если сервер привёл содержимое к другому виду: иначе после каждого «Сохранить»
+    // пропадали бы положение курсора и история отмены.
+    applyDoc(res.document, { remount: !sameContent(canonicalContent(res.document.content), content) })
     notice.value = res.changed ? `Сохранено: редакция ${res.document.revision}.` : 'Изменений нет — сохранять нечего.'
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
     if (err.code === 'validation') {
-      showProblems(err.problems)
+      showProblems(err.problems, content.blocks)
       await focusFirstInvalid()
     } else if (err.code === 'conflict') {
       conflict.value = err.currentRevision
@@ -173,6 +201,7 @@ async function revert() {
   if (!doc.value || !baseline.value) return
   autosave.cancel()
   form.value = formFromContent(baseline.value, doc.value.type)
+  editorKey.value++
   clearProblems()
   notice.value = 'Правки отменены.'
   if (mineLock.value) {
@@ -187,6 +216,7 @@ async function revert() {
 function useDraft() {
   if (!doc.value?.draft) return
   form.value = formFromContent(doc.value.draft.content, doc.value.type)
+  editorKey.value++
   draftDismissed.value = true
   notice.value = 'Несохранённые правки открыты. Проверьте и сохраните.'
   void ensureLock()
@@ -224,6 +254,14 @@ function onRestored(res: SaveResult) {
   clearProblems()
   applyDoc(res.document)
   notice.value = res.changed ? `Версия возвращена: редакция ${res.document.revision}.` : 'Документ уже совпадает с этой версией.'
+}
+
+/** Ctrl+S / ⌘S в редакторе — «Сохранить», а не сохранение страницы браузером. */
+function onEditorKeydown(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 's') {
+    event.preventDefault()
+    if (editable.value && !saving.value) void save()
+  }
 }
 
 function setTab(next: 'document' | 'history') {
@@ -311,8 +349,14 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
     <p class="visually-hidden" role="status">{{ notice }}</p>
     <UiAlert v-if="notice" tone="success" :live="false">{{ notice }}</UiAlert>
     <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
-    <ul v-if="otherProblems.length" class="problems" data-testid="problems">
-      <li v-for="p in otherProblems" :key="p.path"><code>{{ p.path }}</code>: {{ p.message }}</li>
+    <ul v-if="problemRows.length" class="problems" data-testid="problems">
+      <li v-for="p in problemRows" :key="`${p.path}|${p.message}`">
+        <template v-if="p.block">
+          <button type="button" class="problem-link" @click="goToBlock(p.block.id)">Блок {{ p.block.number }} — {{ p.block.kind }}</button>
+          <template v-if="fieldPath(p.path)"> (<code>{{ fieldPath(p.path) }}</code>)</template>: {{ p.message }}
+        </template>
+        <template v-else><code>{{ p.path }}</code>: {{ p.message }}</template>
+      </li>
     </ul>
 
     <UiAlert v-if="lockedBy" tone="warning" data-testid="lock-banner">
@@ -347,38 +391,31 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
     </UiAlert>
 
     <template v-if="tab === 'document'">
-      <form novalidate aria-label="Свойства документа" @submit.prevent="save" @input.capture="ensureLock" @change.capture="ensureLock">
+      <form id="doc-form" novalidate aria-label="Свойства документа" @submit.prevent="save" @input.capture="ensureLock" @change.capture="ensureLock">
         <DocumentPropsForm v-model="form" :meta="meta" :errors="errors" :disabled="!editable" />
-
-        <section class="blocks" aria-labelledby="blocks-title">
-          <h3 id="blocks-title">Блоки ({{ form.blocks.length }})</h3>
-          <p v-if="!form.blocks.length" class="state">В документе пока нет блоков.</p>
-          <ol v-else class="block-list" data-testid="block-list">
-            <li v-for="b in form.blocks" :key="b.id" :data-block="b.id">
-              <span class="block-kind">{{ blockKindName(b.type) }}</span>
-              <code class="block-id">{{ b.id }}</code>
-              <span v-if="b.level" class="block-level">допуск {{ b.level }}</span>
-              <span class="block-text">{{ blockPreview(b) }}</span>
-            </li>
-          </ol>
-        </section>
-
-        <div class="save-bar" data-testid="save-bar">
-          <UiButton type="submit" variant="primary" icon="check" :disabled="!editable" :loading="saving">{{ saving ? 'Сохраняем…' : 'Сохранить' }}</UiButton>
-          <UiButton v-if="dirty && editable" variant="link" @click="revert">Отменить правки</UiButton>
-          <UiButton
-            v-if="mineLock && !lockedBy"
-            variant="link"
-            :disabled="dirty || lockBusy"
-            :aria-describedby="dirty ? 'finish-hint' : undefined"
-            @click="releaseLock"
-          >
-            Завершить работу
-          </UiButton>
-          <span v-if="dirty && mineLock" id="finish-hint" class="hint">Сохраните или отмените правки, чтобы отпустить документ.</span>
-          <span class="autosave" data-testid="autosave-state" :data-state="autosave.state.value">{{ autosaveText }}</span>
-        </div>
       </form>
+
+      <!-- Редактор — вне формы: Enter в его полях не должен отправлять форму (сохранение — кнопкой или Ctrl+S) -->
+      <section class="blocks" aria-labelledby="blocks-title" @keydown="onEditorKeydown">
+        <h3 id="blocks-title">Содержание</h3>
+        <BlockEditor ref="blockEditor" :key="editorKey" v-model:blocks="form.blocks" :editable="editable" :problem-blocks="problemBlockIds" />
+      </section>
+
+      <div class="save-bar" data-testid="save-bar">
+        <UiButton type="submit" form="doc-form" variant="primary" icon="check" :disabled="!editable" :loading="saving">{{ saving ? 'Сохраняем…' : 'Сохранить' }}</UiButton>
+        <UiButton v-if="dirty && editable" variant="link" @click="revert">Отменить правки</UiButton>
+        <UiButton
+          v-if="mineLock && !lockedBy"
+          variant="link"
+          :disabled="dirty || lockBusy"
+          :aria-describedby="dirty ? 'finish-hint' : undefined"
+          @click="releaseLock"
+        >
+          Завершить работу
+        </UiButton>
+        <span v-if="dirty && mineLock" id="finish-hint" class="hint">Сохраните или отмените правки, чтобы отпустить документ.</span>
+        <span class="autosave" data-testid="autosave-state" :data-state="autosave.state.value">{{ autosaveText }}</span>
+      </div>
     </template>
 
     <VersionHistory
@@ -472,33 +509,15 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
 .blocks {
   margin-top: var(--space-5);
 }
-.block-list {
-  margin: 0;
+.problem-link {
   padding: 0;
-  list-style: none;
-}
-.block-list li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px dashed var(--border-strong);
-}
-.block-kind {
-  font-family: var(--font-head);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   font-weight: 700;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-}
-.block-id,
-.block-level {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-.block-text {
-  flex-basis: 100%;
-  overflow-wrap: anywhere;
+  text-decoration: underline;
+  cursor: pointer;
 }
 .save-bar {
   position: sticky;

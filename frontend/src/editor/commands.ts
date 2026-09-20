@@ -220,6 +220,8 @@ export interface Situation {
   redact: number
   /** Можно ли форматировать выделенное (в заголовке и шапке таблицы текст простой) */
   canFormat: boolean
+  canUndo: boolean
+  canRedo: boolean
   inTable: boolean
   /** Строка заголовков таблицы: её удалять нельзя */
   onTableHeader: boolean
@@ -239,6 +241,8 @@ export function situation(editor: Editor): Situation {
     italic: editor.isActive('italic'),
     redact: Number(editor.getAttributes('redact').level ?? 0) || 0,
     canFormat: parent.inlineContent && parent.type.spec.marks !== '',
+    canUndo: editor.can().undo(),
+    canRedo: editor.can().redo(),
     inTable: row !== null,
     onTableHeader: row === 0,
   }

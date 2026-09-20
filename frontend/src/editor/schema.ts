@@ -57,10 +57,12 @@ interface Spec {
   nested?: boolean
   parse?: { tag: string; attrs?: Record<string, unknown> }[]
   marks?: string
+  /** Роль в дереве доступности (для пункта списка) */
+  role?: string
 }
 
 /** Узел редактора по описанию: одинаковая разметка для копирования и вставки внутри редактора. */
-function kupolNode({ name, content, attrs = {}, nested = false, parse = [], marks }: Spec) {
+function kupolNode({ name, content, attrs = {}, nested = false, parse = [], marks, role }: Spec) {
   return Node.create({
     name,
     ...(nested ? {} : { group: 'block' }),
@@ -78,7 +80,7 @@ function kupolNode({ name, content, attrs = {}, nested = false, parse = [], mark
       return [{ tag: `[data-kupol="${name}"]` }, ...parse]
     },
     renderHTML({ HTMLAttributes }) {
-      const attributes = mergeAttributes({ 'data-kupol': name }, HTMLAttributes)
+      const attributes = mergeAttributes({ 'data-kupol': name, ...(role ? { role } : {}) }, HTMLAttributes)
       return content ? ['div', attributes, 0] : ['div', attributes]
     },
   })
@@ -221,7 +223,7 @@ const heading = kupolNode({
 })
 
 const list = kupolNode({ name: 'list', content: 'listItem+', attrs: { ordered: false } })
-const listItem = kupolNode({ name: 'listItem', content: 'inline*', nested: true })
+const listItem = kupolNode({ name: 'listItem', content: 'inline*', nested: true, role: 'listitem' })
 const quote = kupolNode({ name: 'quote', content: 'inline*', attrs: { source: '' } })
 const dossierHeader = kupolNode({ name: 'dossierHeader' })
 const experimentLog = kupolNode({ name: 'experimentLog', content: 'logEntry+', attrs: { title: '' } })
