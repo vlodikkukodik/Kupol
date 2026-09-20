@@ -12,7 +12,7 @@ const BLOCKS = JSON.parse(readFileSync(new URL('./fixtures/editor-blocks.json', 
 const para = (id, text, extra = {}) => ({ id, type: 'paragraph', data: { text: [{ text }] }, ...extra })
 
 const editorOf = (page) => page.locator('.kupol-editor .ProseMirror')
-const saveButton = (page) => page.getByRole('button', { name: 'Сохранить' })
+const saveButton = (page) => page.getByRole('button', { name: 'Сохранить', exact: true }) // не «Сохранить как шаблон»
 const dirtyMark = (page) => page.getByRole('button', { name: 'Отменить правки' })
 const paragraphs = async (page) => (await editorOf(page).locator('p').allTextContents()).map((t) => t.trim()).filter(Boolean)
 
