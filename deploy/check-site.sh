@@ -80,8 +80,13 @@ else
 fi
 FONT="$(grep -o '/assets/[^"]*\.woff2' "$TMP/root.body" | head -1)"
 if [ -z "$FONT" ] && [ -n "$ASSET" ]; then
-  CSS="$(grep -o '/assets/[^"]*\.css' "$TMP/root.body" | head -1)"
-  [ -n "$CSS" ] && { fetch css "$BASE$CSS"; FONT="$(grep -o '/assets/[^)"]*\.woff2' "$TMP/css.body" | head -1)"; }
+  # Шрифты объявлены в главном стиле, но в index.html могут быть и общие стили кусков сборки (порядок зависит от кода):
+  # смотрим все подключённые стили, а не первый.
+  for CSS in $(grep -o '/assets/[^"]*\.css' "$TMP/root.body" | sort -u); do
+    fetch css "$BASE$CSS"
+    FONT="$(grep -o '/assets/[^)"]*\.woff2' "$TMP/css.body" | head -1)"
+    [ -n "$FONT" ] && break
+  done
 fi
 if [ -n "$FONT" ]; then
   fetch font "$BASE$FONT"
