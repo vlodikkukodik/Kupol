@@ -14,6 +14,7 @@ const route = useRoute()
       <!-- Раздел помечается вручную: /team — префикс всех адресов панели, и роутер отметил бы «Роли и права» всегда -->
       <RouterLink :to="{ name: 'team' }" active-class="" exact-active-class="" :aria-current="route.name === 'team' ? 'page' : undefined">Рабочий стол</RouterLink>
       <RouterLink :to="{ name: 'team-documents' }" active-class="" exact-active-class="" :aria-current="String(route.name).startsWith('team-document') ? 'page' : undefined">Документы</RouterLink>
+      <RouterLink :to="{ name: 'team-templates' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-templates' ? 'page' : undefined">Шаблоны</RouterLink>
       <RouterLink :to="{ name: 'team-roles' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-roles' ? 'page' : undefined">Роли и права</RouterLink>
       <RouterLink v-if="auth.can('manage_team')" :to="{ name: 'team-members' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-members' ? 'page' : undefined">Команда</RouterLink>
     </nav>

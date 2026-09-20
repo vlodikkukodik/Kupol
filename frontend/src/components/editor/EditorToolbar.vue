@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
 import type { Editor } from '@tiptap/core'
-import { deleteTableRow, insertBlock, moveBlock, removeBlock, setBlockLevel, setRedact, type Situation } from '@/editor/commands'
+import { ApiError } from '@/api/client'
+import { teamApi } from '@/api/endpoints'
+import { keys } from '@/api/query'
+import { deleteTableRow, insertBlock, insertBlocks, moveBlock, removeBlock, setBlockLevel, setRedact, type Situation } from '@/editor/commands'
 import { INSERTABLE, NODE_LABELS } from '@/editor/fields'
 import { LEVEL_NAMES, MAX_LEVEL } from '@/lib/levels'
 import UiIcon from '@/ui/UiIcon.vue'
@@ -14,6 +18,28 @@ const emit = defineEmits<{ announce: [text: string]; inserted: [id: string] }>()
 
 const root = ref<HTMLElement | null>(null)
 defineExpose({ focus: () => root.value?.querySelector<HTMLElement>('button:not([disabled]), select:not([disabled])')?.focus() })
+
+// Наборы блоков из шаблонов: список общий на всё приложение (кэш), состав запрашивается при выборе
+const sets = useQuery({ queryKey: keys.teamTemplates('blockset'), queryFn: ({ signal }) => teamApi.templates('blockset', { signal }), staleTime: 30_000, retry: false })
+const setsList = computed(() => sets.data.value ?? [])
+
+async function onInsertSet(event: Event) {
+  const select = event.target as HTMLSelectElement
+  const id = Number(select.value)
+  select.value = ''
+  if (!id) return
+  try {
+    const tpl = await teamApi.template(id)
+    const res = insertBlocks(props.editor, tpl.content.blocks)
+    if (res.ids[0]) emit('inserted', res.ids[0])
+    const skipped = res.skipped ? ` Шапка досье не вставлена: в документе она уже есть.` : ''
+    emit('announce', res.ids.length ? `Вставлен набор «${tpl.name}»: блоков ${res.ids.length}.${skipped}` : `Набор «${tpl.name}» не вставлен.${skipped}`)
+  } catch (err) {
+    if (!(err instanceof ApiError)) throw err
+    emit('announce', 'Не удалось открыть набор блоков: возможно, его удалили.')
+    void sets.refetch()
+  }
+}
 
 const levelOptions = Array.from({ length: MAX_LEVEL }, (_, i) => ({ value: String(i + 1), label: `${i + 1} — ${LEVEL_NAMES[i + 1]}` }))
 
@@ -141,6 +167,16 @@ const tools: { id: 'bold' | 'italic'; icon: IconName; label: string; command: 't
         <select class="tb__field" :disabled="!editable" data-testid="tb-insert" aria-label="Вставить блок" @change="onInsert">
           <option value="">блок…</option>
           <option v-for="i in INSERTABLE" :key="i.type" :value="i.type" :disabled="i.node === 'dossierHeader' && hasDossierHeader">{{ i.label }} — {{ i.hint }}</option>
+        </select>
+      </label>
+    </div>
+
+    <div v-if="setsList.length" class="tb__group" role="group" aria-label="Наборы блоков">
+      <label class="tb__select">
+        <span class="tb__cap"><UiIcon name="layers" size="1.1em" /> Набор блоков</span>
+        <select class="tb__field" :disabled="!editable" data-testid="tb-insert-set" aria-label="Вставить набор блоков" @change="onInsertSet">
+          <option value="">выбрать…</option>
+          <option v-for="t in setsList" :key="t.id" :value="t.id">{{ t.name }} — {{ t.blocks }}</option>
         </select>
       </label>
     </div>

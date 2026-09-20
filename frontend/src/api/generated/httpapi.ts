@@ -158,6 +158,26 @@ export interface ResolveCommentRequest {
 export interface DashboardResponse {
   dashboard: any /* documents.Dashboard */;
 }
+/**
+ * TemplatesResponse — GET /api/team/templates.
+ */
+export interface TemplatesResponse {
+  items: any /* documents.TemplateItem */[];
+}
+/**
+ * TemplateResponse — шаблон целиком (чтение, создание, правка).
+ */
+export interface TemplateResponse {
+  template: any /* documents.TemplateFull */;
+}
+/**
+ * UpdateTemplateRequest — PUT /api/team/templates/:id. Без content меняются только название и описание.
+ */
+export interface UpdateTemplateRequest {
+  name: string;
+  description: string;
+  content?: any /* documents.TemplateContent */;
+}
 
 //////////
 // source: auth.go
@@ -289,6 +309,10 @@ export const CodeConflict = "conflict"; // документ изменён по�
  * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
  */
 export const CodeCodeTaken = "code_taken";
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeNameTaken = "name_taken"; // название шаблона уже занято
 /**
  * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
  */

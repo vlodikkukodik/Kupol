@@ -814,6 +814,10 @@ export interface Actor {
   CanWrite: boolean; // создавать документы и править свои черновики
   CanReview: boolean; // проверять документы (Редактор)
   CanEditPublished: boolean; // править опубликованное на месте
+  /**
+   * CanManageTemplates — вести шаблоны документов и наборы блоков
+   */
+  CanManageTemplates: boolean;
 }
 /**
  * ConflictError — документ изменился после того, как редактор его открыл.
@@ -919,6 +923,74 @@ export interface AutosaveResult {
   version_id?: number /* int64 */;
   saved_at: string /* RFC 3339 */;
   lock: LockInfo;
+}
+
+//////////
+// source: templates.go
+
+/**
+ * TemplateKind — вид шаблона.
+ */
+export type TemplateKind = string;
+export const TemplateDocument: TemplateKind = "document"; // заготовка нового документа
+export const TemplateBlockset: TemplateKind = "blockset"; // набор блоков для вставки
+/**
+ * TemplateContent — содержимое шаблона. У набора блоков заполнены только блоки.
+ */
+export interface TemplateContent {
+  title?: string;
+  level?: number /* int */;
+  direct_link?: string;
+  grif?: string;
+  blocks: InputBlock[];
+}
+/**
+ * Template — запись шаблона (таблица templates).
+ */
+export interface Template {
+  ID: number /* int64 */;
+  Kind: string;
+  Name: string;
+  Description: string;
+  DocType?: string;
+  Content: JSONText;
+  AuthorID?: number /* int64 */;
+  CreatedAt: string /* RFC 3339 */;
+  UpdatedAt: string /* RFC 3339 */;
+}
+/**
+ * TemplateItem — шаблон в списке.
+ */
+export interface TemplateItem {
+  id: number /* int64 */;
+  kind: 'document' | 'blockset';
+  name: string;
+  description: string;
+  doc_type?: string;
+  doc_type_name?: string;
+  blocks: number /* int */;
+  author?: string;
+  updated_at: string /* RFC 3339 */;
+  /**
+   * CanEdit — вправе ли человек менять и удалять шаблоны.
+   */
+  can_edit: boolean;
+}
+/**
+ * TemplateFull — шаблон вместе с содержимым.
+ */
+export interface TemplateFull extends TemplateItem {
+  content: TemplateContent;
+}
+/**
+ * TemplateInput — что нужно, чтобы завести шаблон.
+ */
+export interface TemplateInput {
+  kind: string;
+  name: string;
+  description: string;
+  doc_type: string;
+  content: TemplateContent;
 }
 
 //////////

@@ -1,7 +1,8 @@
 // Команды редактора над блоками документа. Всё, что панель инструментов делает с «текущим блоком», — здесь,
 // чтобы проверяться отдельно от интерфейса.
 import type { Editor } from '@tiptap/core'
-import type { Node as PMNode } from '@tiptap/pm/model'
+import type { InputBlock } from '@/api/generated/documents'
+import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { blocksToDoc } from './convert'
 import { INSERTABLE } from './fields'
@@ -99,6 +100,43 @@ export function insertBlock(editor: Editor, type: string): string | null {
   placeCursor(tr, node, pos).scrollIntoView()
   editor.view.dispatch(tr)
   return id
+}
+
+/**
+ * Вставить набор блоков (из шаблона) после текущего блока; пустой абзац заменяется. Все блоки получают новые
+ * идентификаторы (повторов не будет, даже если набор вставляют дважды), допуск блоков сохраняется. Шапка досье в документе
+ * одна: если она уже есть, эта из набора пропускается. Возвращает идентификаторы вставленных блоков и число пропущенных.
+ */
+export function insertBlocks(editor: Editor, blocks: InputBlock[]): { ids: string[]; skipped: number } {
+  const { state } = editor
+  let skipped = 0
+  const wanted = blocks.filter((b) => {
+    if (b.type === 'dossier_header' && hasNode(state, 'dossierHeader')) {
+      skipped++
+      return false
+    }
+    return true
+  })
+  if (wanted.length === 0) return { ids: [], skipped }
+  const taken = ids(state.doc)
+  const nodes = (blocksToDoc(wanted.map((b) => ({ ...b, id: '' }))).content ?? []).map((json) => {
+    const id = newBlockId(taken)
+    taken.add(id)
+    return editor.schema.nodeFromJSON({ ...json, attrs: { ...json.attrs, blockId: id } })
+  })
+
+  const ref = blockAt(state)
+  const tr = state.tr
+  let pos: number
+  if (!ref) pos = state.doc.content.size
+  else if (isEmptyParagraph(ref.node)) {
+    tr.delete(ref.pos, ref.pos + ref.node.nodeSize)
+    pos = ref.pos
+  } else pos = ref.pos + ref.node.nodeSize
+  tr.insert(pos, Fragment.fromArray(nodes))
+  placeCursor(tr, nodes[0]!, pos).scrollIntoView()
+  editor.view.dispatch(tr)
+  return { ids: nodes.map((n) => String(n.attrs.blockId)), skipped }
 }
 
 /** Поменять блок местами с соседним (dir: -1 — вверх, 1 — вниз). */

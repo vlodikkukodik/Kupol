@@ -22,6 +22,8 @@ type Actor struct {
 	CanWrite         bool // создавать документы и править свои черновики
 	CanReview        bool // проверять документы (Редактор)
 	CanEditPublished bool // править опубликованное на месте
+	// CanManageTemplates — вести шаблоны документов и наборы блоков
+	CanManageTemplates bool
 }
 
 func (a Actor) owns(d *Document) bool { return d.AuthorID != nil && *d.AuthorID == a.UserID }

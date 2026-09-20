@@ -7,6 +7,8 @@ import type {
   ListResult,
   Meta,
   PreviewResult,
+  TemplateContent,
+  TemplateInput,
   Summary,
   TeamListResult,
   VersionsPage,
@@ -39,6 +41,8 @@ import type {
   SessionResponse,
   SubmitRequest,
   TeamDocumentResponse,
+  TemplateResponse,
+  TemplatesResponse,
   TeamMembersResponse,
   TeamRolesResponse,
   VerdictRequest,
@@ -117,6 +121,13 @@ export const teamApi = {
     api.get<DiffResponse>(`/team/documents/${id}/versions/${versionId}/diff${qs({ against })}`, o),
   /** Документ глазами читателя уровня level (0–7): сервер фильтрует, как при чтении. content — несохранённые правки; без него — сохранённое */
   preview: (id: number, body: PreviewRequest, o?: RequestOptions) => api.post<PreviewResult>(`/team/documents/${id}/preview`, body, o),
+  /** Шаблоны документов и наборы блоков: читают все члены команды, ведёт право manage_templates */
+  templates: (kind: 'document' | 'blockset' | '', o?: RequestOptions) => api.get<TemplatesResponse>(`/team/templates${qs({ kind: kind || undefined })}`, o).then((r) => r.items),
+  template: (id: number, o?: RequestOptions) => api.get<TemplateResponse>(`/team/templates/${id}`, o).then((r) => r.template),
+  createTemplate: (body: TemplateInput) => api.post<TemplateResponse>('/team/templates', body).then((r) => r.template),
+  updateTemplate: (id: number, body: { name: string; description: string; content?: TemplateContent }) =>
+    api.put<TemplateResponse>(`/team/templates/${id}`, body).then((r) => r.template),
+  deleteTemplate: (id: number) => api.delete<null>(`/team/templates/${id}`),
   /** Проверка канона по сохранённому документу */
   lint: (id: number, o?: RequestOptions) => api.get<LintResponse>(`/team/documents/${id}/lint`, o),
   /** Ход рецензии и комментарии */

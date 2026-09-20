@@ -35,6 +35,10 @@ const (
 	DocumentRejected   Action = "document.rejected"   // документ отклонён и убран в архив
 	DocumentArchived   Action = "document.archived"   // опубликованный документ убран в архив
 	DocumentUnarchived Action = "document.unarchived" // документ возвращён из архива в опубликованные
+
+	TemplateCreated Action = "template.created" // заведён шаблон документа или набор блоков
+	TemplateUpdated Action = "template.updated" // шаблон изменён
+	TemplateDeleted Action = "template.deleted" // шаблон удалён
 )
 
 var titles = map[Action]string{
@@ -54,6 +58,10 @@ var titles = map[Action]string{
 	DocumentRejected:   "Документ отклонён",
 	DocumentArchived:   "Документ убран в архив",
 	DocumentUnarchived: "Документ возвращён из архива",
+
+	TemplateCreated: "Заведён шаблон",
+	TemplateUpdated: "Шаблон изменён",
+	TemplateDeleted: "Шаблон удалён",
 }
 
 // Title — название события для людей; для неизвестного — само машинное имя.

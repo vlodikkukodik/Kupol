@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useQuery } from '@tanstack/vue-query'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiField from '@/ui/UiField.vue'
@@ -10,13 +11,15 @@ import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
 import { isApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
-import type { Problem } from '@/api/generated/documents'
+import type { InputBlock, Problem } from '@/api/generated/documents'
+import { keys } from '@/api/query'
 import { useDocumentMeta } from '@/composables/useDocumentMeta'
 import { useForm } from '@/composables/useForm'
 import { contentFromForm, formFromContent, problemsToFields } from '@/lib/teamdoc'
 import ErrorView from '../ErrorView.vue'
 
 const router = useRouter()
+const route = useRoute()
 const { meta, query: metaQuery } = useDocumentMeta()
 const form = useForm()
 
@@ -24,6 +27,39 @@ const type = ref('')
 const code = ref('')
 const fields = ref(formFromContent({ level: 0 }, ''))
 const otherProblems = ref<Problem[]>([])
+const blocks = ref<InputBlock[]>([]) // блоки шаблона: без шаблона документ заводится пустым
+
+// ——— шаблон документа: тип, название, допуск, гриф и блоки подставляются из него ———
+const templateId = ref(typeof route.query.template === 'string' ? route.query.template : '')
+const templateNote = ref('')
+const templateError = ref('')
+const templates = useQuery({ queryKey: keys.teamTemplates('document'), queryFn: ({ signal }) => teamApi.templates('document', { signal }), staleTime: 0 })
+const templateOptions = computed(() => (templates.data.value ?? []).map((t) => ({ value: String(t.id), label: `${t.name} — ${t.doc_type_name}` })))
+
+async function applyTemplate(id: string) {
+  templateError.value = ''
+  templateNote.value = ''
+  if (!id) {
+    blocks.value = []
+    return
+  }
+  try {
+    const t = await teamApi.template(Number(id))
+    if (t.kind !== 'document' || !t.doc_type) throw new Error('не шаблон документа')
+    type.value = t.doc_type
+    fields.value.title = t.content.title ?? ''
+    fields.value.level = String(t.content.level ?? 0)
+    fields.value.direct_link = t.content.direct_link || 'not_found'
+    fields.value.grif = t.content.grif ?? ''
+    blocks.value = t.content.blocks
+    templateNote.value = `Подставлено из шаблона «${t.name}»: тип, название, допуск, гриф и блоки (${t.content.blocks.length}). Дату составления и шифр укажите сами.`
+  } catch {
+    templateError.value = 'Не удалось открыть шаблон: возможно, его удалили.'
+    templateId.value = ''
+    blocks.value = []
+  }
+}
+watch(templateId, (id) => void applyTemplate(id), { immediate: true })
 
 const typeInfo = computed(() => meta.value?.types.find((t) => t.id === type.value) ?? null)
 const typeOptions = computed(() => (meta.value?.types ?? []).map((t) => ({ value: t.id, label: t.name })))
@@ -43,7 +79,7 @@ async function onSubmit() {
   form.clear()
   otherProblems.value = []
   if (!type.value) form.errors.type = 'Выберите тип документа'
-  const { content, errors } = contentFromForm({ ...fields.value, props: null, blocks: [] })
+  const { content, errors } = contentFromForm({ ...fields.value, props: null, blocks: blocks.value })
   Object.assign(form.errors, errors)
   if (Object.keys(form.errors).length > 0) return focusFirstError()
 
@@ -81,6 +117,11 @@ async function onSubmit() {
         <li v-for="p in otherProblems" :key="p.path"><code>{{ p.path }}</code>: {{ p.message }}</li>
       </ul>
 
+      <UiField id="nd-template" label="Шаблон (необязательно)" hint="Тип, название, допуск, гриф и блоки подставятся из шаблона; потом всё можно изменить." :error="templateError">
+        <UiSelect v-model="templateId" :options="templateOptions" placeholder="Без шаблона" data-testid="nd-template" />
+      </UiField>
+      <p v-if="templateNote" class="template-note" data-testid="nd-template-note">{{ templateNote }}</p>
+
       <UiField id="nd-type" label="Тип документа" :error="form.errors.type">
         <UiSelect v-model="type" :options="typeOptions" placeholder="Выберите…" />
       </UiField>
@@ -117,6 +158,13 @@ async function onSubmit() {
 </template>
 
 <style scoped>
+.template-note {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--success);
+  background: var(--surface-sunken);
+  font-size: var(--text-sm);
+}
 .new-doc {
   max-width: 44rem;
   margin-inline: 0;

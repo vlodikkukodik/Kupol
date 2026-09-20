@@ -27,12 +27,13 @@ const maxDocumentBody = MaxBodyBytes - 4<<10
 func actorFrom(c *gin.Context) documents.Actor {
 	u := CurrentAuth(c).User
 	return documents.Actor{
-		UserID:           u.ID,
-		Login:            u.Login,
-		Directorate:      u.Directorate,
-		CanWrite:         u.Can(accounts.CapWriteDrafts),
-		CanReview:        u.Can(accounts.CapReview),
-		CanEditPublished: u.Can(accounts.CapEditPublished),
+		UserID:             u.ID,
+		Login:              u.Login,
+		Directorate:        u.Directorate,
+		CanWrite:           u.Can(accounts.CapWriteDrafts),
+		CanReview:          u.Can(accounts.CapReview),
+		CanEditPublished:   u.Can(accounts.CapEditPublished),
+		CanManageTemplates: u.Can(accounts.CapManageTemplates),
 	}
 }
 
@@ -50,6 +51,10 @@ func (h *teamDocumentHandlers) fail(c *gin.Context, err error) {
 		Fail(c, http.StatusNotFound, CodeNotFound, "Документ не найден")
 	case errors.Is(err, documents.ErrForbidden):
 		Fail(c, http.StatusForbidden, CodeForbidden, "Недостаточно прав")
+	case errors.Is(err, documents.ErrTemplateNotFound):
+		Fail(c, http.StatusNotFound, CodeNotFound, "Шаблон не найден")
+	case errors.Is(err, documents.ErrTemplateNameTaken):
+		FailFields(c, http.StatusConflict, CodeNameTaken, "Шаблон с таким названием уже есть", map[string]string{"name": "Такое название уже занято: выберите другое"})
 	case errors.Is(err, documents.ErrSelfReview):
 		Fail(c, http.StatusForbidden, CodeSelfReview, "Свой документ проверяет другой Редактор")
 	case errors.Is(err, documents.ErrCommentNotFound):

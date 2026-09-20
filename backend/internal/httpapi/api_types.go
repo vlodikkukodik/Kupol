@@ -138,3 +138,20 @@ type ResolveCommentRequest struct {
 type DashboardResponse struct {
 	Dashboard *documents.Dashboard `json:"dashboard" tstype:",required"`
 }
+
+// TemplatesResponse — GET /api/team/templates.
+type TemplatesResponse struct {
+	Items []documents.TemplateItem `json:"items" tstype:",required"`
+}
+
+// TemplateResponse — шаблон целиком (чтение, создание, правка).
+type TemplateResponse struct {
+	Template *documents.TemplateFull `json:"template" tstype:",required"`
+}
+
+// UpdateTemplateRequest — PUT /api/team/templates/:id. Без content меняются только название и описание.
+type UpdateTemplateRequest struct {
+	Name        string                     `json:"name"`
+	Description string                     `json:"description"`
+	Content     *documents.TemplateContent `json:"content,omitempty"`
+}

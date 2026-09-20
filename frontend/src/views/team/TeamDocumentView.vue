@@ -4,6 +4,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import BlockEditor from '@/components/editor/BlockEditor.vue'
 import DocumentPreview from '@/components/team/DocumentPreview.vue'
 import ReviewPanel from '@/components/team/ReviewPanel.vue'
+import SaveTemplateDialog from '@/components/team/SaveTemplateDialog.vue'
 import WorkflowBar from '@/components/team/WorkflowBar.vue'
 import DocumentPropsForm from '@/components/team/DocumentPropsForm.vue'
 import VersionHistory from '@/components/team/VersionHistory.vue'
@@ -14,7 +15,7 @@ import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
 import { ApiError, isApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
-import type { Content, InputBlock, LintReport, Problem, SaveResult, TeamDocument } from '@/api/generated/documents'
+import type { Content, InputBlock, LintReport, Problem, SaveResult, TeamDocument, TemplateFull } from '@/api/generated/documents'
 import { useAutosave } from '@/composables/useAutosave'
 import { useDocumentMeta } from '@/composables/useDocumentMeta'
 import { describeApiError } from '@/composables/useForm'
@@ -22,11 +23,13 @@ import { useReview } from '@/composables/useReview'
 import { blockIndexes } from '@/editor/problems'
 import { formatDateTime, formatTime } from '@/lib/format'
 import { canonicalContent, contentFromForm, formFromContent, problemsToFields, sameContent, type DocForm } from '@/lib/teamdoc'
+import { useAuthStore } from '@/stores/auth'
 import ErrorView from '../ErrorView.vue'
 import NotFoundView from '../NotFoundView.vue'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const { meta, query: metaQuery, statusName, blockKindName } = useDocumentMeta()
 
 const id = computed(() => Number(route.params.id))
@@ -289,6 +292,12 @@ function setPreviewLevel(level: number) {
   void router.replace({ query: { ...route.query, tab: 'preview', level: String(level) } })
 }
 
+// ——— «Сохранить как шаблон» (право вести шаблоны) ———
+const templateOpen = ref(false)
+function onTemplateSaved(t: TemplateFull) {
+  notice.value = `Шаблон «${t.name}» сохранён (${t.kind === 'document' ? 'шаблон документа' : `набор блоков: ${t.blocks}`}). Он появился в разделе «Шаблоны».`
+}
+
 /** Документ перевели (отправили, вернули, опубликовали…): показать его новым и объявить итог. */
 function onFlowChanged(next: TeamDocument, message: string) {
   autosave.cancel()
@@ -456,6 +465,7 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
       <div class="save-bar" data-testid="save-bar">
         <UiButton type="submit" form="doc-form" variant="primary" icon="check" :disabled="!editable" :loading="saving">{{ saving ? 'Сохраняем…' : 'Сохранить' }}</UiButton>
         <UiButton v-if="dirty && editable" variant="link" @click="revert">Отменить правки</UiButton>
+        <UiButton v-if="auth.can('manage_templates')" variant="link" icon="layers" data-testid="save-as-template" @click="templateOpen = true">Сохранить как шаблон</UiButton>
         <UiButton
           v-if="mineLock && !lockedBy"
           variant="link"
@@ -469,6 +479,17 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
         <span class="autosave" data-testid="autosave-state" :data-state="autosave.state.value">{{ autosaveText }}</span>
       </div>
     </div>
+
+    <SaveTemplateDialog
+      v-if="current"
+      v-model:open="templateOpen"
+      :doc-type="doc.type"
+      :doc-type-name="doc.type_name"
+      :content="current"
+      :blocks="form.blocks"
+      :kind-name="blockKindName"
+      @saved="onTemplateSaved"
+    />
 
     <DocumentPreview
       v-if="tab === 'preview'"

@@ -5,7 +5,7 @@ import { UndoRedo } from '@tiptap/extensions'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { InputBlock } from '@/api/generated/documents'
-import { blockAt, canInsert, deleteTableRow, exitEmptyListItem, insertBlock, moveBlock, removeBlock, setBlockLevel, setRedact, situation } from '@/editor/commands'
+import { blockAt, canInsert, deleteTableRow, exitEmptyListItem, insertBlock, insertBlocks, moveBlock, removeBlock, setBlockLevel, setRedact, situation } from '@/editor/commands'
 import { BLOCK_TYPES, blocksToDoc, canonicalBlocks, docToBlocks } from '@/editor/convert'
 import { INSERTABLE } from '@/editor/fields'
 import { KupolKeys } from '@/editor/keys'
@@ -190,6 +190,58 @@ describe('вставка блоков', () => {
     expect(t.columns).toEqual(['', ''])
     expect(t.rows).toHaveLength(1)
     expect(t.rows[0]).toHaveLength(2)
+  })
+})
+
+describe('вставка набора блоков', () => {
+  const set = (): InputBlock[] => [
+    block('dossier_header', {}, { id: 's1' }),
+    block('heading', { depth: 2, text: 'Общие сведения' }, { id: 's2' }),
+    block('paragraph', { text: [{ text: 'Закрытый абзац.' }] }, { id: 's3', level: 4 }),
+  ]
+
+  it('блоки встают после текущего с новыми идентификаторами; допуск и содержимое сохраняются', () => {
+    const e = create([block('paragraph', { text: [{ text: 'один' }] }, { id: 'a' }), block('paragraph', { text: [{ text: 'два' }] }, { id: 'b' })])
+    cursorIn(e, 0)
+    const res = insertBlocks(e, set())
+    expect(res).toMatchObject({ skipped: 0 })
+    expect(res.ids).toHaveLength(3)
+    const blocks = out(e)
+    expect(blocks.map((b) => b.type)).toEqual(['paragraph', 'dossier_header', 'heading', 'paragraph', 'paragraph'])
+    expect(blocks.map((b) => b.id).slice(1, 4)).toEqual(res.ids)
+    expect(res.ids.every((id) => BLOCK_ID_RE.test(id) && !['s1', 's2', 's3', 'a', 'b'].includes(id))).toBe(true)
+    expect(blocks[3]).toMatchObject({ level: 4, data: { text: [{ text: 'Закрытый абзац.' }] } })
+    expect(blocks[0]!.id).toBe('a')
+  })
+
+  it('дважды один и тот же набор: идентификаторы не повторяются, вторая шапка досье пропускается', () => {
+    const e = create([block('paragraph', { text: [{ text: 'один' }] }, { id: 'a' })])
+    insertBlocks(e, set())
+    const second = insertBlocks(e, set())
+    expect(second.skipped).toBe(1)
+    expect(second.ids).toHaveLength(2)
+    const blocks = out(e)
+    expect(blocks.filter((b) => b.type === 'dossier_header')).toHaveLength(1)
+    expect(new Set(blocks.map((b) => b.id)).size).toBe(blocks.length)
+  })
+
+  it('пустой абзац заменяется набором, а набор из одной пропущенной шапки ничего не меняет', () => {
+    const e = create([block('dossier_header', {}, { id: 'h' })])
+    e.commands.insertContentAt(e.state.doc.content.size, { type: 'paragraph' })
+    cursorIn(e, 1, 0)
+    const before = JSON.stringify(out(e))
+    expect(insertBlocks(e, [block('dossier_header', {})])).toEqual({ ids: [], skipped: 1 })
+    expect(JSON.stringify(out(e))).toBe(before)
+    insertBlocks(e, set().slice(1))
+    expect(out(e).map((b) => b.type)).toEqual(['dossier_header', 'heading', 'paragraph'])
+  })
+
+  it('без выделения набор встаёт в конец; вставка одним шагом отменяется одним Ctrl+Z', () => {
+    const e = create([block('paragraph', { text: [{ text: 'один' }] }, { id: 'a' })])
+    insertBlocks(e, set().slice(1))
+    expect(out(e)).toHaveLength(3)
+    e.commands.undo()
+    expect(out(e).map((b) => b.id)).toEqual(['a'])
   })
 })
 
