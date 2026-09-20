@@ -226,6 +226,11 @@ func (s *Service) move(ctx context.Context, a Actor, id int64, t transition) (*T
 			}
 			return err
 		}
+		if t.publish { // шифр мог быть присвоен только что: он входит в строку названия
+			if err := reindexDocument(tx, d); err != nil {
+				return err
+			}
+		}
 
 		uid := a.UserID
 		note := fmt.Sprintf("%s → %s", from, t.to)

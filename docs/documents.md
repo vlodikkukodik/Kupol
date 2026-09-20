@@ -131,6 +131,7 @@ kupol doc export <шифр>                                          # тот ж
 kupol doc list [--status draft|review|published|archived]
 kupol doc set-status <шифр> <статус>
 kupol doc delete <шифр> --yes
+kupol doc reindex                                                # перестроить индекс поиска (обычно не нужен)
 ```
 
 - Загрузка **атомарна**: если хоть один документ пакета не прошёл проверку, не сохраняется ничего. Замечания выводятся сразу
@@ -152,6 +153,7 @@ kupol doc delete <шифр> --yes
 | `GET /api/documents/summary` | сводка для фильтров и «папок»: `total`, `types[{type,name,count}]`, `departments[{code,count}]`, `classes[{class,count}]` — считаются только доступные читателю |
 | `GET /api/documents/recent?limit=8` | лента «Поступило в ЦАК» (до 50) |
 | `GET /api/documents/:шифр` | документ; `:шифр` — в любой записи |
+| `GET /api/search?q=…` | поиск по названиям, шифрам и тексту блоков (те же фильтры, что у каталога, кроме сортировки; `per_page` до 50, по умолчанию 20); в выдаче только то, что читатель вправе видеть; подробности — `docs/dev.md`, «Поиск» |
 
 Параметры каталога: `type`, `class` (1–5), `department` (`ОТД-2`), `category`, `containment`, `year_from`, `year_to`, `status`
 (только Директорату), `sort` (`code` — по умолчанию, `title`, `year`, `class`, `deviation`, `published`), `order` (`desc`),

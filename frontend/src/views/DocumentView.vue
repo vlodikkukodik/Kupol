@@ -44,8 +44,19 @@ watch(doc, async (d) => {
   if (route.params.ref !== d.slug) {
     await router.replace({ name: 'document', params: { ref: d.slug }, query: route.query, hash: route.hash })
   }
-  // после перехода фокус — на название документа (для скринридеров и клавиатуры)
   await nextTick()
+  // Ссылка из поиска ведёт к блоку (#b-<id>): прокручиваем к нему, отмечаем и ставим фокус. Блока нет (закрыт этому читателю
+  // или удалён) — как обычно, фокус на название.
+  const id = route.hash.startsWith('#b-') ? decodeURIComponent(route.hash.slice(1)) : ''
+  const target = id ? document.getElementById(id) : null
+  if (target) {
+    target.setAttribute('tabindex', '-1')
+    target.setAttribute('data-found', '')
+    target.focus({ preventScroll: true })
+    target.scrollIntoView({ block: 'center' })
+    return
+  }
+  // после перехода фокус — на название документа (для скринридеров и клавиатуры)
   document.querySelector<HTMLElement>('[data-doc-title]')?.focus()
 })
 </script>

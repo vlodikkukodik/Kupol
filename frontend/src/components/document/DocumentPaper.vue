@@ -28,7 +28,8 @@ const blocks = computed(() => asDocBlocks(props.doc.blocks))
     </header>
 
     <div class="paper__body">
-      <BlockRenderer v-for="(block, i) in blocks" :key="block.id ?? `redacted-${i}`" :block="block" />
+      <!-- id блока — якорь для ссылок из поиска (/doc/О-041#b-intro); у закрытых блоков id нет -->
+      <BlockRenderer v-for="(block, i) in blocks" :id="block.id ? `b-${block.id}` : undefined" :key="block.id ?? `redacted-${i}`" :block="block" />
     </div>
 
     <footer v-if="doc.author" class="paper__foot">Составил(а): <strong>{{ doc.author }}</strong></footer>
@@ -77,6 +78,12 @@ const blocks = computed(() => asDocBlocks(props.doc.blocks))
   position: absolute;
   top: var(--space-5);
   right: 0;
+}
+/* Блок, к которому привела ссылка из поиска: рамка на бумаге, а не только фокус (на touch-экранах фокус не виден) */
+.paper__body :deep([data-found]) {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+  background: rgb(255 226 122 / 0.35);
 }
 .paper__foot {
   margin-top: var(--space-7);

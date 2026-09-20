@@ -376,6 +376,9 @@ func (s *Service) TeamCreate(ctx context.Context, a Actor, in CreateInput) (*Tea
 		if err := tx.Create(&d).Error; err != nil {
 			return err
 		}
+		if err := reindexDocument(tx, &d); err != nil {
+			return err
+		}
 		if _, err := s.recordVersion(tx, &d, VersionCreate, &uid, "", contentFromDocument(&d)); err != nil {
 			return err
 		}
@@ -427,6 +430,9 @@ func (s *Service) saveContent(tx *gorm.DB, a Actor, d *Document, c Content, kind
 	d.Revision++
 	d.UpdatedAt = s.now()
 	if err := tx.Save(d).Error; err != nil {
+		return false, err
+	}
+	if err := reindexDocument(tx, d); err != nil {
 		return false, err
 	}
 	uid := a.UserID

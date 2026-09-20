@@ -833,6 +833,70 @@ export interface OutRun {
 }
 
 //////////
+// source: search.go
+
+/**
+ * SearchQuery — параметры поиска. Отбор по типу, классу, отделу и периоду — те же, что у каталога.
+ */
+export interface SearchQuery {
+  /**
+   * Text — запрос человека: слова, «фраза в кавычках», -исключённое слово, or.
+   */
+  Text: string;
+  ListQuery: ListQuery;
+}
+/**
+ * SnippetPart — кусок сниппета; Match — слово запроса. Разметки нет: подсветку рисует интерфейс по этим кускам.
+ */
+export interface SnippetPart {
+  text: string;
+  match?: boolean;
+}
+/**
+ * Snippet — выдержка из одного места документа.
+ */
+export interface Snippet {
+  /**
+   * Kind — title (название и шифр), meta (сведения досье), block (текст блока).
+   */
+  kind: string;
+  /**
+   * BlockID — блок, в котором найдено (для kind=block); по нему интерфейс ведёт к месту в документе.
+   */
+  block_id?: string;
+  parts: SnippetPart[];
+}
+/**
+ * SearchHit — документ в выдаче и его выдержки.
+ */
+export interface SearchHit {
+  item: Item;
+  snippets: Snippet[];
+}
+/**
+ * SearchResult — страница выдачи.
+ */
+export interface SearchResult {
+  items: SearchHit[];
+  total: number /* int64 */;
+  page: number /* int */;
+  per_page: number /* int */;
+  pages: number /* int */;
+  /**
+   * Query — запрос после очистки пробелов.
+   */
+  query: string;
+  /**
+   * Ignored — в запросе только слишком частые слова («и», «в», «на»): искать нечего.
+   */
+  ignored?: boolean;
+}
+
+//////////
+// source: search_index.go
+
+
+//////////
 // source: service.go
 
 /**

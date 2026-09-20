@@ -214,6 +214,9 @@ func (s *Service) upsert(tx *gorm.DB, pr *prepared, authorID *int64) (*ImportIte
 	if err != nil {
 		return nil, err
 	}
+	if err := reindexDocument(tx, &d); err != nil {
+		return nil, err
+	}
 	// загрузка из файла — тоже правка: в истории остаётся снимок с автором загрузки
 	if _, err := s.recordVersion(tx, &d, VersionImport, authorID, "", contentFromDocument(&d)); err != nil {
 		return nil, err

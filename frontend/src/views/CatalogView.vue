@@ -6,6 +6,7 @@ import CatalogFilters from '@/components/CatalogFilters.vue'
 import CatalogFolders from '@/components/CatalogFolders.vue'
 import CatalogTable from '@/components/CatalogTable.vue'
 import PaginationNav from '@/components/PaginationNav.vue'
+import SearchBox from '@/components/SearchBox.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiPageHeader from '@/ui/UiPageHeader.vue'
 import UiSheet from '@/ui/UiSheet.vue'
@@ -78,6 +79,7 @@ function openFolder(type: string) {
       <CatalogFolders v-if="view === 'folders'" :types="summary.data.value?.types ?? []" @open="openFolder" />
 
       <UiSheet v-else wide>
+        <SearchBox id="catalog-q" class="catalog-search" />
         <p v-if="list.data.value" class="total" role="status">Найдено: {{ list.data.value.total }}</p>
         <CatalogFilters :query="route.query" :summary="summary.data.value" @change="changeFilters" @reset="resetFilters" />
 
@@ -129,6 +131,9 @@ function openFolder(type: string) {
   background: var(--paper-100);
   color: var(--ink-900);
   font-weight: 700;
+}
+.catalog-search {
+  margin-bottom: var(--space-4);
 }
 .total {
   margin: 0 0 var(--space-3);

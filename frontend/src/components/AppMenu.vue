@@ -32,6 +32,7 @@ const toggle = () => document.getElementById('menu-toggle')
       <ul class="nav">
         <li><RouterLink to="/" @click="ui.closeMenu()">Главная</RouterLink></li>
         <li><RouterLink to="/catalog" @click="ui.closeMenu()">Каталог</RouterLink></li>
+        <li><RouterLink to="/search" @click="ui.closeMenu()">Поиск</RouterLink></li>
         <li v-if="auth.user"><RouterLink to="/file" @click="ui.closeMenu()">Личное дело</RouterLink></li>
         <li v-if="auth.can('team_panel')"><RouterLink to="/team" @click="ui.closeMenu()">Панель команды</RouterLink></li>
       </ul>

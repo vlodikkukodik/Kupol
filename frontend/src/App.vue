@@ -78,6 +78,7 @@ const statusText = computed(
       </RouterLink>
       <nav class="masthead__nav" aria-label="Разделы">
         <RouterLink to="/catalog">Каталог</RouterLink>
+        <RouterLink to="/search">Поиск</RouterLink>
       </nav>
       <PassCard v-if="auth.user" class="masthead__pass" :login="auth.user.login" :level-name="auth.user.level_name" :level="auth.user.level" />
     </header>

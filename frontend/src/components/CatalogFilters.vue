@@ -8,12 +8,17 @@ import UiSelect from '@/ui/UiSelect.vue'
 import type { Summary } from '@/api/generated/documents'
 import { CATEGORY_NAMES, CONTAINMENT_NAMES, hasFilters } from '@/lib/catalog'
 
-const props = defineProps<{
-  /** query адреса */
-  query: LocationQuery
-  /** /documents/summary: какие типы, отделы и классы есть */
-  summary?: Summary | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** query адреса */
+    query: LocationQuery
+    /** /documents/summary: какие типы, отделы и классы есть */
+    summary?: Summary | null
+    /** Название группы для скринридера */
+    label?: string
+  }>(),
+  { summary: null, label: 'Фильтры каталога' },
+)
 const emit = defineEmits<{ change: [changes: Record<string, string>]; reset: [] }>()
 
 const one = (v: LocationQuery[string] | undefined): string => (Array.isArray(v) ? (v[0] ?? '') : (v ?? '')) || ''
@@ -35,7 +40,7 @@ const containmentOptions = Object.entries(CONTAINMENT_NAMES).map(([value, label]
 </script>
 
 <template>
-  <form class="filters" aria-label="Фильтры каталога" @submit.prevent>
+  <form class="filters" :aria-label="label" @submit.prevent>
     <UiField id="f-type" label="Тип">
       <UiSelect :model-value="one(query.type)" :options="typeOptions" placeholder="Все типы" @update:model-value="emit('change', { type: $event })" />
     </UiField>

@@ -8,6 +8,7 @@ import type {
   ListResult,
   Meta,
   PreviewResult,
+  SearchResult,
   TemplateContent,
   TemplateInput,
   TermInput,
@@ -101,6 +102,8 @@ export const documentsApi = {
   summary: (o?: RequestOptions) => api.get<Summary>('/documents/summary', o),
   recent: (limit = 10, o?: RequestOptions) => api.get<RecentResponse>(`/documents/recent${qs({ limit })}`, o),
   get: (ref: string, o?: RequestOptions) => api.get<DocumentResponse>(`/documents/${encodeURIComponent(ref)}`, o),
+  /** Поиск по названиям, шифрам и тексту блоков: в выдаче только то, что читатель вправе видеть */
+  search: (params: URLSearchParams, o?: RequestOptions) => api.get<SearchResult>(`/search${qs(params)}`, o),
 }
 
 export interface TeamListParams {

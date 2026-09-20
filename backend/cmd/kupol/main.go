@@ -134,9 +134,15 @@ func serve(ctx context.Context, cfg config.Config, db *gorm.DB, log *slog.Logger
 	go limiter.RunSweeper(ctx, time.Minute)
 	go svc.RunCleanup(ctx, time.Hour)
 
+	docs := documents.NewService(db, log, nil)
+	// Индекс поиска строится при первом запуске после появления поиска и при смене правил его построения.
+	if err := docs.EnsureSearchIndex(ctx); err != nil {
+		return fmt.Errorf("индекс поиска: %w", err)
+	}
+
 	handler, err := httpapi.New(httpapi.Deps{
 		Config: cfg, DB: db, Log: log, Accounts: svc, Limiter: limiter,
-		Documents: documents.NewService(db, log, nil),
+		Documents: docs,
 	})
 	if err != nil {
 		return err

@@ -85,6 +85,27 @@ func TestDocImportListExport(t *testing.T) {
 	}
 }
 
+func TestDocReindexRebuildsSearchIndex(t *testing.T) {
+	svc, run, write := newDocCLI(t)
+	if _, err := run("import", write("o41.json", oneObject)); err != nil {
+		t.Fatal(err)
+	}
+	res, err := svc.Search(context.Background(), documents.Guest, documents.SearchQuery{Text: "Описание"})
+	if err != nil || res.Total != 1 {
+		t.Fatalf("поиск после загрузки: %+v %v", res, err)
+	}
+	out, err := run("reindex")
+	if err != nil || !strings.Contains(out, "документов 1") {
+		t.Fatalf("reindex: %v %q", err, out)
+	}
+	if res, err = svc.Search(context.Background(), documents.Guest, documents.SearchQuery{Text: "Описание"}); err != nil || res.Total != 1 {
+		t.Errorf("поиск после перестройки: %+v %v", res, err)
+	}
+	if _, err := run("reindex", "лишнее"); err == nil {
+		t.Error("reindex с параметрами должен завершаться ошибкой")
+	}
+}
+
 func TestDocImportAutoNumberHint(t *testing.T) {
 	_, run, write := newDocCLI(t)
 	file := write("new.json", `{"type":"object","title":"Без номера","status":"published","composed":{"year":1980}}`)

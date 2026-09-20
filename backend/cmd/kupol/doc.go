@@ -17,6 +17,7 @@ const docUsage = `использование:
   kupol doc list [--status draft|review|published|archived]        список всех документов
   kupol doc set-status <шифр> <статус>                             draft | review | published | archived
   kupol doc delete <шифр> --yes                                    удалить документ навсегда
+  kupol doc reindex                                                перестроить индекс поиска (обычно не нужен: сервер делает это сам)
 
 Формат файла — docs/documents.md. --dry-run проверяет файл и показывает, что будет сделано, ничего не сохраняя.`
 
@@ -73,6 +74,17 @@ func runDoc(ctx context.Context, svc *documents.Service, args []string, out io.W
 			return docErr(rest[0], err)
 		}
 		fmt.Fprintf(out, "%s: удалён\n", rest[0])
+		return nil
+
+	case "reindex":
+		if len(rest) != 0 {
+			return errors.New(docUsage)
+		}
+		n, err := svc.ReindexAll(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "индекс поиска перестроен: документов %d\n", n)
 		return nil
 	}
 	return fmt.Errorf("неизвестная команда doc %q\n%s", cmd, docUsage)

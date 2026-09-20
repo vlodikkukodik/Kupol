@@ -24,6 +24,7 @@ export const keys = {
   recent: (limit: number) => ['documents', 'recent', limit] as const,
   summary: ['documents', 'summary'] as const,
   list: (query: string) => ['documents', 'list', query] as const,
+  search: (query: string) => ['documents', 'search', query] as const,
   document: (ref: string) => ['documents', 'item', ref] as const,
   teamMeta: ['team', 'meta'] as const,
   teamRoles: ['team', 'roles'] as const,
