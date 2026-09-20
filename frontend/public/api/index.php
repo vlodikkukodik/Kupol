@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/lib.php';
 
-use function Kupol\Proxy\{build_config, client_ip, error_body, forward_request_headers, normalize_request_uri,
+use function Kupol\Proxy\{load_config, client_ip, error_body, forward_request_headers, normalize_request_uri,
     parse_response_header_line, parse_status_line, server_timing, should_forward_response_header, sign,
     valid_request_id, valid_request_uri};
 use const Kupol\Proxy\{ALLOWED_METHODS, HEADER_IP, HEADER_SIG, HEADER_TS, MAX_BODY_BYTES};
@@ -51,23 +51,7 @@ if (is_string($incomingId) && valid_request_id($incomingId)) {
 
 // --- конфигурация ---------------------------------------------------------
 try {
-    $file = [];
-    $path = __DIR__ . '/config.php';
-    if (is_file($path)) {
-        $loaded = require $path;
-        if (!is_array($loaded)) {
-            throw new InvalidArgumentException('config.php должен возвращать массив');
-        }
-        $file = $loaded;
-    }
-    $env = [];
-    foreach (['UPSTREAM', 'SECRET', 'IP_HEADER', 'CONNECT_TIMEOUT', 'TIMEOUT'] as $k) {
-        $v = getenv('KUPOL_PROXY_' . $k);
-        if (is_string($v)) {
-            $env['KUPOL_PROXY_' . $k] = $v;
-        }
-    }
-    $config = build_config($file, $env);
+    $config = load_config(__DIR__);
 } catch (Throwable $e) {
     error_log('[kupol-proxy] конфигурация: ' . $e->getMessage());
     fail(500, 'proxy_misconfigured', 'Сбой архива', $requestId);

@@ -58,6 +58,19 @@ fetch rootq "$BASE/?utm_source=test"
 [ -z "$(hdr rootq x-robots-tag)" ] && ok "главная с query-строкой индексируется" || fail "/?utm_source=test закрыта от индексации: '$(hdr rootq x-robots-tag)'"
 fetch about "$BASE/about"
 [ -z "$(hdr about x-robots-tag)" ] && ok "/about индексируется" || fail "/about закрыта от индексации: '$(hdr about x-robots-tag)'"
+echo "== пререндер и предпросмотр ссылок"
+check "GET /about -> 200" "$(code about)" 200
+grep -q 'data-prerendered' "$TMP/about.body" && ok "/about отдаётся с готовым текстом (пререндер)" || fail "/about без пререндера: нет about.html или не работает rewrite"
+grep -q 'property="og:title" content="О КУПОЛЕ' "$TMP/about.body" && ok "/about: og:-теги" || fail "/about без og:-тегов"
+grep -q 'Политика конфиденциальности' "$TMP/about.body" && ok "/about: политика конфиденциальности в HTML без JavaScript" || fail "/about: нет текста политики в HTML"
+grep -q 'data-prerendered' "$TMP/root.body" && ok "главная с готовым текстом (пререндер)" \
+  || warn "главная без пререндера — вероятно, «/» отдаёт статикой nginx хостинга (index.html) в обход .htaccess; сайт работает, но поисковик не видит текста главной без JavaScript"
+fetch og -A 'TelegramBot (like TwitterBot)' "$BASE/doc/O-0"
+check "бот: GET /doc/O-0 -> 200" "$(code og)" 200
+grep -q '<div id="app">' "$TMP/og.body" && ok "бот получает страницу приложения (og.php отвечает)" || fail "бот не получил страницу приложения — не работает og.php или rewrite для ботов"
+fetch sitemap "$BASE/sitemap.xml"
+check "sitemap.xml -> 200" "$(code sitemap)" 200
+grep -q '<loc>' "$TMP/sitemap.body" && ok "sitemap.xml: адреса есть" || fail "sitemap.xml пуст"
 fetch idx "$BASE/index.html"
 case "$(hdr idx x-robots-tag)" in
   noindex*) ok "/index.html (дубликат главной): noindex" ;;

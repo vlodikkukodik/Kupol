@@ -6,6 +6,7 @@ import UiButton from '@/ui/UiButton.vue'
 import UiSeal from '@/ui/UiSeal.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiStamp from '@/ui/UiStamp.vue'
+import { HOME_FULL_NAME, HOME_LEAD, HOME_NAME } from '@/content/site'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
@@ -30,17 +31,14 @@ onMounted(() => {
     <div class="door__title">
       <UiSeal :size="132" class="door__seal" />
       <div>
-        <h1>Купол</h1>
-        <p class="door__full">Комитет Управления Паранормальными Объектами и Локациями</p>
+        <h1>{{ HOME_NAME }}</h1>
+        <p class="door__full">{{ HOME_FULL_NAME }}</p>
       </div>
     </div>
 
     <UiAlert v-if="flash" tone="success">{{ flash }}</UiAlert>
 
-    <p class="door__lead">
-      Вы находитесь в Центральном архиве Купола (ЦАК). Доступ к документам определяется уровнем допуска: чем выше уровень,
-      тем меньше в тексте закрытого.
-    </p>
+    <p class="door__lead">{{ HOME_LEAD }}</p>
 
     <section v-if="auth.user" class="door__welcome" aria-labelledby="welcome-title">
       <h2 id="welcome-title">Допуск оформлен</h2>

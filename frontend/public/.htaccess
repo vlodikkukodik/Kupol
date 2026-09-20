@@ -6,6 +6,16 @@ Options -Indexes -MultiViews
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Предпросмотр ссылок: боты мессенджеров и поисковиков получают /doc/<шифр> с og:-тегами (og.php берёт документ у Go API как гость),
+  # люди — обычное SPA. Ответ og.php для закрытого и несуществующего документа — тот же index.html, что у SPA.
+  RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|Twitterbot|TelegramBot|WhatsApp|vkShare|VKShare|Slackbot|Discordbot|LinkedInBot|SkypeUriPreview|Viber|Embedly|redditbot|Pinterestbot|Applebot|Googlebot|bingbot|YandexBot|YandexMobileBot|Mail\.RU_Bot) [NC]
+  RewriteRule ^doc/([^/]+)/?$ /og.php?ref=$1 [L,QSA,B]
+
+  # Пререндер (frontend/scripts/prerender.mjs): главная и «О КУПОЛЕ» отдаются готовыми страницами с текстом и og:-тегами —
+  # поисковики и предпросмотр ссылок видят содержимое без JavaScript. Приложение при запуске заменяет этот текст живой страницей.
+  RewriteRule ^$ /home.html [L]
+  RewriteRule ^about/?$ /about.html [L]
+
   # history-режим Vue Router: всё, что не файл и не /api/, отдаёт index.html
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_URI} !^/api(/|$)
@@ -37,7 +47,7 @@ Options -Indexes -MultiViews
   </If>
 
   # index.html не кэшируем — иначе после деплоя пользователи получат старую сборку
-  <FilesMatch "^index\.html$">
+  <FilesMatch "^(index|home|about)\.html$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
 </IfModule>

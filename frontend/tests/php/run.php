@@ -253,6 +253,114 @@ check('error_body: формат совпадает с Go API', function () {
     truthy(str_contains(error_body('x', 'Сбой архива', 'r'), 'Сбой архива'), 'кириллица не экранируется');
 });
 
+// ---------------------------------------------------------------- предпросмотр ссылок (og:-теги)
+echo "\nog:-теги\n";
+
+check('valid_doc_ref: шифры в любой раскладке проходят, всё остальное — нет', function () {
+    foreach (['O-041', 'О-041', 'ПРИКАЗ-1978-12', 'INC-1982-07', 'о–41', 'MEMO_5'] as $ok) {
+        truthy(\Kupol\Proxy\valid_doc_ref($ok), $ok);
+    }
+    foreach (['', '../etc/passwd', 'a/b', 'a b', "a\nb", 'a"b', 'a<b>', 'a?x=1', 'a#b', 'a%2f', str_repeat('a', 81), "a\0b"] as $bad) {
+        eq(\Kupol\Proxy\valid_doc_ref($bad), false, json_encode($bad));
+    }
+});
+
+check('truncate_text: по знакам, а не байтам; по границе слова; пробелы схлопываются', function () {
+    eq(\Kupol\Proxy\truncate_text("  Короткий \n  текст  ", 50), 'Короткий текст');
+    $long = str_repeat('слово ', 60);
+    $cut = \Kupol\Proxy\truncate_text($long, 30);
+    truthy(mb_strlen($cut) <= 30, 'длина ' . mb_strlen($cut));
+    truthy(str_ends_with($cut, '…') && !str_contains($cut, ' …'), 'многоточие: ' . $cut);
+    eq(preg_match('/слов…$|слово…$/u', $cut) === 1, true, 'слово не разрезано: ' . $cut);
+    eq(\Kupol\Proxy\truncate_text(str_repeat('я', 300), 10), str_repeat('я', 9) . '…', 'одно длинное слово');
+});
+
+check('og_from_document: описание — первый открытый абзац, закрытые фрагменты пропущены', function () {
+    $api = ['document' => [
+        'code' => 'О-041', 'slug' => 'O-041', 'title' => 'Объект «Купол»', 'type_name' => 'Объект', 'composed' => ['year' => 1979],
+        'blocks' => [
+            ['type' => 'heading', 'data' => ['text' => 'Заголовок не описание, хоть и длинный заголовок']],
+            ['type' => 'paragraph', 'data' => ['text' => [['text' => 'коротко']]]],
+            ['type' => 'paragraph', 'data' => ['text' => [['text' => 'Открытое начало '], ['redacted' => true, 'level' => 3], ['text' => ' и открытый хвост абзаца.']]]],
+        ],
+    ]];
+    $m = \Kupol\Proxy\og_from_document($api, 'https://kupol.example');
+    eq($m['title'], 'О-041 — Объект «Купол» — КУПОЛ');
+    eq($m['description'], 'Открытое начало и открытый хвост абзаца.');
+    eq($m['url'], 'https://kupol.example/doc/O-041');
+});
+
+check('og_from_document: без открытого абзаца — тип и год; мусорный ответ — null', function () {
+    $api = ['document' => ['code' => 'МЕМО-5', 'slug' => 'MEMO-5', 'title' => 'Записка', 'type_name' => 'Меморандум', 'composed' => ['year' => 1981],
+        'blocks' => [['type' => 'redacted', 'data' => ['level' => 4]]]]];
+    eq(\Kupol\Proxy\og_from_document($api, '')['description'], 'Меморандум, 1981 г. Центральный архив КУПОЛ.');
+    eq(\Kupol\Proxy\og_from_document($api, '')['url'], '/doc/MEMO-5', 'без адреса сайта — относительная ссылка');
+    foreach ([[], ['document' => 'x'], ['document' => ['code' => 'a']], ['error' => ['code' => 'not_found']], ['document' => ['code' => 1, 'slug' => 'a', 'title' => 'b']]] as $bad) {
+        eq(\Kupol\Proxy\og_from_document($bad, 'https://x'), null, json_encode($bad));
+    }
+});
+
+check('og_from_document: закрытый текст не попадает в описание даже если сервер прислал странную форму', function () {
+    $api = ['document' => ['code' => 'О-1', 'slug' => 'O-1', 'title' => 'Т', 'type_name' => 'Объект', 'composed' => ['year' => 1979], 'blocks' => [
+        ['type' => 'paragraph', 'data' => ['text' => [['redacted' => true, 'level' => 5, 'text' => 'СЕКРЕТ секрет секрет секрет'], ['text' => 'Открытый текст длиннее двадцати знаков.']]]],
+    ]]];
+    $m = \Kupol\Proxy\og_from_document($api, '');
+    eq(str_contains($m['description'], 'СЕКРЕТ'), false, $m['description']);
+});
+
+check('site_origin: только похожий на имя хост; схема по HTTPS', function () {
+    eq(\Kupol\Proxy\site_origin(['HTTP_HOST' => 'Kupol.Vladinc.RU', 'HTTPS' => 'on']), 'https://kupol.vladinc.ru');
+    eq(\Kupol\Proxy\site_origin(['HTTP_HOST' => '127.0.0.1:8080']), 'http://127.0.0.1:8080');
+    eq(\Kupol\Proxy\site_origin(['HTTP_HOST' => 'a.example', 'HTTPS' => 'off']), 'http://a.example');
+    foreach (['', 'evil.com"><script>', 'a b', 'a/b', '-a.com', 'a.com-', "a\r\nb", 'a.com:99999999'] as $bad) {
+        eq(\Kupol\Proxy\site_origin(['HTTP_HOST' => $bad]), '', json_encode($bad));
+    }
+    eq(\Kupol\Proxy\site_origin([]), '');
+});
+
+check('inject_og: заголовок и описание заменены, теги добавлены, значения экранированы', function () {
+    $html = "<!doctype html><html><head>\n    <title>КУПОЛ</title>\n    <meta name=\"description\" content=\"старое\" />\n  </head><body><div id=\"app\"></div></body></html>";
+    $out = \Kupol\Proxy\inject_og($html, ['title' => 'О-1 — "Кавычки" <b> & $1 \\0 — КУПОЛ', 'description' => 'Описание с "кавычкой" и <тегом>', 'url' => 'https://x.example/doc/O-1?a=1&b=2']);
+    truthy(str_contains($out, '<title>О-1 — &quot;Кавычки&quot; &lt;b&gt; &amp; $1 \\0 — КУПОЛ</title>'), 'title: ' . $out);
+    eq(substr_count($out, 'name="description"'), 1, 'старое описание убрано');
+    eq(str_contains($out, 'старое'), false);
+    truthy(str_contains($out, '<meta property="og:title" content="О-1 — &quot;Кавычки&quot; &lt;b&gt; &amp; $1 \\0 — КУПОЛ" />'), 'og:title');
+    truthy(str_contains($out, '<meta property="og:description" content="Описание с &quot;кавычкой&quot; и &lt;тегом&gt;" />'), 'og:description');
+    truthy(str_contains($out, '<link rel="canonical" href="https://x.example/doc/O-1?a=1&amp;b=2" />'), 'canonical');
+    truthy(str_contains($out, '<meta name="twitter:card" content="summary" />'), 'twitter');
+    eq(str_contains($out, '<b>'), false, 'нет неэкранированного тега');
+    truthy(strpos($out, 'og:title') < strpos($out, '</head>'), 'теги в <head>');
+    truthy(str_contains($out, '<div id="app"></div>'), 'тело страницы цело');
+});
+
+check('inject_og: нет <title> или </head> — страница возвращается как есть', function () {
+    $m = ['title' => 'x', 'description' => 'y', 'url' => 'z'];
+    eq(\Kupol\Proxy\inject_og('<html><body>без головы</body></html>', $m), '<html><body>без головы</body></html>');
+    eq(\Kupol\Proxy\inject_og('<html><head></head></html>', $m), '<html><head></head></html>', 'нет title');
+});
+
+check('load_config: config.php рядом и окружение; неверный config.php — исключение', function () {
+    $dir = sys_get_temp_dir() . '/kupol-cfg-' . bin2hex(random_bytes(4));
+    mkdir($dir);
+    try {
+        file_put_contents("$dir/config.php", "<?php return ['upstream' => 'https://api.example', 'secret' => '" . bin2hex(str_repeat('k', 32)) . "'];");
+        $c = \Kupol\Proxy\load_config($dir);
+        eq($c['upstream'], 'https://api.example');
+        eq(strlen($c['secret']), 32);
+        file_put_contents("$dir/config.php", "<?php return 'не массив';");
+        throws(fn() => \Kupol\Proxy\load_config($dir), InvalidArgumentException::class, 'массив');
+        unlink("$dir/config.php");
+        putenv('KUPOL_PROXY_UPSTREAM=http://127.0.0.1:9');
+        putenv('KUPOL_PROXY_SECRET=' . bin2hex(str_repeat('e', 32)));
+        eq(\Kupol\Proxy\load_config($dir)['upstream'], 'http://127.0.0.1:9', 'из окружения');
+    } finally {
+        putenv('KUPOL_PROXY_UPSTREAM');
+        putenv('KUPOL_PROXY_SECRET');
+        @unlink("$dir/config.php");
+        @rmdir($dir);
+    }
+});
+
 // ---------------------------------------------------------------- часть 2
 echo "\nпрокси через php -S\n";
 

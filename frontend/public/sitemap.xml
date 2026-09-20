@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Индексируются только главная и «О КУПОЛЕ»; остальное закрыто заголовком X-Robots-Tag (public/.htaccess). -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://kupol.vladinc.ru/</loc></url>
+  <url><loc>https://kupol.vladinc.ru/about</loc></url>
+</urlset>

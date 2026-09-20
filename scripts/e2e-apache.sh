@@ -96,7 +96,7 @@ if [ "${SKIP_BROWSER:-0}" != 1 ]; then
   # KUPOL_DATABASE_URL — та же временная БД: тесты загружают документы и выдают уровни командой `kupol`
   # (в .env указана dev-БД, и без этой подстановки команды ушли бы не в ту базу, из которой читает сайт).
   (cd frontend && \
-    KUPOL_E2E_BASE_URL="http://127.0.0.1:$WEB_PORT" KUPOL_E2E_ALLOW_WRITES=1 \
+    KUPOL_E2E_BASE_URL="http://127.0.0.1:$WEB_PORT" KUPOL_E2E_ALLOW_WRITES=1 KUPOL_E2E_APACHE=1 \
     KUPOL_DATABASE_URL="postgres://$KUPOL_DB_USER:$KUPOL_DB_PASSWORD@127.0.0.1:$KUPOL_DB_PORT/$DB?sslmode=disable" \
     npx playwright test ${PLAYWRIGHT_ARGS:-}) || STATUS=$?
 fi

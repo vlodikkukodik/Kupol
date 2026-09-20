@@ -266,6 +266,169 @@ function server_timing(float $elapsedMs, float $upstreamSeconds): string
     return sprintf('proxy;dur=%.1f;desc="PHP-прокси", upstream;dur=%.1f;desc="Go API до первого байта"', $proxy, $upstream);
 }
 
+/**
+ * Настройки прокси: config.php рядом с lib.php (если есть) и переменные окружения KUPOL_PROXY_* (dev).
+ * Общая для прокси (index.php) и страницы предпросмотра ссылок (og.php): секрет и адрес Go API читаются одним кодом.
+ *
+ * @return array{upstream:string,secret:string,ip_header:?string,connect_timeout:int,timeout:int}
+ * @throws \InvalidArgumentException
+ */
+function load_config(string $dir): array
+{
+    $file = [];
+    $path = $dir . '/config.php';
+    if (is_file($path)) {
+        $loaded = require $path;
+        if (!is_array($loaded)) {
+            throw new \InvalidArgumentException('config.php должен возвращать массив');
+        }
+        $file = $loaded;
+    }
+    $env = [];
+    foreach (['UPSTREAM', 'SECRET', 'IP_HEADER', 'CONNECT_TIMEOUT', 'TIMEOUT'] as $k) {
+        $v = getenv('KUPOL_PROXY_' . $k);
+        if (is_string($v)) {
+            $env['KUPOL_PROXY_' . $k] = $v;
+        }
+    }
+    return build_config($file, $env);
+}
+
+// ---------------------------------------------------------------- предпросмотр ссылок (og:-теги)
+
+/** Максимальная длина описания в og:description. */
+const OG_DESCRIPTION_MAX = 200;
+
+/** Шифр из адреса безопасен для запроса к Go API: буквы (в т.ч. кириллица), цифры и дефисы. */
+function valid_doc_ref(string $ref): bool
+{
+    return $ref !== '' && strlen($ref) <= 80 && preg_match('/^[\p{L}\p{N}\-–_]+$/u', $ref) === 1;
+}
+
+/** Обрезка по знакам (не по байтам) с многоточием по границе слова. */
+function truncate_text(string $text, int $max): string
+{
+    $text = trim((string)preg_replace('/\s+/u', ' ', $text));
+    if (mb_strlen($text) <= $max) {
+        return $text;
+    }
+    $cut = mb_substr($text, 0, $max - 1);
+    $space = mb_strrpos($cut, ' ');
+    if ($space !== false && $space > $max / 2) {
+        $cut = mb_substr($cut, 0, $space);
+    }
+    return rtrim($cut, " ,.;:—-") . '…';
+}
+
+/** Простой текст форматированного текста блока: закрытые фрагменты (redacted) пропускаются. */
+function runs_text(mixed $runs): string
+{
+    if (!is_array($runs)) {
+        return '';
+    }
+    $out = '';
+    foreach ($runs as $run) {
+        if (is_array($run) && empty($run['redacted']) && isset($run['text']) && is_string($run['text'])) {
+            $out .= $run['text'];
+        }
+    }
+    return $out;
+}
+
+/**
+ * Данные для og:-тегов из ответа Go API GET /api/documents/:шифр, полученного ГОСТЕМ (уровень 0): сервер уже отдал только то,
+ * что гостю открыто, поэтому в описание попадает лишь открытый текст. null — ответ не тот, что ожидается.
+ *
+ * @param array<string,mixed> $api
+ * @return array{title:string,description:string,url:string}|null
+ */
+function og_from_document(array $api, string $origin): ?array
+{
+    $d = $api['document'] ?? null;
+    if (!is_array($d) || !isset($d['code'], $d['slug'], $d['title']) || !is_string($d['code']) || !is_string($d['slug']) || !is_string($d['title'])) {
+        return null;
+    }
+    $description = '';
+    foreach ((array)($d['blocks'] ?? []) as $block) {
+        if (!is_array($block) || ($block['type'] ?? '') !== 'paragraph') {
+            continue;
+        }
+        $text = trim(runs_text($block['data']['text'] ?? null));
+        if (mb_strlen($text) >= 20) {
+            $description = $text;
+            break;
+        }
+    }
+    if ($description === '') {
+        $year = is_array($d['composed'] ?? null) ? (int)($d['composed']['year'] ?? 0) : 0;
+        $description = ((string)($d['type_name'] ?? 'Документ')) . ($year > 0 ? ', ' . $year . ' г' : '') . '. Центральный архив КУПОЛ.';
+    }
+    return [
+        'title'       => $d['code'] . ' — ' . $d['title'] . ' — КУПОЛ',
+        'description' => truncate_text($description, OG_DESCRIPTION_MAX),
+        'url'         => rtrim($origin, '/') . '/doc/' . rawurlencode($d['slug']),
+    ];
+}
+
+/**
+ * Адрес сайта (схема://хост) для og:url. Хост берётся из запроса, но только если это похоже на имя хоста: подделанный Host
+ * с кавычками или скобками не должен попасть в теги. Иначе — пустая строка (ссылки станут относительными).
+ *
+ * @param array<string,mixed> $server
+ */
+function site_origin(array $server): string
+{
+    $host = strtolower((string)($server['HTTP_HOST'] ?? ''));
+    if (preg_match('/^[a-z0-9]([a-z0-9.\-]*[a-z0-9])?(:\d{1,5})?$/', $host) !== 1) {
+        return '';
+    }
+    $https = ($server['HTTPS'] ?? '') !== '' && $server['HTTPS'] !== 'off';
+    return ($https ? 'https://' : 'http://') . $host;
+}
+
+/** Экранирование для значений атрибутов и текста в HTML. */
+function h(string $s): string
+{
+    return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+}
+
+/**
+ * Подставляет в index.html заголовок, описание и og:-теги. Заголовок и описание заменяются на месте, остальное добавляется
+ * перед </head>. Не нашлось <title> или </head> — страница возвращается как есть: предпросмотр лишь украшение, ломать SPA нельзя.
+ *
+ * @param array{title:string,description:string,url:string} $meta
+ */
+function inject_og(string $html, array $meta): string
+{
+    $title = h($meta['title']);
+    $desc = h($meta['description']);
+    $url = h($meta['url']);
+    if (preg_match('#</head>#i', $html) !== 1 || preg_match('#<title>.*?</title>#is', $html) !== 1) {
+        return $html;
+    }
+    // callback, а не строка замены: в названии могут встретиться «$1» и «\», которые preg_replace счёл бы ссылками на группы
+    $html = preg_replace_callback('#<title>.*?</title>#is', static fn(): string => '<title>' . $title . '</title>', $html, 1) ?? $html;
+    $html = preg_replace('#<meta\s+name="description"[^>]*>\s*#i', '', $html) ?? $html;
+    // основа могла быть пререндеренной страницей: чужие og:-теги, canonical и текст главной убираем, чтобы не было дублей
+    $html = preg_replace('#<meta\s+(?:property="og:|name="twitter:)[^>]*>\s*#i', '', $html) ?? $html;
+    $html = preg_replace('#<link\s+rel="canonical"[^>]*>\s*#i', '', $html) ?? $html;
+    $html = preg_replace('#<!--prerender-->.*?<!--/prerender-->#s', '', $html) ?? $html;
+    $tags = implode("\n    ", [
+        '<meta name="description" content="' . $desc . '" />',
+        '<link rel="canonical" href="' . $url . '" />',
+        '<meta property="og:type" content="article" />',
+        '<meta property="og:site_name" content="КУПОЛ" />',
+        '<meta property="og:locale" content="ru_RU" />',
+        '<meta property="og:title" content="' . $title . '" />',
+        '<meta property="og:description" content="' . $desc . '" />',
+        '<meta property="og:url" content="' . $url . '" />',
+        '<meta name="twitter:card" content="summary" />',
+        '<meta name="twitter:title" content="' . $title . '" />',
+        '<meta name="twitter:description" content="' . $desc . '" />',
+    ]);
+    return preg_replace_callback('#</head>#i', static fn(): string => "    $tags\n  </head>", $html, 1) ?? $html;
+}
+
 /** Тело собственной ошибки прокси в том же формате, что и Go API. */
 function error_body(string $code, string $message, string $requestId): string
 {
