@@ -1,7 +1,8 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { canWrite, signUp } from './helpers/kupol.js'
+import { canWrite } from './helpers/kupol.js'
+import { createDoc, newAuthor, stored } from './helpers/team.js'
 
 // Редактор документов (этап 3.3): настоящий Chromium -> Vite -> PHP-прокси -> Go -> PostgreSQL.
 // Проверяется то, что видит и делает автор: набор, оформление, закрытие фрагментов, блоки, таблица, замечания сервера.
@@ -9,22 +10,6 @@ test.skip(!canWrite, 'создаёт пользователей и докуме�
 
 const BLOCKS = JSON.parse(readFileSync(new URL('./fixtures/editor-blocks.json', import.meta.url), 'utf8'))
 const para = (id, text, extra = {}) => ({ id, type: 'paragraph', data: { text: [{ text }] }, ...extra })
-
-async function newAuthor(browser, roles = ['author'], level = 4, directorate = false) {
-  const context = await browser.newContext()
-  const login = await signUp(context, { level, roles, directorate })
-  const page = await context.newPage()
-  return { context, page, login }
-}
-
-/** Создаёт черновик настоящим запросом (как это делает панель) и возвращает его номер. */
-async function createDoc(page, baseURL, { title = '[e2e] Редактор', blocks }) {
-  const res = await page.request.post('/api/team/documents', { headers: { Origin: new URL(baseURL).origin }, data: { type: 'object', code: '', title, composed: { year: 1979 }, blocks } })
-  expect(res.status(), await res.text()).toBe(201)
-  return (await res.json()).document.id
-}
-
-const stored = async (page, id) => (await (await page.request.get(`/api/team/documents/${id}`)).json()).document
 
 const editorOf = (page) => page.locator('.kupol-editor .ProseMirror')
 const saveButton = (page) => page.getByRole('button', { name: 'Сохранить' })

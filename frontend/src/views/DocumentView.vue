@@ -2,15 +2,12 @@
 import { computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
-import { asDocBlocks } from '@/api/blocks'
 import { isApiError } from '@/api/client'
 import { documentsApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
-import BlockRenderer from '@/components/document/BlockRenderer.vue'
-import { provideDocument } from '@/components/document/context'
+import DocumentPaper from '@/components/document/DocumentPaper.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
-import UiStamp from '@/ui/UiStamp.vue'
 import { useAuthStore } from '@/stores/auth'
 import AccessDeniedView from './AccessDeniedView.vue'
 import ErrorView from './ErrorView.vue'
@@ -31,9 +28,6 @@ const query = useQuery({
 })
 const doc = computed(() => query.data.value?.document ?? null)
 const error = computed(() => (isApiError(query.error.value) ? query.error.value : null))
-provideDocument(doc) // шапка досье берёт свойства документа отсюда
-
-const blocks = computed(() => asDocBlocks(doc.value?.blocks ?? []))
 
 // Заголовок вкладки при отказе: без него остался бы общий «Документ — КУПОЛ», а для закрытого дела — тем более
 // нельзя подсказывать больше, чем показывает сама страница.
@@ -57,23 +51,7 @@ watch(doc, async (d) => {
 </script>
 
 <template>
-  <UiSheet v-if="doc" as="article" class="paper" :data-code="doc.code" fold>
-    <header class="paper__head">
-      <div class="paper__strip">
-        <span>{{ doc.grif }}</span>
-        <span>{{ doc.code }}</span>
-      </div>
-      <p class="paper__kicker">{{ doc.type_name }} · {{ doc.code }}</p>
-      <h1 data-doc-title tabindex="-1">{{ doc.title }}</h1>
-      <UiStamp v-if="doc.status && doc.status !== 'published'" class="paper__status" :text="doc.status === 'draft' ? 'Черновик' : doc.status === 'review' ? 'На проверке' : 'Архив'" tone="ink" size="sm" />
-    </header>
-
-    <div class="paper__body">
-      <BlockRenderer v-for="(block, i) in blocks" :key="block.id ?? `redacted-${i}`" :block="block" />
-    </div>
-
-    <footer v-if="doc.author" class="paper__foot">Составил(а): <strong>{{ doc.author }}</strong></footer>
-  </UiSheet>
+  <DocumentPaper v-if="doc" :doc="doc" />
 
   <AccessDeniedView v-else-if="error && error.code === 'access_denied'" :level="error.requiredLevel" />
   <NotFoundView v-else-if="error && error.status === 404" />
@@ -82,62 +60,14 @@ watch(doc, async (d) => {
 </template>
 
 <style scoped>
+/* Лист-заготовка, пока документ грузится: те же поля, что у настоящего листа (DocumentPaper) */
 .paper {
   margin-top: var(--space-4);
   padding: var(--space-6) var(--space-7);
-  font-family: var(--font-doc);
-  font-size: var(--text-md);
-  line-height: 1.65;
-}
-.paper__head {
-  position: relative;
-  margin-bottom: var(--space-5);
-}
-.paper__strip {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-  padding-bottom: var(--space-1);
-  border-bottom: 3px double var(--ink-900);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.paper__kicker {
-  margin: 0 0 var(--space-1);
-  color: var(--text-muted);
-  font-family: var(--font-head);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.paper h1 {
-  margin-bottom: 0;
-  overflow-wrap: anywhere;
-}
-.paper h1:focus {
-  outline: none;
-}
-.paper__status {
-  position: absolute;
-  top: var(--space-5);
-  right: 0;
-}
-.paper__foot {
-  margin-top: var(--space-7);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
 }
 @media (max-width: 48rem) {
   .paper {
     padding: var(--space-5) var(--space-4);
-  }
-  .paper__status {
-    position: static;
-    margin-top: var(--space-3);
   }
 }
 </style>

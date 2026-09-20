@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import BlockEditor from '@/components/editor/BlockEditor.vue'
+import DocumentPreview from '@/components/team/DocumentPreview.vue'
 import DocumentPropsForm from '@/components/team/DocumentPropsForm.vue'
 import VersionHistory from '@/components/team/VersionHistory.vue'
 import UiAlert from '@/ui/UiAlert.vue'
@@ -26,7 +27,13 @@ const router = useRouter()
 const { meta, query: metaQuery, statusName, blockKindName } = useDocumentMeta()
 
 const id = computed(() => Number(route.params.id))
-const tab = computed(() => (route.query.tab === 'history' ? 'history' : 'document'))
+type Tab = 'document' | 'preview' | 'history'
+const tab = computed<Tab>(() => (route.query.tab === 'history' ? 'history' : route.query.tab === 'preview' ? 'preview' : 'document'))
+// Уровень читателя в предпросмотре живёт в адресе: страницу можно переслать и обновить, не теряя выбор
+const previewLevel = computed(() => {
+  const n = Number(route.query.level)
+  return Number.isInteger(n) && n >= 0 && n <= 7 ? n : 0
+})
 
 const doc = ref<TeamDocument | null>(null)
 const loadError = ref<ApiError | null>(null)
@@ -264,11 +271,23 @@ function onEditorKeydown(event: KeyboardEvent) {
   }
 }
 
-function setTab(next: 'document' | 'history') {
+function setTab(next: Tab) {
   const query = { ...route.query }
-  if (next === 'history') query.tab = 'history'
-  else delete query.tab
-  void router.replace({ query })
+  if (next === 'document') delete query.tab
+  else query.tab = next
+  if (next !== 'preview') delete query.level
+  return router.replace({ query })
+}
+
+function setPreviewLevel(level: number) {
+  void router.replace({ query: { ...route.query, tab: 'preview', level: String(level) } })
+}
+
+/** Из предпросмотра — к блоку, у которого замечание: вкладка «Документ» и фокус на блоке. */
+async function goToBlockFromPreview(id: string) {
+  await setTab('document') // вкладка показывается после смены адреса: до этого поля блока скрыты и фокус в них не встанет
+  await nextTick()
+  goToBlock(id)
 }
 
 // Уход со страницы: несохранённое дописать в автосохранение; если правок нет — отпустить документ.
@@ -341,8 +360,9 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
     </header>
 
     <div class="views" role="group" aria-label="Раздел документа">
-      <button type="button" class="view" :aria-pressed="tab === 'document' ? 'true' : 'false'" @click="setTab('document')">Документ</button>
-      <button type="button" class="view" :aria-pressed="tab === 'history' ? 'true' : 'false'" @click="setTab('history')">История</button>
+      <button type="button" class="view" :aria-pressed="tab === 'document' ? 'true' : 'false'" @click="void setTab('document')">Документ</button>
+      <button type="button" class="view" :aria-pressed="tab === 'preview' ? 'true' : 'false'" data-testid="tab-preview" @click="void setTab('preview')">Предпросмотр</button>
+      <button type="button" class="view" :aria-pressed="tab === 'history' ? 'true' : 'false'" @click="void setTab('history')">История</button>
     </div>
 
     <!-- Объявления: об успехе — вежливо, об ошибке — сразу -->
@@ -390,7 +410,8 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
       </div>
     </UiAlert>
 
-    <template v-if="tab === 'document'">
+    <!-- Вкладка «Документ» только скрывается: редактор остаётся в памяти, не теряются курсор и история отмены -->
+    <div v-show="tab === 'document'">
       <form id="doc-form" novalidate aria-label="Свойства документа" @submit.prevent="save" @input.capture="ensureLock" @change.capture="ensureLock">
         <DocumentPropsForm v-model="form" :meta="meta" :errors="errors" :disabled="!editable" />
       </form>
@@ -416,10 +437,21 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
         <span v-if="dirty && mineLock" id="finish-hint" class="hint">Сохраните или отмените правки, чтобы отпустить документ.</span>
         <span class="autosave" data-testid="autosave-state" :data-state="autosave.state.value">{{ autosaveText }}</span>
       </div>
-    </template>
+    </div>
+
+    <DocumentPreview
+      v-if="tab === 'preview'"
+      :doc-id="doc.id"
+      :content="current"
+      :dirty="dirty"
+      :kind-name="blockKindName"
+      :level="previewLevel"
+      @update:level="setPreviewLevel"
+      @go-to-block="goToBlockFromPreview"
+    />
 
     <VersionHistory
-      v-else
+      v-else-if="tab === 'history'"
       :doc-id="doc.id"
       :revision="doc.revision"
       :can-restore="editable"
@@ -466,7 +498,9 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
   margin: 0 0 var(--space-3);
 }
 .views {
-  display: inline-flex;
+  display: flex;
+  max-width: 100%;
+  width: fit-content;
   margin: var(--space-2) 0 var(--space-4);
   border: 2px solid var(--ink-900);
   border-radius: var(--radius-2);
@@ -484,6 +518,18 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
 }
 .view + .view {
   border-left: 2px solid var(--ink-900);
+}
+@media (max-width: 40rem) {
+  /* Три вкладки на телефоне: делят ширину, а не раздвигают страницу */
+  .views {
+    width: 100%;
+  }
+  .view {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0 var(--space-2);
+    font-size: var(--text-sm);
+  }
 }
 .view:hover {
   background: var(--surface-strong);

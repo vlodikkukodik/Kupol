@@ -6,6 +6,7 @@ import type {
   Content,
   ListResult,
   Meta,
+  PreviewResult,
   Summary,
   TeamListResult,
   VersionsPage,
@@ -23,6 +24,7 @@ import type {
   LoginRequest,
   LoginResponse,
   MemberRoleResponse,
+  PreviewRequest,
   RecentResponse,
   RegisterRequest,
   RegisterResponse,
@@ -103,5 +105,7 @@ export const teamApi = {
   /** against: номер другой версии или 'live' (по умолчанию) — сравнить с текущим документом */
   diff: (id: number, versionId: number, against: number | 'live' = 'live', o?: RequestOptions) =>
     api.get<DiffResponse>(`/team/documents/${id}/versions/${versionId}/diff${qs({ against })}`, o),
+  /** Документ глазами читателя уровня level (0–7): сервер фильтрует, как при чтении. content — несохранённые правки; без него — сохранённое */
+  preview: (id: number, body: PreviewRequest, o?: RequestOptions) => api.post<PreviewResult>(`/team/documents/${id}/preview`, body, o),
   restore: (id: number, versionId: number) => api.post<SaveResult>(`/team/documents/${id}/versions/${versionId}/restore`),
 }
