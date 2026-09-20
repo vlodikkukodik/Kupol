@@ -398,13 +398,24 @@ func (s *Service) Get(ctx context.Context, v Viewer, ref string) (*OutDocument, 
 		return nil, fmt.Errorf("документ %s: %w", c.Canonical, err)
 	}
 
+	out := outDocument(d, row.AuthorLogin, blocks, v)
+
+	if v.UserID != 0 && d.Status == string(StatusPublished) {
+		s.recordRead(ctx, v.UserID, d.ID)
+	}
+	return out, nil
+}
+
+// outDocument собирает ответ читателю из записи документа и уже отфильтрованных блоков. Общий для чтения и предпросмотра:
+// что попадает в ответ, решается в одном месте.
+func outDocument(d *Document, authorLogin *string, blocks []OutBlock, v Viewer) *OutDocument {
 	out := &OutDocument{
 		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).Name(), Title: d.Title,
 		Grif: d.Grif, Level: d.Level,
 		Composed:    Composed{Year: d.ComposedYear, Month: d.ComposedMonth, Day: d.ComposedDay},
 		DangerClass: d.DangerClass, DeviationPoints: d.DeviationPoints, Department: d.Department,
 		Category: d.Category, ContainmentStatus: d.ContainmentStatus, DiscoveryPlace: d.DiscoveryPlace,
-		Author: row.AuthorLogin, Blocks: blocks,
+		Author: authorLogin, Blocks: blocks,
 	}
 	if d.Category != nil {
 		out.CategoryName = Category(*d.Category).Name()
@@ -415,11 +426,7 @@ func (s *Service) Get(ctx context.Context, v Viewer, ref string) (*OutDocument, 
 	if v.SeesUnpublished() {
 		out.Status = d.Status
 	}
-
-	if v.UserID != 0 && d.Status == string(StatusPublished) {
-		s.recordRead(ctx, v.UserID, d.ID)
-	}
-	return out, nil
+	return out
 }
 
 // linkResolver разом находит цели всех ссылок документа. Цель видна по тем же правилам, что и в каталоге;

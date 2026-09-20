@@ -381,6 +381,35 @@ export interface Composed {
 }
 
 //////////
+// source: preview.go
+
+/**
+ * Что увидел бы читатель, открыв документ по прямой ссылке.
+ */
+export const PreviewOpen = "open"; // документ открыт
+/**
+ * Что увидел бы читатель, открыв документ по прямой ссылке.
+ */
+export const PreviewNotFound = "not_found"; // «Дело не найдено» (закрытый документ с режимом direct_link: not_found)
+/**
+ * Что увидел бы читатель, открыв документ по прямой ссылке.
+ */
+export const PreviewDenied = "denied"; // «Доступ запрещён» и нужный уровень (direct_link: forbidden)
+/**
+ * PreviewResult — документ так, как его увидит читатель уровня Level.
+ */
+export interface PreviewResult {
+  level: number /* int */;
+  access: 'open' | 'not_found' | 'denied';
+  required_level: number /* int */;
+  document?: OutDocument;
+  /**
+   * Problems — замечания к содержимому; блоки с замечаниями в предпросмотр не вошли.
+   */
+  problems: Problem[];
+}
+
+//////////
 // source: problems.go
 
 /**

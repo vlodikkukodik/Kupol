@@ -317,7 +317,7 @@ func TestTeamDocumentCSRFAndMethods(t *testing.T) {
 	for name, c := range map[string]*client{"чужой Origin": &evil, "без Origin": &noOrigin} {
 		for _, call := range []struct{ method, path string }{
 			{"POST", docsPath}, {"PUT", path}, {"PUT", path + "/draft"}, {"POST", path + "/lock"}, {"DELETE", path + "/lock"},
-			{"POST", path + "/versions/1/restore"},
+			{"POST", path + "/versions/1/restore"}, {"POST", path + "/preview"},
 		} {
 			if r := c.do(call.method, call.path, memoBody("МЕМО-666", "Взлом")); r.Code != 403 || r.errCode() != "forbidden_origin" {
 				t.Errorf("%s: %s %s = %d %s", name, call.method, call.path, r.Code, r.errCode())
@@ -435,5 +435,60 @@ func TestTeamDocumentsNeverLeakToOutsiders(t *testing.T) {
 				t.Errorf("%s: %s раскрывает чужой черновик: %s", who, p, r.Body)
 			}
 		}
+	}
+}
+
+func TestTeamPreviewOverHTTP(t *testing.T) {
+	_, actors := teamStackWithActors(t)
+	author := actors["author"]
+	id := author.createMemo(t, "МЕМО-40", "Черновик для предпросмотра")
+	path := fmt.Sprintf("%s/%d/preview", docsPath, id)
+
+	// кто вправе: тот же круг, что видит документ
+	for name, want := range map[string]int{"guest": 401, "plain": 403, "editor": 404, "moderator": 404, "author": 200, "director": 200} {
+		if got := actors[name].client.do("POST", path, map[string]any{"level": 0}).Code; got != want {
+			t.Errorf("%s: предпросмотр = %d, ожидалось %d", name, got, want)
+		}
+	}
+
+	// несохранённые правки с закрытым фрагментом: чем выше уровень, тем больше видно
+	draft := contentBody("Правка", "Открытая часть.")
+	draft["blocks"].([]any)[0].(map[string]any)["data"] = map[string]any{"text": []any{
+		map[string]any{"text": "Открыто. "}, map[string]any{"text": "СЕКРЕТ-3", "level": 3},
+	}}
+	seen := func(level int) (string, map[string]any) {
+		r := author.client.do("POST", path, map[string]any{"level": level, "content": draft})
+		if r.Code != 200 {
+			t.Fatalf("уровень %d: %d %s", level, r.Code, r.Body)
+		}
+		return r.Body.String(), r.json()
+	}
+	low, res := seen(2)
+	if strings.Contains(low, "СЕКРЕТ-3") || res["access"] != "open" || res["level"].(float64) != 2 {
+		t.Errorf("уровень 2 получил закрытое или неверный ответ: %s", low)
+	}
+	if high, _ := seen(3); !strings.Contains(high, "СЕКРЕТ-3") {
+		t.Errorf("уровень 3 не увидел своё: %s", high)
+	}
+	if !strings.Contains(low, `"redacted":true`) {
+		t.Errorf("закрытый фрагмент не отмечен меткой: %s", low)
+	}
+
+	// без содержимого — по сохранённому
+	if body := author.client.do("POST", path, map[string]any{"level": 0}).Body.String(); !strings.Contains(body, "Первый абзац.") || !strings.Contains(body, `"problems":[]`) {
+		t.Errorf("по сохранённому: %s", body)
+	}
+
+	// неверный уровень — 400 с указанием поля; ничего не сохранилось
+	for _, bad := range []int{-1, 8} {
+		if r := author.client.do("POST", path, map[string]any{"level": bad}); r.Code != 400 || r.errCode() != "bad_request" {
+			t.Errorf("уровень %d: %d %s", bad, r.Code, r.errCode())
+		}
+	}
+	if got := currentRevision(t, actors["director"], id); got != 1 {
+		t.Errorf("предпросмотр изменил документ: редакция %d", got)
+	}
+	if r := author.client.do("GET", path, nil); r.Code != 405 && r.Code != 404 {
+		t.Errorf("GET на предпросмотр: %d", r.Code)
 	}
 }

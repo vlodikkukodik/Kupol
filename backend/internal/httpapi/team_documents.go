@@ -186,6 +186,32 @@ func (h *teamDocumentHandlers) autosave(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// PreviewRequest — тело POST /api/team/documents/:id/preview. Content — несохранённые правки из редактора;
+// без него предпросмотр строится по сохранённому.
+type PreviewRequest struct {
+	Level   int                `json:"level"`
+	Content *documents.Content `json:"content,omitempty"`
+}
+
+// POST /api/team/documents/:id/preview — документ глазами читателя уровня level (0–7): то, что сервер отдал бы ему на самом деле.
+// Ничего не сохраняет. POST, а не GET, потому что в теле — содержимое редактора (оно не помещается в адрес).
+func (h *teamDocumentHandlers) preview(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		return
+	}
+	var req PreviewRequest
+	if !bindJSONLimit(c, &req, maxDocumentBody) {
+		return
+	}
+	res, err := h.svc.TeamPreview(c.Request.Context(), actorFrom(c), id, req.Level, req.Content)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
 // POST /api/team/documents/:id/lock — взять документ в работу или продлить свой замок.
 func (h *teamDocumentHandlers) takeLock(c *gin.Context) {
 	id, ok := idParam(c, "id")

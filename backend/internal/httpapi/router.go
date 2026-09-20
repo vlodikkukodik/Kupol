@@ -101,6 +101,7 @@ func New(d Deps) (*gin.Engine, error) {
 	td.GET("/:id", tdocs.get)
 	td.PUT("/:id", tdocs.save)
 	td.PUT("/:id/draft", tdocs.autosave)
+	td.POST("/:id/preview", tdocs.preview)
 	td.POST("/:id/lock", tdocs.takeLock)
 	td.DELETE("/:id/lock", tdocs.releaseLock)
 	td.GET("/:id/versions", tdocs.versions)

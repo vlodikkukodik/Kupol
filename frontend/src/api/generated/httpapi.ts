@@ -351,3 +351,11 @@ export interface SaveDocumentRequest {
   base_revision: number /* int */;
   content: documents.Content;
 }
+/**
+ * PreviewRequest — тело POST /api/team/documents/:id/preview. Content — несохранённые правки из редактора;
+ * без него предпросмотр строится по сохранённому.
+ */
+export interface PreviewRequest {
+  level: number /* int */;
+  content?: documents.Content;
+}
