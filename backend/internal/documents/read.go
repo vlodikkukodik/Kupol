@@ -347,6 +347,8 @@ type OutDocument struct {
 	Author            *string    `json:"author,omitempty"`
 	Status            string     `json:"status,omitempty"` // только тем, кто видит неопубликованное
 	Blocks            []OutBlock `json:"blocks"`
+	// MentionedIn — документы, ссылающиеся на этот, из числа доступных читателю («Упоминается в»). В предпросмотре не заполняется.
+	MentionedIn []Mention `json:"mentioned_in,omitempty"`
 }
 
 // docRow — документ вместе с ником автора.
@@ -399,6 +401,9 @@ func (s *Service) Get(ctx context.Context, v Viewer, ref string) (*OutDocument, 
 	}
 
 	out := outDocument(d, row.AuthorLogin, blocks, v)
+	if out.MentionedIn, err = s.mentions(ctx, v, c.Canonical); err != nil {
+		return nil, err
+	}
 
 	if v.UserID != 0 && d.Status == string(StatusPublished) {
 		s.recordRead(ctx, v.UserID, d.ID)

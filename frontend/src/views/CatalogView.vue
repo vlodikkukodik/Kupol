@@ -3,11 +3,14 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import CatalogFilters from '@/components/CatalogFilters.vue'
+import CatalogCards from '@/components/CatalogCards.vue'
 import CatalogFolders from '@/components/CatalogFolders.vue'
 import CatalogTable from '@/components/CatalogTable.vue'
 import PaginationNav from '@/components/PaginationNav.vue'
 import SearchBox from '@/components/SearchBox.vue'
 import UiButton from '@/ui/UiButton.vue'
+import UiField from '@/ui/UiField.vue'
+import UiSelect from '@/ui/UiSelect.vue'
 import UiPageHeader from '@/ui/UiPageHeader.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
@@ -23,7 +26,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
-const view = computed(() => (route.query.view === 'folders' ? 'folders' : 'table'))
+const view = computed<'table' | 'folders' | 'cards'>(() => (route.query.view === 'folders' ? 'folders' : route.query.view === 'cards' ? 'cards' : 'table'))
 const params = computed(() => toApiParams(route.query).toString())
 
 // Каталог перезагружается при любом изменении фильтров, сортировки или страницы; устаревший запрос отменяется,
@@ -39,10 +42,10 @@ const summary = useQuery({ queryKey: keys.summary, queryFn: ({ signal }) => docu
 const filtered = computed(() => hasFilters(route.query))
 const requestId = computed(() => (isApiError(list.error.value) ? list.error.value.requestId : ''))
 
-function setView(next: 'table' | 'folders') {
+function setView(next: 'table' | 'folders' | 'cards') {
   const query = { ...route.query }
-  if (next === 'folders') query.view = 'folders'
-  else delete query.view
+  if (next === 'table') delete query.view
+  else query.view = next
   void router.push({ query })
 }
 
@@ -52,6 +55,31 @@ const changeFilters = (changes: Record<string, string | null | undefined>) => fi
 function resetFilters() {
   const query = { ...route.query }
   for (const k of ['type', 'class', 'dept', 'category', 'containment', 'from', 'to', 'page']) delete query[k]
+  void router.push({ query })
+}
+
+// Порядок карточек: в реестре его задают заголовки столбцов, у карточек их нет — вместо них список готовых порядков (sort + order в адресе).
+const CARD_ORDERS = [
+  { value: 'code', label: 'По шифру' },
+  { value: 'title', label: 'По названию' },
+  { value: 'year:desc', label: 'По году — сначала новые' },
+  { value: 'year', label: 'По году — сначала старые' },
+  { value: 'class:desc', label: 'По классу опасности — сначала высокий' },
+  { value: 'deviation:desc', label: 'По п.о. — сначала больше' },
+]
+const cardsOrder = computed(() => {
+  const sort = typeof route.query.sort === 'string' ? route.query.sort : 'code'
+  const key = route.query.order === 'desc' ? `${sort}:desc` : sort
+  return CARD_ORDERS.some((o) => o.value === key) ? key : 'code'
+})
+function setCardsOrder(value: string) {
+  const [sort = 'code', order] = value.split(':')
+  const query = { ...route.query }
+  delete query.page
+  if (sort === 'code') delete query.sort
+  else query.sort = sort
+  if (order) query.order = order
+  else delete query.order
   void router.push({ query })
 }
 
@@ -68,6 +96,7 @@ function openFolder(type: string) {
       <template #actions>
         <div class="views" role="group" aria-label="Вид каталога">
           <button type="button" class="view" :aria-pressed="view === 'table' ? 'true' : 'false'" @click="setView('table')">Реестр</button>
+          <button type="button" class="view" :aria-pressed="view === 'cards' ? 'true' : 'false'" data-testid="view-cards" @click="setView('cards')">Картотека</button>
           <button type="button" class="view" :aria-pressed="view === 'folders' ? 'true' : 'false'" @click="setView('folders')">Папки</button>
         </div>
       </template>
@@ -87,7 +116,15 @@ function openFolder(type: string) {
 
         <template v-else-if="list.data.value">
           <div :class="{ 'is-stale': list.isPlaceholderData.value }">
-            <CatalogTable v-if="list.data.value.items.length" :items="list.data.value.items" :show-status="Boolean(auth.user?.directorate)" />
+            <template v-if="list.data.value.items.length">
+              <div v-if="view === 'cards'" class="cards-order">
+                <UiField id="cards-order" label="Порядок карточек">
+                  <UiSelect :model-value="cardsOrder" :options="CARD_ORDERS" @update:model-value="setCardsOrder" />
+                </UiField>
+              </div>
+              <CatalogCards v-if="view === 'cards'" :items="list.data.value.items" :show-status="Boolean(auth.user?.directorate)" />
+              <CatalogTable v-else :items="list.data.value.items" :show-status="Boolean(auth.user?.directorate)" />
+            </template>
             <p v-else class="state" data-testid="catalog-empty">
               <template v-if="filtered">
                 По заданным условиям ничего не найдено.
@@ -134,6 +171,9 @@ function openFolder(type: string) {
 }
 .catalog-search {
   margin-bottom: var(--space-4);
+}
+.cards-order {
+  max-width: 22rem;
 }
 .total {
   margin: 0 0 var(--space-3);

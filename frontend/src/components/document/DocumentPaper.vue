@@ -32,6 +32,17 @@ const blocks = computed(() => asDocBlocks(props.doc.blocks))
       <BlockRenderer v-for="(block, i) in blocks" :id="block.id ? `b-${block.id}` : undefined" :key="block.id ?? `redacted-${i}`" :block="block" />
     </div>
 
+    <!-- Документы, которые ссылаются на этот: сервер отдаёт только доступные читателю (и документ, и сам блок-ссылку) -->
+    <section v-if="doc.mentioned_in?.length" class="paper__mentions" aria-labelledby="mentioned-title" data-testid="mentions">
+      <h2 id="mentioned-title">Упоминается в</h2>
+      <ul>
+        <li v-for="m in doc.mentioned_in" :key="m.code">
+          <RouterLink :to="{ name: 'document', params: { ref: m.slug } }">{{ m.code }} — {{ m.title }}</RouterLink>
+          <span class="paper__mention-type">{{ m.type_name }}</span>
+        </li>
+      </ul>
+    </section>
+
     <footer v-if="doc.author" class="paper__foot">Составил(а): <strong>{{ doc.author }}</strong></footer>
   </UiSheet>
 </template>
@@ -84,6 +95,30 @@ const blocks = computed(() => asDocBlocks(props.doc.blocks))
   outline: 3px solid var(--focus);
   outline-offset: 4px;
   background: rgb(255 226 122 / 0.35);
+}
+.paper__mentions {
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.paper__mentions h2 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-head);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.paper__mentions ul {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+.paper__mentions li {
+  overflow-wrap: anywhere;
+}
+.paper__mention-type {
+  margin-left: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 .paper__foot {
   margin-top: var(--space-7);

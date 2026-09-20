@@ -15,9 +15,9 @@ import (
 // закрытый фрагмент внутри него — разные строки. Что включать в индекс, решает явный список ниже (allow-list): новый вид
 // блока сначала не индексируется вовсе, пока для него не написано извлечение (это проверяет тест).
 
-// searchIndexVersion — версия правил построения индекса. При смене (другие поля, другая разбивка) сервер сам
-// перестраивает индекс при старте (EnsureSearchIndex).
-const searchIndexVersion = 1
+// searchIndexVersion — версия правил построения производных данных (индекс поиска и обратные ссылки). При смене (другие
+// поля, другая разбивка) сервер сам перестраивает их при старте (EnsureSearchIndex). 1 — индекс поиска, 2 — и обратные ссылки.
+const searchIndexVersion = 2
 
 type searchKind string
 
@@ -235,16 +235,63 @@ func searchRows(d *Document) []searchRow {
 	return rows
 }
 
-// reindexDocument заменяет строки индекса документа. Вызывается в транзакции, где документ записан, — индекс не отстаёт от текста.
+// linkRow — обратная ссылка (таблица document_links, миграция 0012).
+type linkRow struct {
+	ID         int64 `gorm:"primaryKey"`
+	SourceID   int64
+	BlockID    string
+	Level      int
+	TargetCode string
+}
+
+func (linkRow) TableName() string { return "document_links" }
+
+// linkRows — ссылки документа на другие документы: по строке на пару «блок, цель». Ссылка на самого себя не считается.
+func linkRows(d *Document) []linkRow {
+	var rows []linkRow
+	seen := map[string]bool{}
+	for _, b := range d.Blocks {
+		spec, ok := kinds[b.Type]
+		if !ok || spec.links == nil {
+			continue
+		}
+		v, err := spec.decode(b.Data)
+		if err != nil {
+			continue // блок, который не разобрать, ссылок не даёт; чтение такого документа всё равно скажет об ошибке
+		}
+		level := 0
+		if b.Level != nil {
+			level = *b.Level
+		}
+		for _, code := range spec.links(v) {
+			if code == "" || (d.Code != nil && code == *d.Code) || seen[b.ID+"\x00"+code] {
+				continue
+			}
+			seen[b.ID+"\x00"+code] = true
+			rows = append(rows, linkRow{SourceID: d.ID, BlockID: b.ID, Level: level, TargetCode: code})
+		}
+	}
+	return rows
+}
+
+// reindexDocument заменяет производные от текста данные документа: строки индекса поиска и обратные ссылки. Вызывается
+// в транзакции, где документ записан, — они не отстают от текста.
 func reindexDocument(tx *gorm.DB, d *Document) error {
 	if err := tx.Exec("DELETE FROM document_search WHERE document_id = ?", d.ID).Error; err != nil {
 		return err
 	}
-	rows := searchRows(d)
-	if len(rows) == 0 {
-		return nil
+	if err := tx.Exec("DELETE FROM document_links WHERE source_id = ?", d.ID).Error; err != nil {
+		return err
 	}
-	return tx.CreateInBatches(&rows, 200).Error
+	if rows := searchRows(d); len(rows) > 0 {
+		if err := tx.CreateInBatches(&rows, 200).Error; err != nil {
+			return err
+		}
+	}
+	if links := linkRows(d); len(links) > 0 {
+		return tx.CreateInBatches(&links, 200).Error
+	}
+	return nil
 }
 
 // searchLock — ключ advisory-блокировки перестройки индекса: два сервера при старте не строят его одновременно.
@@ -295,6 +342,9 @@ func (s *Service) rebuild(ctx context.Context, force bool, count *int) error {
 			}
 		}
 		if err := tx.Exec("DELETE FROM document_search").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM document_links").Error; err != nil {
 			return err
 		}
 		var after int64

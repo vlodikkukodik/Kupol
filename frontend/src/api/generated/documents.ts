@@ -532,6 +532,20 @@ export interface LockedError {
 }
 
 //////////
+// source: mentions.go
+
+/**
+ * Mention — документ, который ссылается на данный.
+ */
+export interface Mention {
+  code: string;
+  slug: string;
+  title: string;
+  type: string;
+  type_name: string;
+}
+
+//////////
 // source: meta.go
 
 /**
@@ -801,6 +815,10 @@ export interface OutDocument {
   author?: string;
   status?: string; // только тем, кто видит неопубликованное
   blocks: OutBlock[];
+  /**
+   * MentionedIn — документы, ссылающиеся на этот, из числа доступных читателю («Упоминается в»). В предпросмотре не заполняется.
+   */
+  mentioned_in?: Mention[];
 }
 
 //////////

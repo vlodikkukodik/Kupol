@@ -47,6 +47,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 	glossaryTables := []string{"glossary_terms"}
 	totpTables := []string{"totp_recovery_codes"}
 	searchTables := []string{"document_search", "document_search_state"}
+	linkTables := []string{"document_links"}
 	collationExists := func() bool {
 		return exists("SELECT count(*) FROM pg_collation WHERE collname = ? AND collnamespace = 'public'::regnamespace", "kupol_natural")
 	}
@@ -54,8 +55,8 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateUp(ctx, db, log); err != nil {
 		t.Fatal(err)
 	}
-	if v := version(); v != 11 {
-		t.Fatalf("версия схемы %d, ожидалась 11", v)
+	if v := version(); v != 12 {
+		t.Fatalf("версия схемы %d, ожидалась 12", v)
 	}
 	columnExists := func(table, column string) bool {
 		var n int64
@@ -74,7 +75,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 			t.Errorf("расширение %s не создано", e)
 		}
 	}
-	for _, tbl := range slices.Concat(accountTables, documentTables, roleTables, versionTables, auditTables, reviewTables, templateTables, glossaryTables, totpTables, searchTables) {
+	for _, tbl := range slices.Concat(accountTables, documentTables, roleTables, versionTables, auditTables, reviewTables, templateTables, glossaryTables, totpTables, searchTables, linkTables) {
 		if !tableExists(tbl) {
 			t.Errorf("таблица %s не создана", tbl)
 		}
@@ -92,7 +93,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateStatus(ctx, db, log, &out); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"0001_extensions.sql", "0002_accounts.sql", "0003_documents.sql", "0004_roles.sql", "0005_document_versions.sql", "0006_audit.sql", "0007_review.sql", "0008_templates.sql", "0009_glossary.sql", "0010_totp.sql", "0011_search.sql", "применена"} {
+	for _, want := range []string{"0001_extensions.sql", "0002_accounts.sql", "0003_documents.sql", "0004_roles.sql", "0005_document_versions.sql", "0006_audit.sql", "0007_review.sql", "0008_templates.sql", "0009_glossary.sql", "0010_totp.sql", "0011_search.sql", "0012_links.sql", "применена"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("status не содержит %q: %q", want, out.String())
 		}
@@ -100,6 +101,21 @@ func TestMigrateUpDownUp(t *testing.T) {
 
 	// Откат — по одной миграции: поиск, код из приложения, глоссарий, шаблоны, рецензия, журнал, версии и замки, роли, документы,
 	// аккаунты, расширения.
+	if err := database.MigrateDown(ctx, db, log); err != nil {
+		t.Fatal(err)
+	}
+	if v := version(); v != 11 {
+		t.Fatalf("после отката 0012 версия %d, ожидалась 11", v)
+	}
+	for _, tbl := range linkTables {
+		if tableExists(tbl) {
+			t.Errorf("таблица %s осталась после отката 0012", tbl)
+		}
+	}
+	if !tableExists("document_search") || !tableExists("documents") {
+		t.Error("откат 0012 не должен трогать поиск и документы")
+	}
+
 	if err := database.MigrateDown(ctx, db, log); err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +286,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateUp(ctx, db, log); err != nil {
 		t.Fatalf("up после down: %v", err)
 	}
-	if v := version(); v != 11 || !tableExists("document_search") || !tableExists("totp_recovery_codes") || !tableExists("glossary_terms") || !tableExists("templates") || !tableExists("review_events") || !tableExists("audit_events") || !extExists("citext") || !tableExists("users") || !tableExists("documents") || !tableExists("user_roles") || !tableExists("document_versions") {
+	if v := version(); v != 12 || !tableExists("document_links") || !tableExists("document_search") || !tableExists("totp_recovery_codes") || !tableExists("glossary_terms") || !tableExists("templates") || !tableExists("review_events") || !tableExists("audit_events") || !extExists("citext") || !tableExists("users") || !tableExists("documents") || !tableExists("user_roles") || !tableExists("document_versions") {
 		t.Errorf("после повторного up: версия %d", v)
 	}
 }
