@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // Заглушка на время загрузки: строки разной длины вместо надписи «Загрузка…». Для скринридера — одно объявление.
-withDefaults(defineProps<{ lines?: number; label?: string }>(), { lines: 3, label: 'Загрузка…' })
+withDefaults(defineProps<{ lines?: number; label?: string }>(), { lines: 3, label: undefined })
 const widths = ['100%', '92%', '76%', '88%', '60%', '96%']
 </script>
 
 <template>
-  <div class="ui-skeleton" role="status" :aria-label="label">
-    <span class="visually-hidden">{{ label }}</span>
+  <div class="ui-skeleton" role="status" :aria-label="label ?? $t('ui.loading')">
+    <span class="visually-hidden">{{ label ?? $t('ui.loading') }}</span>
     <span v-for="i in lines" :key="i" class="ui-skeleton__line" aria-hidden="true" :style="{ width: widths[(i - 1) % widths.length] }" />
   </div>
 </template>

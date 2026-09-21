@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"kupol/internal/audit"
+	"kupol/internal/i18n"
 )
 
 // Ход документа (team panel, шаг 3.5): черновик → на проверке → опубликован → архив.
@@ -53,6 +54,9 @@ var reviewKindNames = map[ReviewKind]string{
 
 // Name — название события для интерфейса.
 func (k ReviewKind) Name() string { return reviewKindNames[k] }
+
+// NameIn — название на языке l.
+func (k ReviewKind) NameIn(l i18n.Lang) string { return l.Translate(reviewKindNames[k]) }
 
 // MaxReviewText — предел причины и комментария (знаков).
 const MaxReviewText = 2000
@@ -165,7 +169,7 @@ type transition struct {
 func (s *Service) move(ctx context.Context, a Actor, id int64, t transition) (*TeamDocument, error) {
 	comment := strings.TrimSpace(t.comment)
 	if utf8.RuneCountInString(comment) > MaxReviewText {
-		return nil, &ValidationError{Problems: []Problem{{Path: "comment", Message: fmt.Sprintf("слишком длинный текст (не больше %d знаков)", MaxReviewText)}}}
+		return nil, oneProblem("comment", "слишком длинный текст (не больше %d знаков)", MaxReviewText)
 	}
 
 	var out *TeamDocument
@@ -181,7 +185,7 @@ func (s *Service) move(ctx context.Context, a Actor, id int64, t transition) (*T
 			return &ConflictError{CurrentRevision: d.Revision}
 		}
 		if t.needReason && comment == "" {
-			return &ValidationError{Problems: []Problem{{Path: "comment", Message: "Укажите причину: автору нужно знать, что исправить"}}}
+			return oneProblem("comment", "Укажите причину: автору нужно знать, что исправить")
 		}
 		lock, err := s.activeLock(tx, d.ID, a)
 		if err != nil {
@@ -297,7 +301,7 @@ func (s *Service) Decide(ctx context.Context, a Actor, id int64, v Verdict, comm
 	case VerdictReject:
 		t.kind, t.to, t.audit, t.needReason = ReviewReject, StatusArchived, audit.DocumentRejected, true
 	default:
-		return nil, &ValidationError{Problems: []Problem{{Path: "verdict", Message: "вердикт: approve, return или reject"}}}
+		return nil, oneProblem("verdict", "вердикт: approve, return или reject")
 	}
 	return s.move(ctx, a, id, t)
 }

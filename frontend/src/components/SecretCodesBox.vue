@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { t } from '@/i18n'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
 
@@ -20,14 +21,14 @@ const props = defineProps<{
 
 const copied = ref('')
 
-const fileText = computed(() => `КУПОЛ — ${props.what}\n\nЛогин: ${props.login}\n\n${props.codes.join('\n')}\n\n${props.note}\n`)
+const fileText = computed(() => `${t('codes.fileHead', { what: props.what })}\n\n${t('codes.fileLogin', { login: props.login })}\n\n${props.codes.join('\n')}\n\n${props.note}\n`)
 
 async function copy() {
   try {
     await navigator.clipboard.writeText(props.codes.join('\n'))
-    copied.value = props.codes.length > 1 ? 'Коды скопированы' : 'Код скопирован'
+    copied.value = props.codes.length > 1 ? t('codes.copiedMany') : t('codes.copiedOne')
   } catch {
-    copied.value = 'Не удалось скопировать — выделите коды и скопируйте вручную'
+    copied.value = t('codes.copyFailed')
   }
 }
 
@@ -47,8 +48,8 @@ function download() {
       <li v-for="c in codes" :key="c">{{ c }}</li>
     </ul>
     <div class="codes__actions">
-      <UiButton icon="cards" data-testid="codes-copy" @click="copy">Скопировать</UiButton>
-      <UiButton icon="download" data-testid="codes-download" @click="download">Скачать файлом</UiButton>
+      <UiButton icon="cards" data-testid="codes-copy" @click="copy">{{ $t('common.copy') }}</UiButton>
+      <UiButton icon="download" data-testid="codes-download" @click="download">{{ $t('common.downloadFile') }}</UiButton>
     </div>
     <UiAlert v-if="copied" tone="info" class="codes__copied">{{ copied }}</UiAlert>
   </div>

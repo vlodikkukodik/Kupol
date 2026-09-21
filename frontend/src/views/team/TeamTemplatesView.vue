@@ -22,11 +22,7 @@ const list = useQuery({ queryKey: computed(() => keys.teamTemplates(kind.value))
 const requestId = computed(() => (isApiError(list.error.value) ? list.error.value.requestId : ''))
 const notice = ref('')
 
-const KINDS = [
-  { id: 'document', label: 'Шаблоны документов', empty: 'Шаблонов документов пока нет', hint: 'Откройте нужный документ и нажмите «Сохранить как шаблон»: его тип, блоки, допуск и гриф станут заготовкой для новых документов.' },
-  { id: 'blockset', label: 'Наборы блоков', empty: 'Наборов блоков пока нет', hint: 'Откройте документ и нажмите «Сохранить как шаблон» — выберите «Набор блоков» и диапазон блоков, которые нужно сохранить.' },
-] as const
-const current = computed(() => KINDS.find((k) => k.id === kind.value)!)
+const KINDS = ['document', 'blockset'] as const
 
 function setKind(next: 'document' | 'blockset') {
   void router.replace({ query: next === 'document' ? {} : { kind: next } })
@@ -40,18 +36,18 @@ async function onChanged(message: string) {
 <template>
   <ErrorView v-if="list.isError.value" :request-id="requestId" :retrying="list.isFetching.value" @retry="list.refetch()" />
   <UiSheet v-else as="section" aria-labelledby="templates-title" data-testid="templates">
-    <h2 id="templates-title">Шаблоны</h2>
-    <p class="lead">Заготовки, которые экономят работу: шаблон документа задаёт тип, допуск, гриф и блоки нового документа, набор блоков вставляется в готовый.</p>
+    <h2 id="templates-title">{{ $t('templates.title') }}</h2>
+    <p class="lead">{{ $t('templates.lead') }}</p>
 
-    <div class="kinds" role="group" aria-label="Вид шаблонов">
-      <button v-for="k in KINDS" :key="k.id" type="button" class="kind" :aria-pressed="kind === k.id ? 'true' : 'false'" :data-testid="`kind-${k.id}`" @click="setKind(k.id)">{{ k.label }}</button>
+    <div class="kinds" role="group" :aria-label="$t('templates.kindsLabel')">
+      <button v-for="k in KINDS" :key="k" type="button" class="kind" :aria-pressed="kind === k ? 'true' : 'false'" :data-testid="`kind-${k}`" @click="setKind(k)">{{ $t(`templates.${k}`) }}</button>
     </div>
 
     <p class="visually-hidden" role="status">{{ notice }}</p>
     <p v-if="notice" class="notice" data-testid="templates-notice">{{ notice }}</p>
 
-    <UiSkeleton v-if="list.isPending.value" :lines="4" label="Загружаем шаблоны…" />
-    <UiEmpty v-else-if="!list.data.value?.length" icon="layers" :title="current.empty">{{ current.hint }}</UiEmpty>
+    <UiSkeleton v-if="list.isPending.value" :lines="4" :label="$t('templates.loading')" />
+    <UiEmpty v-else-if="!list.data.value?.length" icon="layers" :title="$t(kind === 'document' ? 'templates.emptyDocument' : 'templates.emptyBlockset')">{{ $t(kind === 'document' ? 'templates.hintDocument' : 'templates.hintBlockset') }}</UiEmpty>
     <div v-else class="grid" data-testid="templates-list">
       <TemplateCard v-for="t in list.data.value" :key="t.id" :item="t" @changed="onChanged" />
     </div>

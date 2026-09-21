@@ -3,6 +3,8 @@ package documents
 import (
 	"context"
 	"strings"
+
+	"kupol/internal/i18n"
 )
 
 // Предпросмотр «глазами уровня N» (team panel, шаг 3.4).
@@ -48,7 +50,7 @@ func previewViewer(level int, userID int64) Viewer {
 // Видеть предпросмотр вправе тот, кто вправе видеть документ в team panel (менять его для этого не нужно).
 func (s *Service) TeamPreview(ctx context.Context, a Actor, id int64, level int, c *Content) (*PreviewResult, error) {
 	if level < LevelPublic || level > MaxLevel {
-		return nil, &QueryError{Field: "level", Message: "уровень должен быть от 0 до 7 (7 — Директорат)"}
+		return nil, queryError("level", "уровень должен быть от 0 до 7 (7 — Директорат)")
 	}
 	stored, err := s.viewable(ctx, s.db, a, id)
 	if err != nil {
@@ -88,7 +90,7 @@ func (s *Service) TeamPreview(ctx context.Context, a Actor, id int64, level int,
 	}
 
 	v := previewViewer(level, a.UserID)
-	res := &PreviewResult{Level: level, Access: PreviewOpen, Problems: probs.List()}
+	res := &PreviewResult{Level: level, Access: PreviewOpen, Problems: LocalizeProblems(i18n.From(ctx), probs.List())}
 	if res.Problems == nil {
 		res.Problems = []Problem{}
 	}

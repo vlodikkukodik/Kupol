@@ -12,7 +12,7 @@ const level = computed<number | null>(() => (typeof props.node.attrs.level === '
 </script>
 
 <template>
-  <NodeViewWrapper class="pm-block pm-table" role="group" aria-label="Таблица" :data-block-id="node.attrs.blockId || undefined" :data-block-level="level ?? undefined">
+  <NodeViewWrapper class="pm-block pm-table" role="group" :aria-label="$t('editor.node.table')" :data-block-id="node.attrs.blockId || undefined" :data-block-level="level ?? undefined">
     <BlockHead name="table" :level="level" />
     <BlockFields :node="node" :disabled="!editable" @update="updateAttributes($event)" />
     <div class="pm-table__scroll">

@@ -12,7 +12,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/api/lib.php';
 
-use function Kupol\Proxy\{client_ip, inject_og, load_config, og_from_document, sign, site_origin, valid_doc_ref};
+use function Kupol\Proxy\{client_ip, inject_og, load_config, og_from_document, pick_lang, proxy_message, sign, site_origin, valid_doc_ref};
 use const Kupol\Proxy\{HEADER_IP, HEADER_SIG, HEADER_TS};
 
 ini_set('display_errors', '0');
@@ -28,11 +28,14 @@ function page(string $html): never
     exit;
 }
 
+// Язык предпросмотра: ?lang=it в ссылке (главнее) или Accept-Language бота; по умолчанию русский
+$lang = pick_lang($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null, is_string($_GET['lang'] ?? null) ? $_GET['lang'] : null);
+
 $index = @file_get_contents(__DIR__ . '/index.html');
 if ($index === false) {
     http_response_code(500);
     header('Content-Type: text/plain; charset=utf-8');
-    echo 'Сбой архива';
+    echo proxy_message('Сбой архива', $lang);
     exit;
 }
 
@@ -53,6 +56,7 @@ try {
     curl_setopt_array($ch, [
         CURLOPT_HTTPHEADER     => [
             'Accept: application/json',
+            'Accept-Language: ' . $lang, // названия типов документа приходят на языке предпросмотра
             HEADER_IP . ': ' . $ip,
             HEADER_TS . ': ' . $ts,
             HEADER_SIG . ': ' . sign($config['secret'], $ts, $ip, 'GET', $uri),
@@ -73,8 +77,8 @@ try {
         page($index);
     }
     $data = json_decode($body, true);
-    $meta = is_array($data) ? og_from_document($data, site_origin($_SERVER)) : null;
-    page($meta === null ? $index : inject_og($index, $meta));
+    $meta = is_array($data) ? og_from_document($data, site_origin($_SERVER), $lang) : null;
+    page($meta === null ? $index : inject_og($index, $meta, $lang));
 } catch (Throwable $e) {
     error_log('[kupol-og] ' . $e->getMessage());
     page($index);

@@ -27,11 +27,11 @@ function submit() {
 </script>
 
 <template>
-  <form class="search" role="search" aria-label="Поиск по архиву" @submit.prevent="submit">
-    <UiField :id="id" label="Найти в архиве" hint="Слова, «фраза в кавычках», -исключённое слово, шифр (О-41)">
+  <form class="search" role="search" :aria-label="$t('search.label')" @submit.prevent="submit">
+    <UiField :id="id" :label="$t('search.find')" :hint="$t('search.hint')">
       <UiInput v-model="text" type="search" :maxlength="200" name="q" autocomplete="off" />
     </UiField>
-    <UiButton type="submit" variant="primary" icon="search">Найти</UiButton>
+    <UiButton type="submit" variant="primary" icon="search">{{ $t('search.submit') }}</UiButton>
   </form>
 </template>
 

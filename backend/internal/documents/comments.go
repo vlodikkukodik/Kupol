@@ -132,7 +132,7 @@ func (s *Service) TeamReview(ctx context.Context, a Actor, id int64) (*ReviewInf
 	}
 	for _, e := range events {
 		info.Events = append(info.Events, ReviewEventOut{
-			ID: e.ID, Kind: e.Kind, KindName: ReviewKind(e.Kind).Name(), Revision: e.Revision, Actor: e.ActorLogin, Comment: e.Comment, CreatedAt: e.CreatedAt.UTC(),
+			ID: e.ID, Kind: e.Kind, KindName: ReviewKind(e.Kind).NameIn(a.Lang), Revision: e.Revision, Actor: e.ActorLogin, Comment: e.Comment, CreatedAt: e.CreatedAt.UTC(),
 		})
 	}
 
@@ -155,9 +155,9 @@ func checkBody(body string) (string, error) {
 	body = strings.TrimSpace(body)
 	switch {
 	case body == "":
-		return "", &ValidationError{Problems: []Problem{{Path: "body", Message: "Напишите комментарий"}}}
+		return "", oneProblem("body", "Напишите комментарий")
 	case utf8.RuneCountInString(body) > MaxReviewText:
-		return "", &ValidationError{Problems: []Problem{{Path: "body", Message: fmt.Sprintf("слишком длинный комментарий (не больше %d знаков)", MaxReviewText)}}}
+		return "", oneProblem("body", "слишком длинный комментарий (не больше %d знаков)", MaxReviewText)
 	}
 	return body, nil
 }
@@ -182,7 +182,7 @@ func (s *Service) AddComment(ctx context.Context, a Actor, id int64, blockID *st
 			if *blockID == "" {
 				blockID = nil
 			} else if !hasBlock(d, *blockID) {
-				return &ValidationError{Problems: []Problem{{Path: "block_id", Message: fmt.Sprintf("в документе нет блока %q", *blockID)}}}
+				return oneProblem("block_id", "в документе нет блока %q", *blockID)
 			}
 		}
 		uid := a.UserID

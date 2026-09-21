@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"kupol/internal/i18n"
 )
 
 var backupRe = regexp.MustCompile(`^KUPOL(-[A-HJ-NP-Z2-9]{4}){4}$`)
@@ -111,8 +113,13 @@ func TestNormalizeAnswer(t *testing.T) {
 func TestEveryQuestionIsWellFormedAndAnswerable(t *testing.T) {
 	ids := map[string]bool{}
 	for _, q := range questions {
-		if q.ID == "" || q.Text == "" || len(q.Answers) == 0 {
+		if q.ID == "" || len(q.Answers) == 0 {
 			t.Errorf("вопрос заполнен не полностью: %+v", q)
+		}
+		for _, l := range i18n.Langs {
+			if q.Text[l] == "" {
+				t.Errorf("%s: нет текста вопроса на языке %s", q.ID, l)
+			}
 		}
 		if ids[q.ID] {
 			t.Errorf("повтор id вопроса %q", q.ID)

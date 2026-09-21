@@ -8,6 +8,7 @@ import { EDITABLE } from '@/editor/context'
 import { blocksToDoc, docToBlocks } from '@/editor/convert'
 import { editorExtensions } from '@/editor/kit'
 import { markProblemBlocks } from '@/editor/problems'
+import { locale, t } from '@/i18n'
 import EditorToolbar from './EditorToolbar.vue'
 import '@/styles/editor.css'
 
@@ -16,6 +17,30 @@ import '@/styles/editor.css'
 // восстановление версии), родитель пересоздаёт компонент по :key — так не остаётся ни лишней истории отмены, ни гонок.
 const props = withDefaults(defineProps<{ blocks: InputBlock[]; editable: boolean; problemBlocks?: string[] }>(), { problemBlocks: () => [] })
 const emit = defineEmits<{ 'update:blocks': [blocks: InputBlock[]] }>()
+
+// Подсказки в пустых местах и пометки допуска рисует CSS (content:), а строки в CSS языка не знают: передаём их переменными
+const cssString = (s: string) => JSON.stringify(s)
+const cssStrings = computed(() => ({
+  '--ph-text': cssString(t('editor.ph.text')),
+  '--ph-paragraph': cssString(t('editor.ph.paragraph')),
+  '--ph-item': cssString(t('editor.ph.item')),
+  '--ph-memo': cssString(t('editor.ph.memo')),
+  '--ph-heading': cssString(t('editor.ph.heading')),
+  '--ph-quote': cssString(t('editor.ph.quote')),
+  '--ph-footnote': cssString(t('editor.ph.footnote')),
+  '--ph-entry': cssString(t('editor.ph.entry')),
+  '--ph-column': cssString(t('editor.ph.column')),
+  '--lbl-closed': cssString(t('editor.closedLabel')),
+  '--lbl-redact-open': cssString(t('editor.redactOpen')),
+  '--lbl-redact-close': cssString(t('editor.redactClose')),
+}))
+const editorAttributes = () => ({
+  role: 'textbox',
+  'aria-multiline': 'true',
+  'aria-label': t('editor.textLabel'),
+  'aria-describedby': hintId,
+  lang: 'ru', // язык самого документа: тексты пишутся по-русски, что бы ни стояло в интерфейсе
+})
 
 const hintId = `editor-hint-${useId()}`
 const announcement = ref('')
@@ -38,15 +63,7 @@ const editor = useEditor({
   extensions: editorExtensions(),
   content: blocksToDoc(props.blocks),
   editable: props.editable,
-  editorProps: {
-    attributes: {
-      role: 'textbox',
-      'aria-multiline': 'true',
-      'aria-label': 'Текст документа',
-      'aria-describedby': hintId,
-      lang: 'ru',
-    },
-  },
+  editorProps: { attributes: editorAttributes() },
   onCreate({ editor: ed }) {
     ed.commands.normalizeBlockIds()
     ed.commands.command(({ tr, state }) => {
@@ -123,12 +140,15 @@ function onEditorKeydown(event: KeyboardEvent) {
   }
 }
 
+// подпись поля ввода обновляется при смене языка интерфейса
+watch(locale, () => editor.value?.setOptions({ editorProps: { attributes: editorAttributes() } }))
+
 const ready = computed(() => Boolean(editor.value && situationNow.value))
 defineExpose({ focusBlock, editor })
 </script>
 
 <template>
-  <div class="kupol-editor" :class="{ 'is-readonly': !editable }" data-testid="block-editor" @keydown.capture="onEditorKeydown">
+  <div class="kupol-editor" :class="{ 'is-readonly': !editable }" :style="cssStrings" data-testid="block-editor" @keydown.capture="onEditorKeydown">
     <EditorToolbar
       v-if="ready && editor && situationNow"
       ref="toolbar"
@@ -139,9 +159,7 @@ defineExpose({ focusBlock, editor })
       @announce="announcement = $event"
       @inserted="onInserted"
     />
-    <p :id="hintId" class="visually-hidden">
-      Редактор документа. Enter — новый абзац, Shift+Enter — перенос строки, Alt+F10 — панель инструментов, Escape на панели — назад в текст.
-    </p>
+    <p :id="hintId" class="visually-hidden">{{ $t('editor.hint') }}</p>
     <p class="visually-hidden" role="status">{{ announcement }}</p>
     <EditorContent :editor="editor" class="kupol-editor__body" />
   </div>

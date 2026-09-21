@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { t } from '@/i18n'
 import UiModal from '@/ui/UiModal.vue'
 import UiTabs from '@/ui/UiTabs.vue'
 import LoginForm from './LoginForm.vue'
@@ -9,10 +10,10 @@ import { useUiStore } from '@/stores/ui'
 // Единое окно входа и регистрации: открывается из меню, шапки и с закрытых страниц.
 const ui = useUiStore()
 const tab = ref('login')
-const tabs = [
-  { id: 'login', label: 'Вход' },
-  { id: 'register', label: 'Регистрация' },
-]
+const tabs = computed(() => [
+  { id: 'login', label: t('auth.tabLogin') },
+  { id: 'register', label: t('auth.tabRegister') },
+])
 
 // Окно всегда открывается на «Вход»: прежняя вкладка (например, «Регистрация») не запоминается между открытиями.
 watch(
@@ -34,15 +35,15 @@ const backToMenuButton = () => document.getElementById('menu-toggle')
 <template>
   <UiModal
     :open="ui.authOpen"
-    title="Допуск в архив"
+    :title="$t('auth.modalTitle')"
     testid="auth-modal"
     scrim-testid="auth-scrim"
-    close-label="Закрыть окно входа"
+    :close-label="$t('auth.modalClose')"
     :initial-focus="firstField"
     :fallback-focus="backToMenuButton"
     @update:open="onOpen"
   >
-    <UiTabs v-model="tab" :tabs="tabs" label="Вход или регистрация">
+    <UiTabs v-model="tab" :tabs="tabs" :label="$t('auth.tabsLabel')">
       <template #login><LoginForm /></template>
       <template #register><RegisterForm /></template>
     </UiTabs>

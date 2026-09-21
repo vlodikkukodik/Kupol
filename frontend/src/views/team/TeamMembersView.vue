@@ -19,6 +19,7 @@ import { keys } from '@/api/query'
 import { describeApiError } from '@/composables/useForm'
 import { useQueryFilters } from '@/composables/useQueryFilters'
 import { formatDate } from '@/lib/format'
+import { t } from '@/i18n'
 import ErrorView from '../ErrorView.vue'
 
 const route = useRoute()
@@ -72,7 +73,7 @@ async function toggle(m: MemberDTO, r: RoleInfoDTO) {
   try {
     const res = grant ? await teamApi.grant(m.login, r.id) : await teamApi.revoke(m.login, r.id)
     Object.assign(m, res.member)
-    status.value = grant ? `Роль «${r.name}» выдана: ${m.login}.` : `Роль «${r.name}» снята: ${m.login}.`
+    status.value = t(grant ? 'members.granted' : 'members.revoked', { role: r.name, login: m.login })
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
     problem.value = describeApiError(err)
@@ -86,22 +87,22 @@ const requestId = computed(() => (isApiError(list.error.value) ? list.error.valu
 
 <template>
   <UiSheet as="section" wide aria-labelledby="members-title" class="wide">
-    <h2 id="members-title">Команда</h2>
-    <p class="note">Выдайте пользователю роль — он получит её сразу, без повторного входа. Директорат подразумевает все роли.</p>
+    <h2 id="members-title">{{ $t('members.title') }}</h2>
+    <p class="note">{{ $t('members.note') }}</p>
 
-    <form class="filters" aria-label="Поиск пользователей" @submit.prevent="submitSearch">
-      <UiField id="t-q" label="Логин">
-        <UiInput v-model="search" type="search" :maxlength="24" placeholder="часть логина" @change="submitSearch" />
+    <form class="filters" :aria-label="$t('members.searchLabel')" @submit.prevent="submitSearch">
+      <UiField id="t-q" :label="$t('members.login')">
+        <UiInput v-model="search" type="search" :maxlength="24" :placeholder="$t('members.loginPlaceholder')" @change="submitSearch" />
       </UiField>
-      <UiField id="t-role" label="Роль">
-        <UiSelect :model-value="role" :options="roleOptions" placeholder="Любая" @update:model-value="setFilters({ role: $event })" />
+      <UiField id="t-role" :label="$t('members.role')">
+        <UiSelect :model-value="role" :options="roleOptions" :placeholder="$t('members.anyRole')" @update:model-value="setFilters({ role: $event })" />
       </UiField>
       <div class="check">
-        <UiCheckbox :model-value="staff" label="Только команда" @update:model-value="setFilters({ staff: $event ? '1' : '' })" />
+        <UiCheckbox :model-value="staff" :label="$t('members.onlyStaff')" @update:model-value="setFilters({ staff: $event ? '1' : '' })" />
       </div>
       <div class="actions">
-        <UiButton type="submit" variant="primary">Найти</UiButton>
-        <UiButton v-if="q || role || staff" variant="link" @click="reset">Сбросить</UiButton>
+        <UiButton type="submit" variant="primary">{{ $t('members.find') }}</UiButton>
+        <UiButton v-if="q || role || staff" variant="link" @click="reset">{{ $t('members.reset') }}</UiButton>
       </div>
     </form>
 
@@ -112,25 +113,25 @@ const requestId = computed(() => (isApiError(list.error.value) ? list.error.valu
     <UiSkeleton v-else-if="list.isPending.value" :lines="5" />
 
     <template v-else-if="list.data.value">
-      <p class="total" data-testid="members-total">Найдено: {{ list.data.value.total }}</p>
-      <UiTable v-if="members.length" label="Пользователи и их роли">
+      <p class="total" data-testid="members-total">{{ $t('members.total', { n: list.data.value.total }) }}</p>
+      <UiTable v-if="members.length" :label="$t('members.tableLabel')">
         <table class="members" data-testid="members">
-          <caption class="visually-hidden">Пользователи и их роли</caption>
+          <caption class="visually-hidden">{{ $t('members.tableLabel') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Пользователь</th>
-              <th scope="col">Роли</th>
+              <th scope="col">{{ $t('members.colUser') }}</th>
+              <th scope="col">{{ $t('members.colRoles') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="m in members" :key="m.login" :data-login="m.login">
               <th scope="row" class="who">
                 <span class="who__login">{{ m.login }}</span>
-                <span class="who__sub">{{ m.level_name }} · принят {{ formatDate(m.created_at) }}</span>
+                <span class="who__sub">{{ $t('members.sub', { level: m.level_name, when: formatDate(m.created_at) }) }}</span>
               </th>
               <td>
-                <p v-if="m.directorate" class="dir">Директорат: все роли и права</p>
-                <div v-else class="toggles" role="group" :aria-label="`Роли пользователя ${m.login}`">
+                <p v-if="m.directorate" class="dir">{{ $t('members.directorate') }}</p>
+                <div v-else class="toggles" role="group" :aria-label="$t('members.rolesOf', { login: m.login })">
                   <button
                     v-for="r in roles"
                     :key="r.id"
@@ -149,7 +150,7 @@ const requestId = computed(() => (isApiError(list.error.value) ? list.error.valu
           </tbody>
         </table>
       </UiTable>
-      <p v-else class="state" data-testid="members-empty">Никого не найдено.</p>
+      <p v-else class="state" data-testid="members-empty">{{ $t('members.empty') }}</p>
       <PaginationNav :page="list.data.value.page" :pages="list.data.value.pages" />
     </template>
   </UiSheet>

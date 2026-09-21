@@ -6,8 +6,9 @@ import { teamApi } from '@/api/endpoints'
 import type { TimelineEventOut } from '@/api/generated/documents'
 import { keys } from '@/api/query'
 import { describeApiError } from '@/composables/useForm'
-import { LEVEL_NAMES } from '@/lib/levels'
-import { MONTHS_NOMINATIVE, formatComposed } from '@/lib/format'
+import { levelName, levelNames } from '@/lib/levels'
+import { formatComposed, monthNames } from '@/lib/format'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
@@ -30,8 +31,10 @@ const requestId = computed(() => (isApiError(list.error.value) ? list.error.valu
 const canManage = computed(() => auth.can('manage_timeline'))
 const notice = ref('')
 
-const monthOptions = MONTHS_NOMINATIVE.map((name, i) => ({ value: String(i + 1), label: name }))
-const levelOptions = LEVEL_NAMES.map((name, i) => ({ value: String(i), label: i === 0 ? `0 — ${name}: видно всем` : `${i} — ${name}` }))
+const monthOptions = computed(() => monthNames().map((name, i) => ({ value: String(i + 1), label: name })))
+const levelOptions = computed(() =>
+  levelNames().map((name, i) => ({ value: String(i), label: i === 0 ? t('events.levelOpen', { name }) : t('events.levelOption', { level: i, name }) })),
+)
 
 // ——— форма события ———
 const editing = ref<TimelineEventOut | 'new' | null>(null)
@@ -76,8 +79,8 @@ async function refresh(message: string) {
 async function save() {
   errors.value = {}
   failure.value = ''
-  if (!year.value.trim()) errors.value.year = 'Введите год'
-  if (!title.value.trim()) errors.value.title = 'Введите название события'
+  if (!year.value.trim()) errors.value.year = t('events.enterYear')
+  if (!title.value.trim()) errors.value.title = t('events.enterTitle')
   if (Object.keys(errors.value).length) return
   const input = {
     year: Number(year.value),
@@ -94,7 +97,7 @@ async function save() {
     if (current === 'new') await teamApi.createEvent(input)
     else if (current) await teamApi.updateEvent(current.id, input)
     editing.value = null
-    await refresh(current === 'new' ? `Событие «${input.title.trim()}» добавлено.` : `Событие «${input.title.trim()}» сохранено.`)
+    await refresh(t(current === 'new' ? 'events.added' : 'events.saved', { title: input.title.trim() }))
   } catch (err) {
     fail(err)
   } finally {
@@ -112,7 +115,7 @@ async function confirmRemove() {
   try {
     await teamApi.deleteEvent(e.id)
     removing.value = null
-    await refresh(`Событие «${e.title}» удалено.`)
+    await refresh(t('events.removed', { title: e.title }))
   } catch (err) {
     fail(err)
   } finally {
@@ -125,21 +128,18 @@ async function confirmRemove() {
   <ErrorView v-if="list.isError.value" :request-id="requestId" :retrying="list.isFetching.value" @retry="list.refetch()" />
   <UiSheet v-else as="section" aria-labelledby="timeline-title" data-testid="team-timeline">
     <div class="head">
-      <h2 id="timeline-title">Хронология «О КУПОЛЕ»</h2>
-      <UiButton v-if="canManage" variant="primary" icon="plus" data-testid="event-new" @click="openForm('new')">Добавить событие</UiButton>
+      <h2 id="timeline-title">{{ $t('events.title') }}</h2>
+      <UiButton v-if="canManage" variant="primary" icon="plus" data-testid="event-new" @click="openForm('new')">{{ $t('events.add') }}</UiButton>
     </div>
-    <p class="lead">
-      События вселенной, которые видят читатели на странице «О КУПОЛЕ». У каждого события свой допуск: читатель видит только события не выше своего уровня.
-      Ссылка на документ показывается, только если читатель вправе открыть сам документ.
-    </p>
+    <p class="lead">{{ $t('events.lead') }}</p>
 
     <p class="visually-hidden" role="status">{{ notice }}</p>
     <p v-if="notice" class="notice" data-testid="timeline-notice">{{ notice }}</p>
 
-    <UiSkeleton v-if="list.isPending.value" :lines="4" label="Загружаем хронологию…" />
-    <UiEmpty v-else-if="!list.data.value?.length" icon="clock" title="Хронология пока пуста">
-      <template v-if="canManage">Добавьте первое событие кнопкой выше.</template>
-      <template v-else>События добавляют Редактор и Архивариус.</template>
+    <UiSkeleton v-if="list.isPending.value" :lines="4" :label="$t('events.loading')" />
+    <UiEmpty v-else-if="!list.data.value?.length" icon="clock" :title="$t('events.emptyTitle')">
+      <template v-if="canManage">{{ $t('events.addFirst') }}</template>
+      <template v-else>{{ $t('events.whoAdds') }}</template>
     </UiEmpty>
     <ol v-else class="events" data-testid="event-list">
       <li v-for="e in list.data.value" :key="e.id" class="event" :data-event="e.id">
@@ -148,55 +148,55 @@ async function confirmRemove() {
           <h3 class="event__title">{{ e.title }}</h3>
           <p v-if="e.body" class="event__body">{{ e.body }}</p>
           <p class="event__meta">
-            Допуск: {{ e.level }} ({{ LEVEL_NAMES[e.level] }})<template v-if="e.document_code"> · документ {{ e.document_code }}</template>
+            {{ $t('events.access', { level: e.level, name: levelName(e.level) }) }}<template v-if="e.document_code">{{ $t('events.document', { code: e.document_code }) }}</template>
           </p>
           <div v-if="e.can_edit" class="event__actions">
-            <UiButton size="sm" icon="edit" data-testid="event-edit" @click="openForm(e)">Изменить</UiButton>
-            <UiButton size="sm" variant="ghost" icon="trash" data-testid="event-delete" @click="removing = e">Удалить</UiButton>
+            <UiButton size="sm" icon="edit" data-testid="event-edit" @click="openForm(e)">{{ $t('events.edit') }}</UiButton>
+            <UiButton size="sm" variant="ghost" icon="trash" data-testid="event-delete" @click="removing = e">{{ $t('events.remove') }}</UiButton>
           </div>
         </div>
       </li>
     </ol>
 
-    <UiModal v-model:open="dialogOpen" :title="editing === 'new' ? 'Новое событие' : 'Изменить событие'" testid="event-dialog">
+    <UiModal v-model:open="dialogOpen" :title="editing === 'new' ? $t('events.newTitle') : $t('events.editTitle')" testid="event-dialog">
       <form novalidate @submit.prevent="save">
         <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
         <div class="date">
-          <UiField label="Год" required :error="errors.year">
+          <UiField :label="$t('events.year')" required :error="errors.year">
             <UiInput v-model="year" type="number" :min="1900" :max="2099" inputmode="numeric" name="year" />
           </UiField>
-          <UiField label="Месяц" :error="errors.month">
-            <UiSelect v-model="month" :options="monthOptions" placeholder="не указан" name="month" />
+          <UiField :label="$t('events.month')" :error="errors.month">
+            <UiSelect v-model="month" :options="monthOptions" :placeholder="$t('events.monthNone')" name="month" />
           </UiField>
-          <UiField label="День" :error="errors.day">
+          <UiField :label="$t('events.day')" :error="errors.day">
             <UiInput v-model="day" type="number" :min="1" :max="31" inputmode="numeric" name="day" />
           </UiField>
         </div>
-        <UiField label="Название" required :error="errors.title">
+        <UiField :label="$t('events.name')" required :error="errors.title">
           <UiInput v-model="title" :maxlength="200" name="title" />
         </UiField>
-        <UiField label="Описание" hint="Необязательно, до 2000 знаков." :error="errors.body">
+        <UiField :label="$t('events.body')" :hint="$t('events.bodyHint')" :error="errors.body">
           <UiTextarea v-model="body" :rows="4" :maxlength="2000" name="body" />
         </UiField>
-        <UiField label="Допуск события" hint="Читатель ниже этого уровня события не увидит." :error="errors.level">
+        <UiField :label="$t('events.level')" :hint="$t('events.levelHint')" :error="errors.level">
           <UiSelect v-model="level" :options="levelOptions" name="level" />
         </UiField>
-        <UiField label="Документ" hint="Шифр, например О-041. Необязательно." :error="errors.document_code">
+        <UiField :label="$t('events.document2')" :hint="$t('events.documentHint')" :error="errors.document_code">
           <UiInput v-model="documentCode" :maxlength="40" name="document_code" />
         </UiField>
         <div class="dlg-actions">
-          <UiButton type="submit" variant="primary" :loading="busy" data-testid="event-save">Сохранить</UiButton>
-          <UiButton variant="link" @click="editing = null">Отмена</UiButton>
+          <UiButton type="submit" variant="primary" :loading="busy" data-testid="event-save">{{ $t('events.save') }}</UiButton>
+          <UiButton variant="link" @click="editing = null">{{ $t('events.cancel') }}</UiButton>
         </div>
       </form>
     </UiModal>
 
-    <UiModal v-model:open="removeOpen" title="Удалить событие?" testid="event-delete-dialog">
-      <p>Событие «{{ removing?.title }}» будет удалено из хронологии.</p>
+    <UiModal v-model:open="removeOpen" :title="$t('events.removeTitle')" testid="event-delete-dialog">
+      <p>{{ $t('events.removeText', { title: removing?.title ?? '' }) }}</p>
       <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
       <div class="dlg-actions">
-        <UiButton variant="danger" icon="trash" :loading="busy" data-testid="event-confirm-delete" @click="confirmRemove">Удалить</UiButton>
-        <UiButton variant="link" @click="removing = null">Отмена</UiButton>
+        <UiButton variant="danger" icon="trash" :loading="busy" data-testid="event-confirm-delete" @click="confirmRemove">{{ $t('events.remove') }}</UiButton>
+        <UiButton variant="link" @click="removing = null">{{ $t('events.cancel') }}</UiButton>
       </div>
     </UiModal>
   </UiSheet>

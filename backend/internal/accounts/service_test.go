@@ -75,8 +75,10 @@ func (e *env) freshIP() ClientInfo {
 func answerFor(t *testing.T, c *Captcha) string {
 	t.Helper()
 	for _, q := range questions {
-		if q.Text == c.Question {
-			return q.Answers[0]
+		for _, text := range q.Text {
+			if text == c.Question {
+				return q.Answers[0]
+			}
 		}
 	}
 	t.Fatalf("вопрос %q не найден в банке", c.Question)

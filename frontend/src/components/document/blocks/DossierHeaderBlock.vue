@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import UiStamp from '@/ui/UiStamp.vue'
 import { formatComposed } from '@/lib/format'
 import { levelName } from '@/lib/levels'
+import { t } from '@/i18n'
 import { useDocument } from '../context'
 
 // Шапка досье строится из свойств самого документа (их отдаёт сервер вместе с документом).
@@ -12,23 +13,23 @@ const rows = computed<[string, string][]>(() => {
   const d = doc.value
   if (!d) return []
   const out: [string, string][] = [
-    ['Шифр', d.code],
-    ['Тип', d.type_name],
-    ['Дата составления', formatComposed(d.composed)],
+    [t('doc.header.code'), d.code],
+    [t('doc.header.type'), d.type_name],
+    [t('doc.header.composed'), formatComposed(d.composed)],
   ]
-  if (d.danger_class) out.push(['Класс опасности', String(d.danger_class)])
-  if (d.deviation_points != null) out.push(['Пункты отклонения', `${d.deviation_points} п.о.`])
-  if (d.category_name) out.push(['Категория', d.category_name])
-  if (d.containment_name) out.push(['Статус содержания', d.containment_name])
-  if (d.department) out.push(['Отдел', d.department])
-  if (d.discovery_place) out.push(['Место обнаружения', d.discovery_place])
-  out.push(['Допуск', d.level === 0 ? 'открытый' : `уровень ${d.level} — ${levelName(d.level)}`])
+  if (d.danger_class) out.push([t('doc.header.dangerClass'), String(d.danger_class)])
+  if (d.deviation_points != null) out.push([t('doc.header.deviation'), t('doc.header.deviationValue', { n: d.deviation_points })])
+  if (d.category_name) out.push([t('doc.header.category'), d.category_name])
+  if (d.containment_name) out.push([t('doc.header.containment'), d.containment_name])
+  if (d.department) out.push([t('doc.header.department'), d.department])
+  if (d.discovery_place) out.push([t('doc.header.place'), d.discovery_place])
+  out.push([t('doc.header.access'), d.level === 0 ? t('doc.header.accessOpen') : t('doc.header.accessLevel', { level: d.level, name: levelName(d.level) })])
   return out
 })
 </script>
 
 <template>
-  <section v-if="doc" class="header" aria-label="Шапка досье" data-testid="dossier-header">
+  <section v-if="doc" class="header" :aria-label="$t('doc.header.label')" data-testid="dossier-header">
     <div class="header__stamp">
       <UiStamp :text="doc.grif" tone="ink" :tilt="-1.5" :animate="false" size="sm" />
     </div>

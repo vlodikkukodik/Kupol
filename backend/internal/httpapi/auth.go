@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"kupol/internal/accounts"
+	"kupol/internal/i18n"
 )
 
 type RoleDTO struct {
@@ -16,10 +17,10 @@ type RoleDTO struct {
 	Name string `json:"name"`
 }
 
-func toRoleDTOs(roles []accounts.Role) []RoleDTO {
+func toRoleDTOs(roles []accounts.Role, lang i18n.Lang) []RoleDTO {
 	out := make([]RoleDTO, len(roles))
 	for i, r := range roles {
-		out[i] = RoleDTO{ID: string(r), Name: r.Name()}
+		out[i] = RoleDTO{ID: string(r), Name: r.NameIn(lang)}
 	}
 	return out
 }
@@ -38,7 +39,7 @@ type UserDTO struct {
 	TOTPEnabled bool `json:"totp_enabled"`
 }
 
-func toUserDTO(u accounts.User) UserDTO {
+func toUserDTO(u accounts.User, lang i18n.Lang) UserDTO {
 	caps := []string{}
 	for _, c := range u.Capabilities() {
 		caps = append(caps, string(c))
@@ -46,10 +47,10 @@ func toUserDTO(u accounts.User) UserDTO {
 	return UserDTO{
 		Login:        u.Login,
 		Level:        u.Level,
-		LevelName:    u.LevelName(),
+		LevelName:    u.LevelNameIn(lang),
 		Directorate:  u.Directorate,
 		CreatedAt:    u.CreatedAt.UTC(),
-		Roles:        toRoleDTOs(u.Roles),
+		Roles:        toRoleDTOs(u.Roles, lang),
 		Capabilities: caps,
 		TOTPEnabled:  u.TOTPEnabled(),
 	}
@@ -106,7 +107,7 @@ func (h *authHandlers) fail(c *gin.Context, err error, invalidCredentialsMsg str
 // 401 на каждой загрузке страницы засорял бы консоль браузера и журналы.
 func (h *authHandlers) session(c *gin.Context) {
 	if a := CurrentAuth(c); a != nil {
-		u := toUserDTO(a.User)
+		u := toUserDTO(a.User, Lang(c))
 		c.JSON(http.StatusOK, SessionResponse{User: &u})
 		return
 	}
@@ -144,7 +145,7 @@ func (h *authHandlers) register(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusCreated, RegisterResponse{User: toUserDTO(res.User), BackupCode: res.BackupCode})
+	c.JSON(http.StatusCreated, RegisterResponse{User: toUserDTO(res.User, Lang(c)), BackupCode: res.BackupCode})
 }
 
 type LoginRequest struct {
@@ -167,7 +168,7 @@ func (h *authHandlers) login(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusOK, LoginResponse{User: toUserDTO(res.User)})
+	c.JSON(http.StatusOK, LoginResponse{User: toUserDTO(res.User, Lang(c))})
 }
 
 // POST /api/auth/logout — завершает текущую сессию. Без сессии тоже успешно: выход идемпотентен.
@@ -203,7 +204,7 @@ func (h *authHandlers) restore(c *gin.Context) {
 	// У кого включён код из приложения, тот после восстановления входит обычным путём — с новым паролем и кодом.
 	if res.Token != "" {
 		setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-		u := toUserDTO(res.User)
+		u := toUserDTO(res.User, Lang(c))
 		resp.User = &u
 	}
 	c.JSON(http.StatusOK, resp)

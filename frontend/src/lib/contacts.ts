@@ -25,7 +25,7 @@ export function linkifyContact(line: string): ContactPart[] {
     if (isUrl) {
       try {
         const u = new URL(token)
-        if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('схема')
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('scheme')
         parts.push({ text: token, href: u.href })
       } catch {
         parts.push({ text: token })

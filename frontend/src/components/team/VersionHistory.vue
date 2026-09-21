@@ -10,6 +10,7 @@ import type { Diff, Problem, SaveResult, VersionItem } from '@/api/generated/doc
 import { keys } from '@/api/query'
 import { describeApiError } from '@/composables/useForm'
 import { formatDateTime } from '@/lib/format'
+import { t } from '@/i18n'
 import ErrorView from '@/views/ErrorView.vue'
 import VersionDiff from './VersionDiff.vue'
 
@@ -84,7 +85,7 @@ async function restore(v: VersionItem) {
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
     if (err.problems.length) {
-      restoreError.value = 'Эту версию нельзя вернуть как есть: она не проходит проверку.'
+      restoreError.value = t('history.cannotRestore')
       emit('problems', err.problems)
     } else {
       restoreError.value = describeApiError(err)
@@ -100,15 +101,12 @@ const requestId = computed(() => (isApiError(list.error.value) ? list.error.valu
 
 <template>
   <section class="history" aria-labelledby="history-title">
-    <h3 id="history-title">История версий</h3>
-    <p class="note">
-      Снимки при создании, смене статуса, правке опубликованного и откате хранятся всегда; обычные сохранения и
-      автосохранения — последние 30.
-    </p>
+    <h3 id="history-title">{{ $t('history.title') }}</h3>
+    <p class="note">{{ $t('history.note') }}</p>
     <UiAlert v-if="restoreError" tone="danger">{{ restoreError }}</UiAlert>
 
     <ErrorView v-if="list.isError.value" :request-id="requestId" :retrying="list.isFetching.value" @retry="list.refetch()" />
-    <UiSkeleton v-else-if="list.isPending.value" :lines="5" label="Загрузка истории…" />
+    <UiSkeleton v-else-if="list.isPending.value" :lines="5" :label="$t('history.loading')" />
 
     <template v-else-if="list.data.value">
       <ol class="versions" data-testid="versions">
@@ -116,35 +114,35 @@ const requestId = computed(() => (isApiError(list.error.value) ? list.error.valu
           <div class="line">
             <span class="kind">{{ v.kind_name }}</span>
             <span class="meta">
-              {{ formatDateTime(v.created_at) }} · редакция {{ v.revision }} · {{ statusName(v.status) }}<template v-if="v.author"> · {{ v.author }}</template>
+              {{ v.author ? $t('history.metaAuthor', { when: formatDateTime(v.created_at), rev: v.revision, status: statusName(v.status), author: v.author }) : $t('history.meta', { when: formatDateTime(v.created_at), rev: v.revision, status: statusName(v.status) }) }}
             </span>
             <span v-if="v.note" class="note-line">{{ v.note }}</span>
           </div>
           <div class="actions">
             <UiButton variant="link" size="sm" :aria-expanded="open?.id === v.id && open.against === 'live' ? 'true' : 'false'" @click="showDiff(v, 'live')">
-              Сравнить с текущей
+              {{ $t('history.compareLive') }}
             </UiButton>
             <UiButton v-if="previousOf(v.id)" variant="link" size="sm" :aria-expanded="open?.id === v.id && open.against === 'prev' ? 'true' : 'false'" @click="showDiff(v, 'prev')">
-              Что изменилось
+              {{ $t('history.whatChanged') }}
             </UiButton>
-            <UiButton v-if="canRestore && confirming !== v.id" variant="link" size="sm" @click="confirming = v.id">Вернуть эту версию</UiButton>
+            <UiButton v-if="canRestore && confirming !== v.id" variant="link" size="sm" @click="confirming = v.id">{{ $t('history.restore') }}</UiButton>
           </div>
-          <div v-if="confirming === v.id" class="confirm" role="group" :aria-label="`Подтверждение отката к версии ${v.id}`">
-            <p>Документ станет таким, как в этой версии. Это будет новая редакция; нынешняя останется в истории.</p>
-            <UiButton variant="primary" :loading="restoring" @click="restore(v)">{{ restoring ? 'Возвращаем…' : 'Да, вернуть' }}</UiButton>
-            <UiButton variant="link" @click="confirming = null">Отмена</UiButton>
+          <div v-if="confirming === v.id" class="confirm" role="group" :aria-label="$t('history.confirmLabel', { id: v.id })">
+            <p>{{ $t('history.confirmText') }}</p>
+            <UiButton variant="primary" :loading="restoring" @click="restore(v)">{{ restoring ? $t('history.restoring') : $t('history.yes') }}</UiButton>
+            <UiButton variant="link" @click="confirming = null">{{ $t('history.cancel') }}</UiButton>
           </div>
           <div v-if="open?.id === v.id" class="diff-box">
-            <UiSkeleton v-if="loadingDiff" :lines="3" label="Сравниваем…" />
+            <UiSkeleton v-if="loadingDiff" :lines="3" :label="$t('history.comparing')" />
             <UiAlert v-else-if="diffError" tone="danger">{{ diffError }}</UiAlert>
             <VersionDiff v-else-if="diff" :diff="diff" :block-kind-name="blockKindName" />
           </div>
         </li>
       </ol>
-      <nav v-if="pages > 1" class="pager" aria-label="Страницы истории">
-        <UiButton :disabled="page <= 1" @click="page--">← Новее</UiButton>
-        <span>Страница {{ page }} из {{ pages }}</span>
-        <UiButton :disabled="page >= pages" @click="page++">Старше →</UiButton>
+      <nav v-if="pages > 1" class="pager" :aria-label="$t('history.pages')">
+        <UiButton :disabled="page <= 1" @click="page--">{{ $t('history.newer') }}</UiButton>
+        <span>{{ $t('history.pageOf', { page, pages }) }}</span>
+        <UiButton :disabled="page >= pages" @click="page++">{{ $t('history.older') }}</UiButton>
       </nav>
     </template>
   </section>

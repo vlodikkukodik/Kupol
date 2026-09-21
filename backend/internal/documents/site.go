@@ -108,7 +108,7 @@ func (s *Service) SiteSettingsUpdate(ctx context.Context, a Actor, in SiteSettin
 	}
 	contact := cleanContact(in.Contact)
 	if n := utf8.RuneCountInString(contact); n > maxSiteContactLen {
-		return nil, &ValidationError{Problems: []Problem{{Path: "contact", Message: "слишком длинное значение (" + itoa(n) + " знаков, не больше " + itoa(maxSiteContactLen) + ")"}}}
+		return nil, oneProblem("contact", "слишком длинное значение (%d знаков, не больше %d)", n, maxSiteContactLen)
 	}
 	now := s.now()
 	uid := a.UserID

@@ -6,7 +6,7 @@ defineProps<{ data: OutAppendix }>()
 
 <template>
   <h2 class="appendix">
-    <span class="appendix__mark">Приложение<template v-if="data.number"> № {{ data.number }}</template></span>
+    <span class="appendix__mark">{{ data.number ? $t('doc.block.appendixNumber', { n: data.number }) : $t('doc.block.appendix') }}</span>
     <span>{{ data.title }}</span>
   </h2>
 </template>

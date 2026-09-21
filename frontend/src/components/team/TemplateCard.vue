@@ -8,6 +8,7 @@ import { keys } from '@/api/query'
 import { useDocumentMeta } from '@/composables/useDocumentMeta'
 import { describeApiError } from '@/composables/useForm'
 import { formatDateTime } from '@/lib/format'
+import { t, tc } from '@/i18n'
 import { blockPreview } from '@/lib/teamdoc'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
@@ -61,14 +62,14 @@ async function saveEdit() {
   errors.value = {}
   failure.value = ''
   if (!name.value.trim()) {
-    errors.value = { name: 'Введите название' }
+    errors.value = { name: t('tpl.enterName') }
     return
   }
   busy.value = true
   try {
     await teamApi.updateTemplate(props.item.id, { name: name.value, description: description.value })
     editing.value = false
-    emit('changed', `Шаблон «${name.value.trim()}» сохранён.`)
+    emit('changed', t('tpl.saved', { name: name.value.trim() }))
   } catch (err) {
     apiFail(err)
   } finally {
@@ -84,7 +85,7 @@ async function confirmRemove() {
   try {
     await teamApi.deleteTemplate(props.item.id)
     removing.value = false
-    emit('changed', `Шаблон «${props.item.name}» удалён. Документы, созданные по нему, не изменились.`)
+    emit('changed', t('tpl.removed', { name: props.item.name }))
   } catch (err) {
     apiFail(err)
   } finally {
@@ -93,16 +94,22 @@ async function confirmRemove() {
 }
 
 const isDocument = computed(() => props.item.kind === 'document')
-const blocksWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'блок' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'блока' : 'блоков')
+/** «12 блоков · автор … · обновлён …»; у шаблона документа впереди ещё тип документа */
+const metaLine = computed(() => {
+  const parts = {
+    blocks: tc('tpl.blocks', props.item.blocks),
+    author: props.item.author ? t('tpl.metaAuthor', { name: props.item.author }) : t('tpl.metaNoAuthor'),
+    when: formatDateTime(props.item.updated_at),
+  }
+  return isDocument.value ? t('tpl.metaLineType', { type: props.item.doc_type_name, ...parts }) : t('tpl.metaLine', parts)
+})
 </script>
 
 <template>
   <article class="tpl" :data-template="item.id" :aria-labelledby="`tpl-${uid}`">
     <div class="tpl__head">
       <h3 :id="`tpl-${uid}`" class="tpl__name">{{ item.name }}</h3>
-      <p class="tpl__meta">
-        <template v-if="isDocument">{{ item.doc_type_name }} · </template>{{ item.blocks }} {{ blocksWord(item.blocks) }} · {{ item.author ? `автор ${item.author}` : 'автор не указан' }} · обновлён {{ formatDateTime(item.updated_at) }}
-      </p>
+      <p class="tpl__meta">{{ metaLine }}</p>
     </div>
     <p v-if="item.description" class="tpl__desc">{{ item.description }}</p>
 
@@ -114,57 +121,57 @@ const blocksWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'блок' :
         icon="plus"
         data-testid="tpl-use"
       >
-        Создать документ
+        {{ $t('tpl.use') }}
       </UiButton>
-      <UiButton size="sm" :aria-expanded="expanded ? 'true' : 'false'" data-testid="tpl-toggle" @click="expanded = !expanded">{{ expanded ? 'Скрыть состав' : 'Показать состав' }}</UiButton>
+      <UiButton size="sm" :aria-expanded="expanded ? 'true' : 'false'" data-testid="tpl-toggle" @click="expanded = !expanded">{{ expanded ? $t('tpl.hide') : $t('tpl.show') }}</UiButton>
       <template v-if="item.can_edit">
-        <UiButton size="sm" icon="edit" data-testid="tpl-edit" @click="startEdit">Переименовать</UiButton>
-        <UiButton size="sm" variant="ghost" icon="trash" data-testid="tpl-delete" @click="removing = true">Удалить</UiButton>
+        <UiButton size="sm" icon="edit" data-testid="tpl-edit" @click="startEdit">{{ $t('tpl.rename') }}</UiButton>
+        <UiButton size="sm" variant="ghost" icon="trash" data-testid="tpl-delete" @click="removing = true">{{ $t('tpl.remove') }}</UiButton>
       </template>
     </div>
-    <p v-if="!isDocument" class="tpl__hint">Набор блоков вставляется в документ в редакторе: «Вставить набор блоков» на панели инструментов.</p>
+    <p v-if="!isDocument" class="tpl__hint">{{ $t('tpl.blocksetHint') }}</p>
 
     <div v-if="expanded" class="tpl__detail" data-testid="tpl-detail">
-      <UiSkeleton v-if="detail.isPending.value" :lines="3" label="Загружаем состав…" />
-      <UiAlert v-else-if="detail.isError.value" tone="danger">Не удалось загрузить состав шаблона.</UiAlert>
+      <UiSkeleton v-if="detail.isPending.value" :lines="3" :label="$t('tpl.loadingParts')" />
+      <UiAlert v-else-if="detail.isError.value" tone="danger">{{ $t('tpl.partsFailed') }}</UiAlert>
       <template v-else-if="detail.data.value">
         <dl v-if="isDocument" class="facts">
-          <div v-if="detail.data.value.content.title"><dt>Название</dt><dd>{{ detail.data.value.content.title }}</dd></div>
-          <div v-if="detail.data.value.content.level !== undefined"><dt>Допуск</dt><dd>{{ detail.data.value.content.level }}</dd></div>
-          <div v-if="detail.data.value.content.grif"><dt>Гриф</dt><dd>{{ detail.data.value.content.grif }}</dd></div>
+          <div v-if="detail.data.value.content.title"><dt>{{ $t('tpl.factTitle') }}</dt><dd>{{ detail.data.value.content.title }}</dd></div>
+          <div v-if="detail.data.value.content.level !== undefined"><dt>{{ $t('tpl.factLevel') }}</dt><dd>{{ detail.data.value.content.level }}</dd></div>
+          <div v-if="detail.data.value.content.grif"><dt>{{ $t('tpl.factGrif') }}</dt><dd>{{ detail.data.value.content.grif }}</dd></div>
         </dl>
         <ol class="blocks">
           <li v-for="(b, i) in detail.data.value.content.blocks" :key="b.id || i">
             <strong>{{ blockKindName(b.type) }}</strong>
-            <span v-if="b.level" class="lvl">допуск {{ b.level }}</span>
+            <span v-if="b.level" class="lvl">{{ $t('tpl.blockLevel', { level: b.level }) }}</span>
             <span class="pv">{{ blockPreview(b, 90) }}</span>
           </li>
         </ol>
       </template>
     </div>
 
-    <UiModal v-model:open="editing" title="Название и описание шаблона" testid="tpl-edit-dialog">
+    <UiModal v-model:open="editing" :title="$t('tpl.editTitle')" testid="tpl-edit-dialog">
       <form novalidate @submit.prevent="saveEdit">
         <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
-        <UiField label="Название" required :error="errors.name">
+        <UiField :label="$t('tpl.name')" required :error="errors.name">
           <UiInput v-model="name" :maxlength="100" name="name" />
         </UiField>
-        <UiField label="Описание (необязательно)" :error="errors.description">
+        <UiField :label="$t('tpl.description')" :error="errors.description">
           <UiTextarea v-model="description" :rows="3" :maxlength="500" name="description" />
         </UiField>
         <div class="dlg-actions">
-          <UiButton type="submit" variant="primary" :loading="busy" data-testid="tpl-save">Сохранить</UiButton>
-          <UiButton variant="link" @click="editing = false">Отмена</UiButton>
+          <UiButton type="submit" variant="primary" :loading="busy" data-testid="tpl-save">{{ $t('tpl.save') }}</UiButton>
+          <UiButton variant="link" @click="editing = false">{{ $t('tpl.cancel') }}</UiButton>
         </div>
       </form>
     </UiModal>
 
-    <UiModal v-model:open="removing" title="Удалить шаблон?" testid="tpl-delete-dialog">
-      <p>Шаблон «{{ item.name }}» будет удалён навсегда. Документы, созданные по нему, и уже вставленные блоки не изменятся.</p>
+    <UiModal v-model:open="removing" :title="$t('tpl.removeTitle')" testid="tpl-delete-dialog">
+      <p>{{ $t('tpl.removeText', { name: item.name }) }}</p>
       <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
       <div class="dlg-actions">
-        <UiButton variant="danger" icon="trash" :loading="busy" data-testid="tpl-confirm-delete" @click="confirmRemove">Удалить</UiButton>
-        <UiButton variant="link" @click="removing = false">Отмена</UiButton>
+        <UiButton variant="danger" icon="trash" :loading="busy" data-testid="tpl-confirm-delete" @click="confirmRemove">{{ $t('tpl.remove') }}</UiButton>
+        <UiButton variant="link" @click="removing = false">{{ $t('tpl.cancel') }}</UiButton>
       </div>
     </UiModal>
   </article>

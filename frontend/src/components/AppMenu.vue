@@ -15,8 +15,8 @@ const toggle = () => document.getElementById('menu-toggle')
   <UiDrawer
     id="site-menu"
     :open="ui.menuOpen"
-    label="Меню"
-    close-label="Закрыть меню"
+    :label="$t('app.menu')"
+    :close-label="$t('app.closeMenu')"
     scrim-testid="menu-scrim"
     :fallback-focus="toggle"
     @update:open="(v: boolean) => !v && ui.closeMenu()"
@@ -24,32 +24,32 @@ const toggle = () => document.getElementById('menu-toggle')
     <template #head>
       <RouterLink to="/" class="brand" @click="ui.closeMenu()">
         <UiSeal :size="38" decorative />
-        <span class="brand__name">Купол</span>
+        <span class="brand__name">{{ $t('app.brandName') }}</span>
       </RouterLink>
     </template>
 
-    <nav aria-label="Основная навигация">
+    <nav :aria-label="$t('app.mainNav')">
       <ul class="nav">
-        <li><RouterLink to="/" @click="ui.closeMenu()">Главная</RouterLink></li>
-        <li><RouterLink to="/catalog" @click="ui.closeMenu()">Каталог</RouterLink></li>
-        <li><RouterLink to="/search" @click="ui.closeMenu()">Поиск</RouterLink></li>
-        <li><RouterLink to="/about" @click="ui.closeMenu()">О КУПОЛЕ</RouterLink></li>
-        <li v-if="auth.user"><RouterLink to="/file" @click="ui.closeMenu()">Личное дело</RouterLink></li>
-        <li v-if="auth.can('team_panel')"><RouterLink to="/team" @click="ui.closeMenu()">Панель команды</RouterLink></li>
+        <li><RouterLink to="/" @click="ui.closeMenu()">{{ $t('app.nav.home') }}</RouterLink></li>
+        <li><RouterLink to="/catalog" @click="ui.closeMenu()">{{ $t('app.nav.catalog') }}</RouterLink></li>
+        <li><RouterLink to="/search" @click="ui.closeMenu()">{{ $t('app.nav.search') }}</RouterLink></li>
+        <li><RouterLink to="/about" @click="ui.closeMenu()">{{ $t('app.nav.about') }}</RouterLink></li>
+        <li v-if="auth.user"><RouterLink to="/file" @click="ui.closeMenu()">{{ $t('app.nav.file') }}</RouterLink></li>
+        <li v-if="auth.can('team_panel')"><RouterLink to="/team" @click="ui.closeMenu()">{{ $t('app.nav.team') }}</RouterLink></li>
       </ul>
     </nav>
 
     <section class="account" aria-labelledby="menu-account-title">
-      <h2 id="menu-account-title">Допуск</h2>
+      <h2 id="menu-account-title">{{ $t('app.access.title') }}</h2>
       <template v-if="auth.user">
         <p class="who">
-          Вы вошли как <strong>{{ auth.user.login }}</strong><br>
+          <i18n-t keypath="app.access.signedInAs" scope="global"><template #login><strong>{{ auth.user.login }}</strong></template></i18n-t><br>
           {{ auth.user.level_name }}
         </p>
       </template>
       <template v-else>
-        <p class="who">Вы не вошли: уровень 0, Гражданин.</p>
-        <UiButton variant="primary" block @click="ui.openAuth()">Войти или зарегистрироваться</UiButton>
+        <p class="who">{{ $t('app.access.guest') }}</p>
+        <UiButton variant="primary" block @click="ui.openAuth()">{{ $t('app.access.signIn') }}</UiButton>
       </template>
     </section>
   </UiDrawer>

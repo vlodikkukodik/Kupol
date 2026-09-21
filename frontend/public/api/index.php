@@ -15,7 +15,7 @@ declare(strict_types=1);
 require __DIR__ . '/lib.php';
 
 use function Kupol\Proxy\{load_config, client_ip, error_body, forward_request_headers, normalize_request_uri,
-    parse_response_header_line, parse_status_line, server_timing, should_forward_response_header, sign,
+    parse_response_header_line, parse_status_line, pick_lang, proxy_message, server_timing, should_forward_response_header, sign,
     valid_request_id, valid_request_uri};
 use const Kupol\Proxy\{ALLOWED_METHODS, HEADER_IP, HEADER_SIG, HEADER_TS, MAX_BODY_BYTES};
 
@@ -29,9 +29,10 @@ while (ob_get_level() > 0) {
     ob_end_clean();
 }
 
-/** Ответ об ошибке от имени прокси. */
+/** Ответ об ошибке от имени прокси; сообщение — на языке запроса (Accept-Language). */
 function fail(int $status, string $code, string $message, string $requestId): never
 {
+    $message = proxy_message($message, pick_lang($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null));
     if (!headers_sent()) {
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');

@@ -37,7 +37,7 @@ func (s *Service) mentions(ctx context.Context, v Viewer, code string) ([]Mentio
 	}
 	out := make([]Mention, len(rows))
 	for i, r := range rows {
-		out[i] = Mention{Code: deref(r.Code), Slug: deref(r.Slug), Title: r.Title, Type: r.Type, TypeName: Type(r.Type).Name()}
+		out[i] = Mention{Code: deref(r.Code), Slug: deref(r.Slug), Title: r.Title, Type: r.Type, TypeName: Type(r.Type).NameIn(v.Lang)}
 	}
 	return out, nil
 }

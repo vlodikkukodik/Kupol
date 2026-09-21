@@ -4,7 +4,7 @@ defineProps<{ login: string; levelName: string; level: number }>()
 </script>
 
 <template>
-  <RouterLink to="/file" class="pass" :aria-label="`Пропуск: ${login}, ${levelName}. Открыть личное дело`">
+  <RouterLink to="/file" class="pass" :aria-label="$t('app.pass', { login, level: levelName })">
     <span class="pass__level" aria-hidden="true">{{ level }}</span>
     <span class="pass__text">
       <span class="pass__login">{{ login }}</span>

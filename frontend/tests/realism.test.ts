@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { OutBlock } from '@/api/generated/documents'
-import { CLASSIFICATION, REDACTION_MAX, REDACTION_MIN, archiveMark, archiveMarkText, classification, copyText, redactionWidth, sheetCount } from '@/lib/realism'
+import { CLASSIFICATION_LEVELS, REDACTION_MAX, REDACTION_MIN, archiveMark, archiveMarkText, classification, copyText, redactionWidth, sheetCount } from '@/lib/realism'
 
 const para = (text: string): OutBlock => ({ id: 'p', type: 'paragraph', data: { text: [{ text }] } }) as OutBlock
 const redacted: OutBlock = { type: 'redacted', data: { level: 4 } } as OutBlock
@@ -12,9 +12,9 @@ describe('гриф секретности', () => {
     expect(classification(5)).toBe('Особой важности')
     expect(classification(7)).toBe('Особой важности · только Директорат')
     expect(classification(-1)).toBe('Несекретно')
-    expect(classification(99)).toBe(CLASSIFICATION[CLASSIFICATION.length - 1])
+    expect(classification(99)).toBe(classification(CLASSIFICATION_LEVELS - 1))
     expect(classification(Number.NaN)).toBe('Несекретно')
-    expect(new Set(CLASSIFICATION).size).toBe(8)
+    expect(new Set(Array.from({ length: CLASSIFICATION_LEVELS }, (_, n) => classification(n))).size).toBe(8)
   })
 })
 
@@ -40,9 +40,9 @@ describe('архивный шифр', () => {
     expect(sheetCount(Array.from({ length: 10 }, () => redacted))).toBe(2)
   })
 
-  it('экземпляр: номер или «б/н»', () => {
+  it('экземпляр: номер или «б/н» (у Гражданина сервер номера не присылает)', () => {
     expect(copyText('0042')).toBe('экз. № 0042')
-    expect(copyText('б/н')).toBe('экз. б/н')
+    expect(copyText('')).toBe('экз. б/н')
   })
 })
 

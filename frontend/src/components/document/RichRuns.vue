@@ -26,8 +26,8 @@ const widths = computed(() => {
       v-if="run.redacted"
       class="redacted"
       role="img"
-      :aria-label="`Засекреченный фрагмент: ${requiredAccess(run.level ?? 0)}`"
-      :title="`Данные удалены — ${requiredAccess(run.level ?? 0)}`"
+      :aria-label="$t('doc.redactedRun', { access: requiredAccess(run.level ?? 0) })"
+      :title="$t('doc.redactedRunTitle', { access: requiredAccess(run.level ?? 0) })"
       :data-level="run.level"
       :style="{ width: `${widths[i]}ch` }"
     />

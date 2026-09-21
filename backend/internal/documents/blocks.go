@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"kupol/internal/i18n"
 )
 
 // Block — блок документа в том виде, как хранится в БД (канонический JSON).
@@ -40,6 +42,8 @@ type LinkTarget struct {
 	Slug  string
 	Title string
 	Type  Type
+	// TypeName — название типа на языке читателя; пусто — по-русски
+	TypeName string
 }
 
 // LinkResolver возвращает описание цели ссылки или nil, если документа нет либо читатель его не видит.
@@ -100,37 +104,38 @@ func newSpec[T any](check func(*T, *Problems, string), render func(*T, *renderer
 // mediaTypes — блоки, которым нужны загруженные файлы: появятся вместе с загрузкой (этап 6).
 var mediaTypes = map[string]bool{"image": true, "audio": true}
 
-// describeJSONError переводит ошибку разбора JSON в понятное сообщение.
-func describeJSONError(err error) string {
+// describeJSONError переводит ошибку разбора JSON в понятное сообщение: формат и значения для Problems.Add.
+func describeJSONError(err error) (string, []any) {
 	var ute *json.UnmarshalTypeError
 	var se *json.SyntaxError
 	switch {
 	case errors.As(err, &ute):
 		field := ute.Field
 		if field == "" {
-			return fmt.Sprintf("ожидается %s, получено %s", jsonTypeName(ute.Type.String()), ute.Value)
+			return "ожидается %s, получено %s", []any{jsonTypeName(ute.Type.String()), ute.Value}
 		}
-		return fmt.Sprintf("поле %q: ожидается %s, получено %s", field, jsonTypeName(ute.Type.String()), ute.Value)
+		return "поле %q: ожидается %s, получено %s", []any{field, jsonTypeName(ute.Type.String()), ute.Value}
 	case errors.As(err, &se):
-		return "некорректный JSON: " + se.Error()
+		return "некорректный JSON: %s", []any{se.Error()}
 	case strings.HasPrefix(err.Error(), "json: unknown field "):
-		return "неизвестное поле " + strings.TrimPrefix(err.Error(), "json: unknown field ")
+		return "неизвестное поле %s", []any{strings.TrimPrefix(err.Error(), "json: unknown field ")}
 	}
-	return err.Error()
+	return "%s", []any{err.Error()}
 }
 
-func jsonTypeName(goType string) string {
+// jsonTypeName — название типа JSON для сообщения; i18n.Msg: на итальянском его переведут при подстановке.
+func jsonTypeName(goType string) any {
 	switch {
 	case strings.HasPrefix(goType, "[]"):
-		return "массив"
+		return i18n.Msg("массив")
 	case goType == "string":
-		return "строка"
+		return i18n.Msg("строка")
 	case strings.HasPrefix(goType, "int"), strings.HasPrefix(goType, "uint"), strings.HasPrefix(goType, "float"):
-		return "число"
+		return i18n.Msg("число")
 	case goType == "bool":
-		return "true или false"
+		return i18n.Msg("true или false")
 	case strings.Contains(goType, "Rich"):
-		return "строка или массив фрагментов"
+		return i18n.Msg("строка или массив фрагментов")
 	}
 	return goType
 }
@@ -190,7 +195,8 @@ func normalizeBlocksAt(in []InputBlock, p *Problems, base string) []Block {
 
 		v, err := spec.decode(ib.Data)
 		if err != nil {
-			p.Add(path+".data", "%s", describeJSONError(err))
+			format, args := describeJSONError(err)
+			p.Add(path+".data", format, args...)
 			continue
 		}
 		before := len(p.list)

@@ -2,7 +2,6 @@ package documents
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"unicode/utf8"
 )
@@ -70,15 +69,15 @@ func (q *SearchQuery) normalize(v Viewer) error {
 	n := utf8.RuneCountInString(q.Text)
 	switch {
 	case n < minSearchRunes:
-		return &QueryError{"q", fmt.Sprintf("введите хотя бы %d знака", minSearchRunes)}
+		return queryError("q", "введите хотя бы %d знака", minSearchRunes)
 	case n > maxSearchRunes:
-		return &QueryError{"q", fmt.Sprintf("запрос слишком длинный (не больше %d знаков)", maxSearchRunes)}
+		return queryError("q", "запрос слишком длинный (не больше %d знаков)", maxSearchRunes)
 	}
 	if q.PerPage == 0 {
 		q.PerPage = defaultSearchPage
 	}
 	if q.PerPage < 0 || q.PerPage > maxSearchPerPage {
-		return &QueryError{"per_page", fmt.Sprintf("размер страницы — от 1 до %d", maxSearchPerPage)}
+		return queryError("per_page", "размер страницы — от 1 до %d", maxSearchPerPage)
 	}
 	// Сортировка в поиске одна — по совпадению; параметр каталога не используется.
 	q.Sort = ""

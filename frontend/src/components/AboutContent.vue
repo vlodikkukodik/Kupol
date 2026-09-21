@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { ABOUT_INTRO, ABOUT_SECTIONS, AUTHOR_TEXT, LEVEL_ROWS, PRIVACY_INTRO, PRIVACY_ITEMS } from '@/content/about'
+import { computed } from 'vue'
+import { aboutSections, levelRows, privacyItems } from '@/content/about'
 import { linkifyContact } from '@/lib/contacts'
+
+// computed: тексты пересчитываются при смене языка
+const sections = computed(() => aboutSections())
+const levels = computed(() => levelRows())
+const privacy = computed(() => privacyItems())
 
 // Неизменяемая часть страницы «О КУПОЛЕ»: справка, правила, политика конфиденциальности, об авторе. Не зависит ни от роутера, ни от
 // хранилищ, ни от API — поэтому её можно отрендерить на сервере при сборке (пререндер) и отдать поисковику готовым текстом.
@@ -10,19 +16,19 @@ defineProps<{ contact?: string }>()
 
 <template>
   <div class="about">
-    <p class="about__intro" data-testid="about-intro">{{ ABOUT_INTRO }}</p>
+    <p class="about__intro" data-testid="about-intro">{{ $t('about.intro') }}</p>
 
-    <nav class="about__toc" aria-label="Содержание страницы">
+    <nav class="about__toc" :aria-label="$t('about.toc')">
       <ul>
-        <li v-for="s in ABOUT_SECTIONS" :key="s.id"><a :href="`#${s.id}`">{{ s.title }}</a></li>
-        <li><a href="#levels">Уровни допуска</a></li>
-        <li><a href="#timeline">Хронология</a></li>
-        <li><a href="#privacy">Конфиденциальность</a></li>
-        <li><a href="#author">Об авторе</a></li>
+        <li v-for="s in sections" :key="s.id"><a :href="`#${s.id}`">{{ s.title }}</a></li>
+        <li><a href="#levels">{{ $t('about.tocLevels') }}</a></li>
+        <li><a href="#timeline">{{ $t('about.tocTimeline') }}</a></li>
+        <li><a href="#privacy">{{ $t('about.tocPrivacy') }}</a></li>
+        <li><a href="#author">{{ $t('about.tocAuthor') }}</a></li>
       </ul>
     </nav>
 
-    <section v-for="s in ABOUT_SECTIONS" :id="s.id" :key="s.id" :aria-labelledby="`${s.id}-title`" class="about__section">
+    <section v-for="s in sections" :id="s.id" :key="s.id" :aria-labelledby="`${s.id}-title`" class="about__section">
       <h2 :id="`${s.id}-title`">{{ s.title }}</h2>
       <p v-for="(p, i) in s.paragraphs" :key="i">{{ p }}</p>
       <ul v-if="s.items">
@@ -31,20 +37,20 @@ defineProps<{ contact?: string }>()
     </section>
 
     <section id="levels" aria-labelledby="levels-title" class="about__section">
-      <h2 id="levels-title">Уровни допуска</h2>
-      <p>Уровень определяет, какие документы, блоки и фрагменты вы видите. Он показан в вашем личном деле и на пропуске в шапке сайта.</p>
-      <div class="about__table-wrap" role="region" aria-label="Уровни допуска" tabindex="0">
+      <h2 id="levels-title">{{ $t('about.levels.title') }}</h2>
+      <p>{{ $t('about.levels.lead') }}</p>
+      <div class="about__table-wrap" role="region" :aria-label="$t('about.levels.region')" tabindex="0">
         <table class="about__table" data-testid="levels-table">
-          <caption class="visually-hidden">Уровни допуска и как их получить</caption>
+          <caption class="visually-hidden">{{ $t('about.levels.caption') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Уровень</th>
-              <th scope="col">Звание</th>
-              <th scope="col">Как получить</th>
+              <th scope="col">{{ $t('about.levels.colLevel') }}</th>
+              <th scope="col">{{ $t('about.levels.colRank') }}</th>
+              <th scope="col">{{ $t('about.levels.colHow') }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in LEVEL_ROWS" :key="r.level">
+            <tr v-for="r in levels" :key="r.level">
               <th scope="row">{{ r.level }}</th>
               <td>{{ r.name }}</td>
               <td>{{ r.how }}</td>
@@ -58,10 +64,10 @@ defineProps<{ contact?: string }>()
     <slot name="timeline" />
 
     <section id="privacy" aria-labelledby="privacy-title" class="about__section">
-      <h2 id="privacy-title">Политика конфиденциальности</h2>
-      <p>{{ PRIVACY_INTRO }}</p>
+      <h2 id="privacy-title">{{ $t('about.privacy.title') }}</h2>
+      <p>{{ $t('about.privacy.intro') }}</p>
       <dl class="about__privacy" data-testid="privacy">
-        <div v-for="item in PRIVACY_ITEMS" :key="item.term">
+        <div v-for="item in privacy" :key="item.term">
           <dt>{{ item.term }}</dt>
           <dd>{{ item.text }}</dd>
         </div>
@@ -69,8 +75,8 @@ defineProps<{ contact?: string }>()
     </section>
 
     <section id="author" aria-labelledby="author-title" class="about__section">
-      <h2 id="author-title">Об авторе и контакты</h2>
-      <p>{{ AUTHOR_TEXT }}</p>
+      <h2 id="author-title">{{ $t('about.author.title') }}</h2>
+      <p>{{ $t('about.author.text') }}</p>
       <div v-if="contact" class="about__contact" data-testid="author-contact">
         <p v-for="(line, i) in contact.split('\n')" :key="i" class="about__contact-line">
           <template v-for="(part, j) in linkifyContact(line)" :key="j">

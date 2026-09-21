@@ -17,10 +17,10 @@ const { data, isPending, isError } = useQuery({
 
 <template>
   <section class="feed" aria-labelledby="feed-title">
-    <h2 id="feed-title">Поступило в ЦАК</h2>
+    <h2 id="feed-title">{{ $t('feed.title') }}</h2>
 
-    <UiSkeleton v-if="isPending" :lines="4" label="Загрузка ленты…" />
-    <p v-else-if="isError" class="state">Лента временно недоступна.</p>
+    <UiSkeleton v-if="isPending" :lines="4" :label="$t('feed.loading')" />
+    <p v-else-if="isError" class="state">{{ $t('feed.unavailable') }}</p>
     <template v-else-if="data">
       <ul v-if="data.items.length" class="items" data-testid="recent-feed">
         <li v-for="it in data.items" :key="it.slug">
@@ -28,12 +28,12 @@ const { data, isPending, isError } = useQuery({
             <span class="item__code">{{ it.code }}</span>
             <span class="item__title">{{ it.title }}</span>
             <span class="item__meta">{{ it.type_name }}, {{ formatComposed(it.composed) }}</span>
-            <UiBadge v-if="it.level > 0" tone="ink" class="item__level" :title="`Допуск: ${levelName(it.level)}`">Уровень {{ it.level }}</UiBadge>
+            <UiBadge v-if="it.level > 0" tone="ink" class="item__level" :title="$t('feed.levelTitle', { name: levelName(it.level) })">{{ $t('feed.level', { level: it.level }) }}</UiBadge>
           </RouterLink>
         </li>
       </ul>
-      <p v-else class="state" data-testid="recent-empty">Пока ничего не поступило.</p>
-      <p class="all"><RouterLink to="/catalog">Весь каталог →</RouterLink></p>
+      <p v-else class="state" data-testid="recent-empty">{{ $t('feed.empty') }}</p>
+      <p class="all"><RouterLink to="/catalog">{{ $t('feed.all') }}</RouterLink></p>
     </template>
   </section>
 </template>

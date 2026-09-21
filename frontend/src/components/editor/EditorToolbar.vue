@@ -6,8 +6,9 @@ import { ApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
 import { deleteTableRow, insertBlock, insertBlocks, moveBlock, removeBlock, setBlockLevel, setRedact, type Situation } from '@/editor/commands'
-import { INSERTABLE, NODE_LABELS } from '@/editor/fields'
-import { LEVEL_NAMES, MAX_LEVEL } from '@/lib/levels'
+import { INSERTABLE, insertHint, insertLabel, nodeLabel } from '@/editor/fields'
+import { t } from '@/i18n'
+import { levelName, MAX_LEVEL } from '@/lib/levels'
 import UiIcon from '@/ui/UiIcon.vue'
 import type { IconName } from '@/ui/icons'
 
@@ -32,19 +33,24 @@ async function onInsertSet(event: Event) {
     const tpl = await teamApi.template(id)
     const res = insertBlocks(props.editor, tpl.content.blocks)
     if (res.ids[0]) emit('inserted', res.ids[0])
-    const skipped = res.skipped ? ` Шапка досье не вставлена: в документе она уже есть.` : ''
-    emit('announce', res.ids.length ? `Вставлен набор «${tpl.name}»: блоков ${res.ids.length}.${skipped}` : `Набор «${tpl.name}» не вставлен.${skipped}`)
+    const skipped = res.skipped ? t('editor.toolbar.say.dossierSkipped') : ''
+    emit(
+      'announce',
+      (res.ids.length ? t('editor.toolbar.say.setInserted', { name: tpl.name, n: res.ids.length }) : t('editor.toolbar.say.setNotInserted', { name: tpl.name })) + skipped,
+    )
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
-    emit('announce', 'Не удалось открыть набор блоков: возможно, его удалили.')
+    emit('announce', t('editor.toolbar.say.setFailed'))
     void sets.refetch()
   }
 }
 
-const levelOptions = Array.from({ length: MAX_LEVEL }, (_, i) => ({ value: String(i + 1), label: `${i + 1} — ${LEVEL_NAMES[i + 1]}` }))
+const levelOptions = computed(() =>
+  Array.from({ length: MAX_LEVEL }, (_, i) => ({ value: String(i + 1), label: t('editor.toolbar.levelOption', { level: i + 1, name: levelName(i + 1) }) })),
+)
 
-const blockName = computed(() => (props.state.block ? (NODE_LABELS[props.state.block.node] ?? props.state.block.node) : ''))
-const blockPlace = computed(() => (props.state.block ? `${props.state.block.index + 1} из ${props.state.count}` : ''))
+const blockName = computed(() => (props.state.block ? nodeLabel(props.state.block.node) : ''))
+const blockPlace = computed(() => (props.state.block ? t('editor.toolbar.place', { n: props.state.block.index + 1, count: props.state.count }) : ''))
 
 function run(text: string, ok: boolean) {
   if (ok) emit('announce', text)
@@ -58,7 +64,7 @@ function onRedact(event: Event) {
   const select = event.target as HTMLSelectElement
   const level = Number(select.value)
   const ok = setRedact(props.editor, level)
-  run(level > 0 ? `Выделенный текст закрыт до уровня ${level}.` : 'Выделенный текст открыт.', ok)
+  run(level > 0 ? t('editor.toolbar.say.redacted', { level }) : t('editor.toolbar.say.notRedacted'), ok)
 }
 
 function onInsert(event: Event) {
@@ -69,20 +75,21 @@ function onInsert(event: Event) {
   const id = insertBlock(props.editor, type)
   if (!id) return
   emit('inserted', id)
-  emit('announce', `Вставлен блок: ${INSERTABLE.find((i) => i.type === type)?.label ?? type}.`)
+  const item = INSERTABLE.find((i) => i.type === type)
+  emit('announce', t('editor.toolbar.say.inserted', { name: item ? insertLabel(item.node) : type }))
 }
 
 function onBlockLevel(event: Event) {
   const raw = (event.target as HTMLSelectElement).value
   const level = raw === '' ? null : Number(raw)
   const ok = setBlockLevel(props.editor, level)
-  run(level === null ? 'Допуск блока — как у документа.' : `Блок закрыт до уровня ${level}.`, ok)
+  run(level === null ? t('editor.toolbar.say.blockAsDoc') : t('editor.toolbar.say.blockClosed', { level }), ok)
 }
 
 function move(dir: -1 | 1) {
   if (moveBlock(props.editor, dir)) {
     props.editor.commands.focus()
-    emit('announce', dir < 0 ? 'Блок поднят выше.' : 'Блок опущен ниже.')
+    emit('announce', dir < 0 ? t('editor.toolbar.say.up') : t('editor.toolbar.say.down'))
   }
 }
 
@@ -90,15 +97,15 @@ function remove() {
   const name = blockName.value
   if (removeBlock(props.editor)) {
     props.editor.commands.focus()
-    emit('announce', `Блок удалён: ${name}.`)
+    emit('announce', t('editor.toolbar.say.removed', { name }))
   }
 }
 
 function tableCommand(name: 'addRowAfter' | 'addColumnAfter' | 'deleteColumn' | 'deleteRow') {
   const ed = props.editor
   const ok = name === 'deleteRow' ? deleteTableRow(ed) : ed.chain().focus()[name]().run()
-  const said = { addRowAfter: 'Строка добавлена.', addColumnAfter: 'Столбец добавлен.', deleteColumn: 'Столбец удалён.', deleteRow: 'Строка удалена.' }[name]
-  run(said, ok)
+  const said = { addRowAfter: 'rowAdded', addColumnAfter: 'colAdded', deleteColumn: 'colDeleted', deleteRow: 'rowDeleted' }[name]
+  run(t(`editor.toolbar.say.${said}`), ok)
 }
 
 /** Нажатие кнопки не должно уводить фокус (и выделение) из текста; выпадающие списки — обычные, им фокус нужен. */
@@ -113,99 +120,99 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-const tools: { id: 'bold' | 'italic'; icon: IconName; label: string; command: 'toggleBold' | 'toggleItalic'; key: string }[] = [
-  { id: 'bold', icon: 'bold', label: 'Жирный', command: 'toggleBold', key: 'Ctrl+B' },
-  { id: 'italic', icon: 'italic', label: 'Курсив', command: 'toggleItalic', key: 'Ctrl+I' },
-]
+const tools = computed<{ id: 'bold' | 'italic'; icon: IconName; label: string; command: 'toggleBold' | 'toggleItalic'; key: string }[]>(() => [
+  { id: 'bold', icon: 'bold', label: t('editor.toolbar.bold'), command: 'toggleBold', key: 'Ctrl+B' },
+  { id: 'italic', icon: 'italic', label: t('editor.toolbar.italic'), command: 'toggleItalic', key: 'Ctrl+I' },
+])
 </script>
 
 <template>
-  <div ref="root" class="tb" role="toolbar" aria-label="Правка документа" data-testid="editor-toolbar" @keydown="onKeydown" @mousedown="onMousedown">
-    <div class="tb__group" role="group" aria-label="Текст">
+  <div ref="root" class="tb" role="toolbar" :aria-label="$t('editor.toolbar.label')" data-testid="editor-toolbar" @keydown="onKeydown" @mousedown="onMousedown">
+    <div class="tb__group" role="group" :aria-label="$t('editor.toolbar.text')">
       <button
-        v-for="t in tools"
-        :key="t.id"
+        v-for="tool in tools"
+        :key="tool.id"
         type="button"
         class="tb__btn"
-        :aria-pressed="state[t.id] ? 'true' : 'false'"
-        :aria-label="t.label"
-        :title="`${t.label} (${t.key})`"
+        :aria-pressed="state[tool.id] ? 'true' : 'false'"
+        :aria-label="tool.label"
+        :title="`${tool.label} (${tool.key})`"
         :disabled="!editable || !state.canFormat"
-        :data-testid="`tb-${t.id}`"
-        @click="toggle(t.command)"
+        :data-testid="`tb-${tool.id}`"
+        @click="toggle(tool.command)"
       >
-        <UiIcon :name="t.icon" />
+        <UiIcon :name="tool.icon" />
       </button>
       <label class="tb__select">
-        <span class="tb__cap"><UiIcon name="redact" size="1.1em" /> Закрыть до</span>
+        <span class="tb__cap"><UiIcon name="redact" size="1.1em" /> {{ $t('editor.toolbar.redactCap') }}</span>
         <select
           class="tb__field"
           :value="String(state.redact)"
           :disabled="!editable || !state.canFormat"
           data-testid="tb-redact"
-          aria-label="Закрыть выделенный текст до уровня"
+          :aria-label="$t('editor.toolbar.redactLabel')"
           @change="onRedact"
         >
-          <option value="0">не закрыт</option>
+          <option value="0">{{ $t('editor.toolbar.notRedacted') }}</option>
           <option v-for="o in levelOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
       </label>
     </div>
 
-    <div class="tb__group" role="group" aria-label="История правок">
-      <button type="button" class="tb__btn" aria-label="Отменить" title="Отменить (Ctrl+Z)" :disabled="!editable || !state.canUndo" data-testid="tb-undo" @click="editor.chain().focus().undo().run()">
+    <div class="tb__group" role="group" :aria-label="$t('editor.toolbar.history')">
+      <button type="button" class="tb__btn" :aria-label="$t('editor.toolbar.undo')" :title="$t('editor.toolbar.undoTitle')" :disabled="!editable || !state.canUndo" data-testid="tb-undo" @click="editor.chain().focus().undo().run()">
         <UiIcon name="undo" />
       </button>
-      <button type="button" class="tb__btn" aria-label="Вернуть" title="Вернуть (Ctrl+Shift+Z)" :disabled="!editable || !state.canRedo" data-testid="tb-redo" @click="editor.chain().focus().redo().run()">
+      <button type="button" class="tb__btn" :aria-label="$t('editor.toolbar.redo')" :title="$t('editor.toolbar.redoTitle')" :disabled="!editable || !state.canRedo" data-testid="tb-redo" @click="editor.chain().focus().redo().run()">
         <UiIcon name="redo" />
       </button>
     </div>
 
-    <div class="tb__group" role="group" aria-label="Вставка">
+    <div class="tb__group" role="group" :aria-label="$t('editor.toolbar.insertGroup')">
       <label class="tb__select">
-        <span class="tb__cap"><UiIcon name="plus" size="1.1em" /> Вставить</span>
-        <select class="tb__field" :disabled="!editable" data-testid="tb-insert" aria-label="Вставить блок" @change="onInsert">
-          <option value="">блок…</option>
-          <option v-for="i in INSERTABLE" :key="i.type" :value="i.type" :disabled="i.node === 'dossierHeader' && hasDossierHeader">{{ i.label }} — {{ i.hint }}</option>
+        <span class="tb__cap"><UiIcon name="plus" size="1.1em" /> {{ $t('editor.toolbar.insertCap') }}</span>
+        <select class="tb__field" :disabled="!editable" data-testid="tb-insert" :aria-label="$t('editor.toolbar.insertLabel')" @change="onInsert">
+          <option value="">{{ $t('editor.toolbar.insertPlaceholder') }}</option>
+          <option v-for="i in INSERTABLE" :key="i.type" :value="i.type" :disabled="i.node === 'dossierHeader' && hasDossierHeader">{{ $t('editor.toolbar.insertItem', { label: insertLabel(i.node), hint: insertHint(i.node) }) }}</option>
         </select>
       </label>
     </div>
 
-    <div v-if="setsList.length" class="tb__group" role="group" aria-label="Наборы блоков">
+    <div v-if="setsList.length" class="tb__group" role="group" :aria-label="$t('editor.toolbar.sets')">
       <label class="tb__select">
-        <span class="tb__cap"><UiIcon name="layers" size="1.1em" /> Набор блоков</span>
-        <select class="tb__field" :disabled="!editable" data-testid="tb-insert-set" aria-label="Вставить набор блоков" @change="onInsertSet">
-          <option value="">выбрать…</option>
-          <option v-for="t in setsList" :key="t.id" :value="t.id">{{ t.name }} — {{ t.blocks }}</option>
+        <span class="tb__cap"><UiIcon name="layers" size="1.1em" /> {{ $t('editor.toolbar.setsCap') }}</span>
+        <select class="tb__field" :disabled="!editable" data-testid="tb-insert-set" :aria-label="$t('editor.toolbar.setsLabel')" @change="onInsertSet">
+          <option value="">{{ $t('editor.toolbar.setsPlaceholder') }}</option>
+          <option v-for="s in setsList" :key="s.id" :value="s.id">{{ s.name }} — {{ s.blocks }}</option>
         </select>
       </label>
     </div>
 
-    <div v-if="state.block" class="tb__group" role="group" :aria-label="`Текущий блок: ${blockName}, ${blockPlace}`">
+    <div v-if="state.block" class="tb__group" role="group" :aria-label="$t('editor.toolbar.currentBlock', { name: blockName, place: blockPlace })">
       <span class="tb__place" aria-hidden="true">{{ blockName }} · {{ blockPlace }}</span>
-      <button type="button" class="tb__btn" aria-label="Поднять блок выше" title="Поднять блок выше" :disabled="!editable || !state.canMoveUp" data-testid="tb-up" @click="move(-1)">
+      <button type="button" class="tb__btn" :aria-label="$t('editor.toolbar.up')" :title="$t('editor.toolbar.up')" :disabled="!editable || !state.canMoveUp" data-testid="tb-up" @click="move(-1)">
         <UiIcon name="arrow-up" />
       </button>
-      <button type="button" class="tb__btn" aria-label="Опустить блок ниже" title="Опустить блок ниже" :disabled="!editable || !state.canMoveDown" data-testid="tb-down" @click="move(1)">
+      <button type="button" class="tb__btn" :aria-label="$t('editor.toolbar.down')" :title="$t('editor.toolbar.down')" :disabled="!editable || !state.canMoveDown" data-testid="tb-down" @click="move(1)">
         <UiIcon name="arrow-down" />
       </button>
-      <button type="button" class="tb__btn tb__btn--danger" aria-label="Удалить блок" title="Удалить блок" :disabled="!editable" data-testid="tb-remove" @click="remove">
+      <button type="button" class="tb__btn tb__btn--danger" :aria-label="$t('editor.toolbar.remove')" :title="$t('editor.toolbar.remove')" :disabled="!editable" data-testid="tb-remove" @click="remove">
         <UiIcon name="trash" />
       </button>
       <label class="tb__select">
-        <span class="tb__cap"><UiIcon name="lock" size="1.1em" /> Допуск блока</span>
-        <select class="tb__field" :value="state.block.level === null ? '' : String(state.block.level)" :disabled="!editable" data-testid="tb-block-level" aria-label="Допуск блока" @change="onBlockLevel">
-          <option value="">как у документа</option>
-          <option v-for="o in levelOptions" :key="o.value" :value="o.value">не ниже {{ o.label }}</option>
+        <span class="tb__cap"><UiIcon name="lock" size="1.1em" /> {{ $t('editor.toolbar.blockLevelCap') }}</span>
+        <select class="tb__field" :value="state.block.level === null ? '' : String(state.block.level)" :disabled="!editable" data-testid="tb-block-level" :aria-label="$t('editor.toolbar.blockLevelLabel')" @change="onBlockLevel">
+          <option value="">{{ $t('editor.toolbar.asDocument') }}</option>
+          <option v-for="o in levelOptions" :key="o.value" :value="o.value">{{ $t('editor.toolbar.notBelow', { label: o.label }) }}</option>
         </select>
       </label>
     </div>
 
-    <div v-if="state.inTable" class="tb__group" role="group" aria-label="Таблица">
-      <button type="button" class="tb__btn tb__btn--text" :disabled="!editable" data-testid="tb-row-add" @click="tableCommand('addRowAfter')"><UiIcon name="rows" /> Строка +</button>
-      <button type="button" class="tb__btn tb__btn--text" :disabled="!editable || state.onTableHeader" :title="state.onTableHeader ? 'Строку заголовков удалить нельзя' : undefined" data-testid="tb-row-del" @click="tableCommand('deleteRow')"><UiIcon name="rows" /> Строка −</button>
-      <button type="button" class="tb__btn tb__btn--text" :disabled="!editable" data-testid="tb-col-add" @click="tableCommand('addColumnAfter')"><UiIcon name="columns" /> Столбец +</button>
-      <button type="button" class="tb__btn tb__btn--text" :disabled="!editable" data-testid="tb-col-del" @click="tableCommand('deleteColumn')"><UiIcon name="columns" /> Столбец −</button>
+    <div v-if="state.inTable" class="tb__group" role="group" :aria-label="$t('editor.toolbar.table')">
+      <button type="button" class="tb__btn tb__btn--text" :disabled="!editable" data-testid="tb-row-add" @click="tableCommand('addRowAfter')"><UiIcon name="rows" /> {{ $t('editor.toolbar.rowAdd') }}</button>
+      <button type="button" class="tb__btn tb__btn--text" :disabled="!editable || state.onTableHeader" :title="state.onTableHeader ? $t('editor.toolbar.headerRowNoDelete') : undefined" data-testid="tb-row-del" @click="tableCommand('deleteRow')"><UiIcon name="rows" /> {{ $t('editor.toolbar.rowDel') }}</button>
+      <button type="button" class="tb__btn tb__btn--text" :disabled="!editable" data-testid="tb-col-add" @click="tableCommand('addColumnAfter')"><UiIcon name="columns" /> {{ $t('editor.toolbar.colAdd') }}</button>
+      <button type="button" class="tb__btn tb__btn--text" :disabled="!editable" data-testid="tb-col-del" @click="tableCommand('deleteColumn')"><UiIcon name="columns" /> {{ $t('editor.toolbar.colDel') }}</button>
     </div>
   </div>
 </template>

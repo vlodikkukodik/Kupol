@@ -13,6 +13,11 @@ Options -Indexes -MultiViews
 
   # Пререндер (frontend/scripts/prerender.mjs): главная и «О КУПОЛЕ» отдаются готовыми страницами с текстом и og:-тегами —
   # поисковики и предпросмотр ссылок видят содержимое без JavaScript. Приложение при запуске заменяет этот текст живой страницей.
+  # Итальянская версия — с ?lang=it (home.it.html, about.it.html); остальным — русская (основной язык).
+  RewriteCond %{QUERY_STRING} (^|&)lang=it(&|$)
+  RewriteRule ^$ /home.it.html [L]
+  RewriteCond %{QUERY_STRING} (^|&)lang=it(&|$)
+  RewriteRule ^about/?$ /about.it.html [L]
   RewriteRule ^$ /home.html [L]
   RewriteRule ^about/?$ /about.html [L]
 
@@ -47,7 +52,7 @@ Options -Indexes -MultiViews
   </If>
 
   # index.html не кэшируем — иначе после деплоя пользователи получат старую сборку
-  <FilesMatch "^(index|home|about)\.html$">
+  <FilesMatch "^(index|home|about)(\.it)?\.html$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
 </IfModule>

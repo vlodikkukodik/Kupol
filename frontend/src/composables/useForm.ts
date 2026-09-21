@@ -1,36 +1,37 @@
 import { reactive, ref } from 'vue'
 import { ApiError } from '@/api/client'
 import { formatWait } from '@/lib/format'
+import { t } from '@/i18n'
 
 /** Сообщение для общей ошибки формы (не привязанной к полю) по коду ответа API. */
 export function describeApiError(err: ApiError): string {
   switch (err.code) {
     case 'rate_limited':
-      return `Слишком много попыток. Повторите через ${formatWait(err.retryAfter)}.`
+      return t('errors.rateLimited', { wait: formatWait(err.retryAfter) })
     case 'network':
     case 'timeout':
-      return 'Нет связи с архивом. Проверьте подключение и повторите.'
+      return t('errors.network')
     case 'forbidden_origin':
-      return 'Запрос отклонён. Откройте сайт по обычному адресу и повторите.'
+      return t('errors.forbiddenOrigin')
     case 'forbidden':
-      return 'Недостаточно прав для этого действия.'
+      return t('errors.forbidden')
     case 'locked':
-      return err.lock ? `Документ сейчас правит ${err.lock.holder}.` : 'Документ сейчас правит другой сотрудник.'
+      return err.lock ? t('errors.lockedBy', { holder: err.lock.holder }) : t('errors.locked')
     case 'conflict':
-      return 'Документ изменён после того, как вы его открыли.'
+      return t('errors.conflict')
     case 'self_review':
-      return 'Свой документ проверяет другой Редактор.'
+      return t('errors.selfReview')
     case 'invalid_state':
-      return 'Это действие не подходит документу в его нынешнем статусе. Обновите страницу: возможно, его уже перевели.'
+      return t('errors.invalidState')
     case 'lint_failed':
-      return err.message || 'Документ не прошёл проверку канона.'
+      return err.message || t('errors.lintFailed')
     case 'internal':
     case 'upstream_unavailable':
     case 'upstream_timeout':
     case 'proxy_misconfigured':
-      return 'Сбой архива. Повторите попытку позже.'
+      return t('errors.internal')
     default:
-      return err.message || 'Не удалось выполнить запрос.'
+      return err.message || t('errors.generic')
   }
 }
 

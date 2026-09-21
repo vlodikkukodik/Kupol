@@ -3,6 +3,7 @@
 // запрос нельзя даже составить (год — число).
 import type { Content, InputBlock, Problem, Props } from '@/api/generated/documents'
 import { canonicalBlocks } from '@/editor/convert'
+import { t } from '@/i18n'
 
 export const PROP_FIELDS = ['danger_class', 'deviation_points', 'department', 'category', 'containment_status', 'discovery_place'] as const
 export type PropField = (typeof PROP_FIELDS)[number]
@@ -55,9 +56,9 @@ export function formFromContent(content: Partial<Content> | null | undefined, ty
 
 /** Целое число из строки поля: '' — нет значения; мусор — NaN. */
 function toInt(s: string): number | null {
-  const t = String(s).trim()
-  if (t === '') return null
-  return /^-?\d+$/.test(t) ? Number(t) : Number.NaN
+  const trimmed = String(s).trim()
+  if (trimmed === '') return null
+  return /^-?\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN
 }
 
 /**
@@ -70,27 +71,27 @@ export function contentFromForm(form: DocForm, { strict = true } = {}): { conten
   const num = (path: string, raw: string, label: string): number | null => {
     const n = toInt(raw)
     if (Number.isNaN(n)) {
-      if (strict) errors[path] = `${label}: нужно целое число`
+      if (strict) errors[path] = t('teamdoc.integer', { label })
       return null
     }
     return n
   }
   const content: Content = { title: form.title, blocks: form.blocks }
 
-  const level = num('level', form.level, 'Допуск')
+  const level = num('level', form.level, t('teamdoc.level'))
   if (level !== null) content.level = level
   if (form.direct_link) content.direct_link = form.direct_link
   if (form.grif.trim() !== '') content.grif = form.grif
 
-  const year = num('composed.year', form.year, 'Год')
-  const month = num('composed.month', form.month, 'Месяц')
-  const day = num('composed.day', form.day, 'День')
+  const year = num('composed.year', form.year, t('teamdoc.year'))
+  const month = num('composed.month', form.month, t('teamdoc.month'))
+  const day = num('composed.day', form.day, t('teamdoc.day'))
   if (year !== null) {
     content.composed = { year }
     if (month !== null) content.composed.month = month
     if (day !== null) content.composed.day = day
   } else if (strict && (month !== null || day !== null) && !errors['composed.year']) {
-    errors['composed.year'] = 'Укажите год: без года месяц и день не сохраняются'
+    errors['composed.year'] = t('teamdoc.yearFirst')
   }
 
   if (form.props) {
@@ -98,7 +99,7 @@ export function contentFromForm(form: DocForm, { strict = true } = {}): { conten
     for (const k of PROP_FIELDS) {
       const raw = form.props[k]
       if (NUMERIC_PROPS.has(k)) {
-        const n = num(`props.${k}`, raw, k === 'danger_class' ? 'Класс опасности' : 'Пункты отклонения')
+        const n = num(`props.${k}`, raw, k === 'danger_class' ? t('teamdoc.dangerClass') : t('teamdoc.deviation'))
         if (n !== null) (props as Record<string, unknown>)[k] = n
       } else if (raw.trim() !== '') {
         ;(props as Record<string, unknown>)[k] = raw

@@ -74,6 +74,7 @@ type LockDetail struct {
 }
 
 // failDetail прерывает обработку ответом с заполненными подробностями (request_id ставится сам).
+// Message должен быть уже на языке запроса (Lang(c).T(…)); замечания и отчёт линтера — тоже (см. teamDocumentHandlers.fail).
 func failDetail(c *gin.Context, status int, d ErrorDetail) {
 	d.RequestID = RequestID(c)
 	c.AbortWithStatusJSON(status, ErrorBody{Error: d})
@@ -83,23 +84,33 @@ func failDetail(c *gin.Context, status int, d ErrorDetail) {
 func FailAccessDenied(c *gin.Context, level int, levelName string) {
 	c.AbortWithStatusJSON(403, ErrorBody{Error: ErrorDetail{
 		Code:              CodeAccessDenied,
-		Message:           "Доступ запрещён",
+		Message:           Lang(c).T("Доступ запрещён"),
 		RequestID:         RequestID(c),
 		RequiredLevel:     level,
 		RequiredLevelName: levelName,
 	}})
 }
 
-// Fail прерывает обработку и отдаёт единый JSON-формат ошибки.
-func Fail(c *gin.Context, status int, code, message string) {
-	FailFields(c, status, code, message, nil)
+// Fail прерывает обработку и отдаёт единый JSON-формат ошибки. message — русский текст-формат (он же ключ перевода
+// на язык запроса), args — значения для подстановки.
+func Fail(c *gin.Context, status int, code, message string, args ...any) {
+	FailFields(c, status, code, Lang(c).T(message, args...), nil)
 }
 
-// FailFields — Fail с ошибками по полям формы.
+// FailFields — Fail с ошибками по полям формы. message уже переведён (обычно Lang(c).T); тексты полей переводятся здесь:
+// сообщения без подстановок — сами ключи каталога.
 func FailFields(c *gin.Context, status int, code, message string, fields map[string]string) {
+	lang := Lang(c)
+	if fields != nil {
+		translated := make(map[string]string, len(fields))
+		for k, v := range fields {
+			translated[k] = lang.Translate(v)
+		}
+		fields = translated
+	}
 	c.AbortWithStatusJSON(status, ErrorBody{Error: ErrorDetail{
 		Code:      code,
-		Message:   message,
+		Message:   lang.Translate(message),
 		RequestID: RequestID(c),
 		Fields:    fields,
 	}})
@@ -114,7 +125,7 @@ func FailRateLimited(c *gin.Context, retryAfter time.Duration) {
 	c.Header("Retry-After", strconv.Itoa(secs))
 	c.AbortWithStatusJSON(429, ErrorBody{Error: ErrorDetail{
 		Code:       CodeRateLimited,
-		Message:    "Слишком много попыток. Повторите позже.",
+		Message:    Lang(c).T("Слишком много попыток. Повторите позже."),
 		RequestID:  RequestID(c),
 		RetryAfter: secs,
 	}})

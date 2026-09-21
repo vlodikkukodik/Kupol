@@ -29,10 +29,10 @@ function dismiss() {
 <template>
   <aside v-if="shown" class="cookie" aria-labelledby="cookie-title" data-testid="cookie-notice">
     <p id="cookie-title" class="cookie__text">
-      Сайт использует только техническую cookie сеанса — после входа, чтобы вы оставались в архиве. Рекламы и аналитики нет.
-      <RouterLink to="/about#privacy">Подробнее</RouterLink>
+      {{ $t('cookie.text') }}
+      <RouterLink to="/about#privacy">{{ $t('cookie.more') }}</RouterLink>
     </p>
-    <UiButton size="sm" data-testid="cookie-dismiss" @click="dismiss">Понятно</UiButton>
+    <UiButton size="sm" data-testid="cookie-dismiss" @click="dismiss">{{ $t('cookie.ok') }}</UiButton>
   </aside>
 </template>
 

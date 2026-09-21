@@ -7,7 +7,8 @@ import type { Content } from '@/api/generated/documents'
 import DocumentPaper from '@/components/document/DocumentPaper.vue'
 import { describeApiError } from '@/composables/useForm'
 import { blockIndexes } from '@/editor/problems'
-import { LEVEL_NAMES, levelName, requiredAccess } from '@/lib/levels'
+import { levelName, levelNames, requiredAccess } from '@/lib/levels'
+import { t } from '@/i18n'
 import { describeRedactions, redactionStats } from '@/lib/preview'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
@@ -54,14 +55,15 @@ const query = useQuery({
 const result = computed(() => query.data.value)
 const error = computed(() => (isApiError(query.error.value) ? query.error.value : null))
 const stale = computed(() => query.isPlaceholderData.value)
+const allLevels = computed(() => levelNames())
 
-const who = computed(() => `уровня ${level.value} (${levelName(level.value)})`)
+const who = computed(() => t('preview.who', { level: level.value, name: levelName(level.value) }))
 const stats = computed(() => redactionStats(result.value?.document))
 const statsText = computed(() => {
   const what = describeRedactions(stats.value)
-  return stats.value.blocks + stats.value.fragments === 0 ? `Для этого читателя ${what}.` : `Для этого читателя закрыто: ${what}.`
+  return stats.value.blocks + stats.value.fragments === 0 ? t('preview.statsNone', { what }) : t('preview.statsSome', { what })
 })
-const source = computed(() => (props.dirty ? 'по несохранённым правкам' : 'по сохранённому документу'))
+const source = computed(() => (props.dirty ? t('preview.sourceDirty') : t('preview.sourceSaved')))
 
 /** Замечания, привязанные к блокам: номер блока → его идентификатор и вид (по тому содержимому, что ушло на сервер). */
 const problems = computed(() =>
@@ -75,23 +77,20 @@ const problems = computed(() =>
 const announcement = computed(() => {
   const r = result.value
   if (!r || stale.value) return ''
-  if (r.access === 'not_found') return `Читатель ${who.value} получит «Дело не найдено».`
-  if (r.access === 'denied') return `Читатель ${who.value} увидит «Доступ запрещён».`
-  return `Показан документ для читателя ${who.value}: ${describeRedactions(stats.value)}.`
+  if (r.access === 'not_found') return t('preview.say.notFound', { who: who.value })
+  if (r.access === 'denied') return t('preview.say.denied', { who: who.value })
+  return t('preview.say.shown', { who: who.value, what: describeRedactions(stats.value) })
 })
 </script>
 
 <template>
   <section class="preview" aria-labelledby="preview-title" :aria-busy="query.isFetching.value ? 'true' : 'false'" data-testid="preview">
-    <h3 id="preview-title" class="preview__title">Предпросмотр глазами читателя</h3>
-    <p class="preview__lead">
-      Так документ увидит человек с выбранным допуском. Собирает его сервер — так же, как при обычном чтении: закрытое до читателя не доходит.
-      Показано {{ source }}; статус не учитывается — документ выглядит как опубликованный.
-    </p>
+    <h3 id="preview-title" class="preview__title">{{ $t('preview.title') }}</h3>
+    <p class="preview__lead">{{ $t('preview.lead', { source }) }}</p>
 
     <fieldset class="levels" :aria-labelledby="legendId">
-      <legend :id="legendId" class="levels__legend">Уровень читателя</legend>
-      <label v-for="(name, n) in LEVEL_NAMES" :key="n" class="levels__item" :class="{ 'is-active': level === n }">
+      <legend :id="legendId" class="levels__legend">{{ $t('preview.level') }}</legend>
+      <label v-for="(name, n) in allLevels" :key="n" class="levels__item" :class="{ 'is-active': level === n }">
         <input v-model="level" type="radio" class="levels__radio" name="preview-level" :value="n" :data-testid="`preview-level-${n}`">
         <span class="levels__n">{{ n }}</span>
         <span class="levels__name">{{ name }}</span>
@@ -102,29 +101,28 @@ const announcement = computed(() => {
 
     <UiAlert v-if="error" tone="danger">
       <p>{{ describeApiError(error) }}</p>
-      <UiButton @click="query.refetch()">Повторить</UiButton>
+      <UiButton @click="query.refetch()">{{ $t('preview.retry') }}</UiButton>
     </UiAlert>
 
-    <UiAlert v-if="problems.length" tone="warning" title="В предпросмотр не попали блоки с замечаниями" data-testid="preview-problems">
+    <UiAlert v-if="problems.length" tone="warning" :title="$t('preview.problemsTitle')" data-testid="preview-problems">
       <ul class="problems">
         <li v-for="p in problems" :key="`${p.path}|${p.message}`">
           <template v-if="p.block">
-            <button type="button" class="problem-link" @click="emit('go-to-block', p.block.id)">Блок {{ p.block.number }} — {{ p.block.kind }}</button>: {{ p.message }}
+            <button type="button" class="problem-link" @click="emit('go-to-block', p.block.id)">{{ $t('tdoc.problemBlock', { n: p.block.number, kind: p.block.kind }) }}</button>: {{ p.message }}
           </template>
           <template v-else><code>{{ p.path }}</code>: {{ p.message }}</template>
         </li>
       </ul>
     </UiAlert>
 
-    <UiSkeleton v-if="!result && !error" :lines="8" label="Собираем документ для читателя…" />
+    <UiSkeleton v-if="!result && !error" :lines="8" :label="$t('preview.building')" />
 
     <template v-else-if="result">
       <UiAlert v-if="result.access === 'not_found'" tone="warning" data-testid="preview-verdict" :data-access="result.access">
-        Читатель {{ who }} получит «Дело не найдено»: документ закрыт ({{ requiredAccess(result.required_level) }}), а его существование
-        закрытый режим не раскрывает.
+        {{ $t('preview.notFound', { who, access: requiredAccess(result.required_level) }) }}
       </UiAlert>
       <UiAlert v-else-if="result.access === 'denied'" tone="warning" data-testid="preview-verdict" :data-access="result.access">
-        Читатель {{ who }} увидит «Доступ запрещён» и узнает, что нужен допуск: {{ requiredAccess(result.required_level) }}. Содержимое ему не отдаётся.
+        {{ $t('preview.denied', { who, access: requiredAccess(result.required_level) }) }}
       </UiAlert>
       <template v-else-if="result.document">
         <p class="preview__stats" data-testid="preview-stats">{{ statsText }}</p>

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"kupol/internal/accounts"
+	"kupol/internal/i18n"
 )
 
 type teamHandlers struct {
@@ -26,10 +27,10 @@ type MemberDTO struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-func toMemberDTO(m accounts.Member) MemberDTO {
+func toMemberDTO(m accounts.Member, lang i18n.Lang) MemberDTO {
 	return MemberDTO{
-		Login: m.Login, Level: m.Level, LevelName: m.LevelName, Directorate: m.Directorate,
-		Roles: toRoleDTOs(m.Roles), CreatedAt: m.CreatedAt,
+		Login: m.Login, Level: m.Level, LevelName: accounts.LevelNameIn(lang, m.Level, m.Directorate), Directorate: m.Directorate,
+		Roles: toRoleDTOs(m.Roles, lang), CreatedAt: m.CreatedAt,
 	}
 }
 
@@ -44,10 +45,10 @@ type RoleInfoDTO struct {
 	Capabilities []CapabilityDTO `json:"capabilities"`
 }
 
-func CapabilityDTOs(caps []accounts.Capability) []CapabilityDTO {
+func CapabilityDTOs(caps []accounts.Capability, lang i18n.Lang) []CapabilityDTO {
 	out := make([]CapabilityDTO, len(caps))
 	for i, c := range caps {
-		out[i] = CapabilityDTO{ID: string(c), Name: c.Name()}
+		out[i] = CapabilityDTO{ID: string(c), Name: c.NameIn(lang)}
 	}
 	return out
 }
@@ -55,14 +56,15 @@ func CapabilityDTOs(caps []accounts.Capability) []CapabilityDTO {
 // GET /api/team/roles — какие бывают роли и что каждая позволяет. Нужна тем, кто состоит в команде: их страница
 // «Роли и права» показывает это без знания устройства ролей на стороне интерфейса.
 func (h *teamHandlers) roles(c *gin.Context) {
+	lang := Lang(c)
 	roles := make([]RoleInfoDTO, len(accounts.AllRoles))
 	for i, r := range accounts.AllRoles {
-		roles[i] = RoleInfoDTO{ID: string(r), Name: r.Name(), Capabilities: CapabilityDTOs(r.Capabilities())}
+		roles[i] = RoleInfoDTO{ID: string(r), Name: r.NameIn(lang), Capabilities: CapabilityDTOs(r.Capabilities(), lang)}
 	}
 	c.JSON(http.StatusOK, TeamRolesResponse{
 		Roles:        roles,
-		Directorate:  DirectorateInfoDTO{Name: accounts.DirectorateName, Capabilities: CapabilityDTOs(accounts.AllCapabilities)},
-		Capabilities: CapabilityDTOs(accounts.AllCapabilities),
+		Directorate:  DirectorateInfoDTO{Name: lang.Translate(accounts.DirectorateName), Capabilities: CapabilityDTOs(accounts.AllCapabilities, lang)},
+		Capabilities: CapabilityDTOs(accounts.AllCapabilities, lang),
 	})
 }
 
@@ -109,7 +111,7 @@ func (h *teamHandlers) members(c *gin.Context) {
 	}
 	members := make([]MemberDTO, len(page.Members))
 	for i, m := range page.Members {
-		members[i] = toMemberDTO(m)
+		members[i] = toMemberDTO(m, Lang(c))
 	}
 	c.JSON(http.StatusOK, TeamMembersResponse{Members: members, Total: page.Total, Page: page.Page, PerPage: page.PerPage, Pages: page.Pages})
 }
@@ -135,7 +137,7 @@ func (h *teamHandlers) grant(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, MemberRoleResponse{Member: toMemberDTO(*m), Changed: changed})
+	c.JSON(http.StatusOK, MemberRoleResponse{Member: toMemberDTO(*m, Lang(c)), Changed: changed})
 }
 
 // DELETE /api/team/members/:login/roles/:role — снять роль.
@@ -150,5 +152,5 @@ func (h *teamHandlers) revoke(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, MemberRoleResponse{Member: toMemberDTO(*m), Changed: changed})
+	c.JSON(http.StatusOK, MemberRoleResponse{Member: toMemberDTO(*m, Lang(c)), Changed: changed})
 }

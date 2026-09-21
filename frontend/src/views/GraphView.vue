@@ -10,6 +10,7 @@ import { documentsApi } from '@/api/endpoints'
 import type { GraphNode } from '@/api/generated/documents'
 import { keys } from '@/api/query'
 import { CARD_H, CARD_W, layoutBoard, pinOf, threadPath, wrapTitle } from '@/lib/graph'
+import { t } from '@/i18n'
 import ErrorView from './ErrorView.vue'
 import NotFoundView from './NotFoundView.vue'
 
@@ -40,7 +41,8 @@ function tilt(code: string): number {
   return ((h % 7) - 3) * 0.5 // −1.5°…+1.5°
 }
 
-const label = (n: GraphNode) => `${n.code} — ${n.title}, ${n.type_name}, ${n.year}` + (n.depth === 0 ? '. Центр доски' : '. Показать связи этого документа')
+const label = (n: GraphNode) =>
+  t('graph.cardLabel', { code: n.code, title: n.title, type: n.type_name, year: n.year }) + (n.depth === 0 ? t('graph.cardCenter') : t('graph.cardOpen'))
 
 function href(n: GraphNode) {
   return router.resolve({ name: 'graph', params: { ref: n.slug }, query: route.query }).href
@@ -62,33 +64,35 @@ function setDepth(d: 1 | 2) {
   <ErrorView v-else-if="error" :request-id="error.requestId" :retrying="query.isFetching.value" @retry="query.refetch()" />
 
   <div v-else>
-    <UiPageHeader title="Связи документа" kicker="Доска Центрального архива" />
+    <UiPageHeader :title="$t('graph.title')" :kicker="$t('graph.kicker')" />
 
     <UiSheet wide data-testid="graph">
-      <UiSkeleton v-if="query.isPending.value" :lines="6" label="Собираем доску…" />
+      <UiSkeleton v-if="query.isPending.value" :lines="6" :label="$t('graph.loading')" />
 
       <template v-else-if="data && board && center">
         <p class="lead">
-          Документ
-          <RouterLink :to="{ name: 'document', params: { ref: center.slug } }" data-testid="graph-center-link">{{ center.code }} — {{ center.title }}</RouterLink>
-          и то, что с ним связано ссылками. Показано только доступное вам.
+          <i18n-t keypath="graph.lead" scope="global">
+            <template #doc>
+              <RouterLink :to="{ name: 'document', params: { ref: center.slug } }" data-testid="graph-center-link">{{ center.code }} — {{ center.title }}</RouterLink>
+            </template>
+          </i18n-t>
         </p>
 
-        <div class="controls" role="group" aria-label="Глубина связей">
-          <button type="button" class="depth" :aria-pressed="depth === 1 ? 'true' : 'false'" data-testid="depth-1" @click="setDepth(1)">Прямые связи</button>
-          <button type="button" class="depth" :aria-pressed="depth === 2 ? 'true' : 'false'" data-testid="depth-2" @click="setDepth(2)">Через одного</button>
+        <div class="controls" role="group" :aria-label="$t('graph.depthLabel')">
+          <button type="button" class="depth" :aria-pressed="depth === 1 ? 'true' : 'false'" data-testid="depth-1" @click="setDepth(1)">{{ $t('graph.depth1') }}</button>
+          <button type="button" class="depth" :aria-pressed="depth === 2 ? 'true' : 'false'" data-testid="depth-2" @click="setDepth(2)">{{ $t('graph.depth2') }}</button>
         </div>
 
-        <p v-if="data.nodes.length === 1" class="empty" data-testid="graph-empty">У этого документа нет связей, доступных вам.</p>
-        <p v-if="data.truncated" class="note" data-testid="graph-truncated">Связей больше, чем помещается на доске: показаны первые по шифру.</p>
+        <p v-if="data.nodes.length === 1" class="empty" data-testid="graph-empty">{{ $t('graph.empty') }}</p>
+        <p v-if="data.truncated" class="note" data-testid="graph-truncated">{{ $t('graph.truncated') }}</p>
 
-        <div class="wrap" tabindex="0" role="region" aria-label="Доска связей; прокручивается по горизонтали">
+        <div class="wrap" tabindex="0" role="region" :aria-label="$t('graph.boardRegion')">
           <svg
             class="board"
             :viewBox="`${board.view.x} ${board.view.y} ${board.view.w} ${board.view.h}`"
             :style="{ maxWidth: `${board.view.w}px`, minWidth: `${Math.min(board.view.w, 640)}px` }"
             role="group"
-            aria-label="Карточки документов и нити между ними"
+            :aria-label="$t('graph.boardLabel')"
             data-testid="board"
           >
             <g class="threads" aria-hidden="true">
@@ -109,36 +113,36 @@ function setDepth(d: 1 | 2) {
                 <rect class="card__paper" :x="-CARD_W / 2" :y="-CARD_H / 2" :width="CARD_W" :height="CARD_H" rx="2" />
                 <text class="card__code" :x="-CARD_W / 2 + 10" :y="-CARD_H / 2 + 32">{{ p.node.code }}</text>
                 <text v-for="(line, i) in wrapTitle(p.node.title, 24, 2)" :key="i" class="card__title" :x="-CARD_W / 2 + 10" :y="-CARD_H / 2 + 50 + i * 15">{{ line }}</text>
-                <text class="card__meta" :x="-CARD_W / 2 + 10" :y="CARD_H / 2 - 6">{{ p.node.type_name }} · {{ p.node.year }}<tspan v-if="p.node.level > 0"> · допуск {{ p.node.level }}</tspan></text>
+                <text class="card__meta" :x="-CARD_W / 2 + 10" :y="CARD_H / 2 - 6">{{ p.node.type_name }} · {{ p.node.year }}<tspan v-if="p.node.level > 0">{{ $t('graph.cardAccess', { level: p.node.level }) }}</tspan></text>
               </g>
               <circle class="pin" :cx="pinOf(p).x" :cy="pinOf(p).y" r="5" aria-hidden="true" />
             </a>
           </svg>
         </div>
 
-        <h2 class="sub">Списком</h2>
+        <h2 class="sub">{{ $t('graph.listTitle') }}</h2>
         <div class="lists">
           <section aria-labelledby="graph-docs">
-            <h3 id="graph-docs">Документы ({{ data.nodes.length }})</h3>
+            <h3 id="graph-docs">{{ $t('graph.documents', { n: data.nodes.length }) }}</h3>
             <ul data-testid="graph-nodes">
               <li v-for="n in data.nodes" :key="n.code">
                 <RouterLink :to="{ name: 'document', params: { ref: n.slug } }">{{ n.code }} — {{ n.title }}</RouterLink>
-                <span class="muted"> · {{ n.type_name }}<template v-if="n.depth === 0"> · центр</template></span>
+                <span class="muted"> · {{ n.type_name }}<template v-if="n.depth === 0">{{ $t('graph.centerTag') }}</template></span>
                 <template v-if="n.depth !== 0">
-                  · <RouterLink :to="{ name: 'graph', params: { ref: n.slug }, query: route.query }">связи</RouterLink>
+                  · <RouterLink :to="{ name: 'graph', params: { ref: n.slug }, query: route.query }">{{ $t('graph.links') }}</RouterLink>
                 </template>
               </li>
             </ul>
           </section>
           <section aria-labelledby="graph-edges">
-            <h3 id="graph-edges">Ссылки ({{ data.edges.length }})</h3>
+            <h3 id="graph-edges">{{ $t('graph.edges', { n: data.edges.length }) }}</h3>
             <ul v-if="data.edges.length" data-testid="graph-edges">
               <li v-for="e in data.edges" :key="`${e.from}>${e.to}`">
-                {{ e.from }} <span aria-label="ссылается на">→</span> {{ e.to }}
+                {{ e.from }} <span :aria-label="$t('graph.refersTo')">→</span> {{ e.to }}
                 <span class="muted"> · {{ nodeName(e.from)?.title }} → {{ nodeName(e.to)?.title }}</span>
               </li>
             </ul>
-            <p v-else class="muted">Ссылок между показанными документами нет.</p>
+            <p v-else class="muted">{{ $t('graph.noEdges') }}</p>
           </section>
         </div>
       </template>

@@ -1,6 +1,10 @@
 package accounts
 
-import "time"
+import (
+	"time"
+
+	"kupol/internal/i18n"
+)
 
 // User — запись пользователя (таблица users).
 type User struct {
@@ -31,6 +35,9 @@ func (u User) TOTPEnabled() bool { return u.TOTPEnabledAt != nil }
 
 // LevelName — звание пользователя (Директорат показывается вместо уровня).
 func (u User) LevelName() string { return LevelName(u.Level, u.Directorate) }
+
+// LevelNameIn — звание пользователя на языке l.
+func (u User) LevelNameIn(l i18n.Lang) string { return LevelNameIn(l, u.Level, u.Directorate) }
 
 // Session — серверная сессия (таблица sessions). В БД хранится только SHA-256 токена.
 type Session struct {

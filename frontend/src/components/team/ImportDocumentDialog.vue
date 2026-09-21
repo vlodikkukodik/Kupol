@@ -5,6 +5,7 @@ import { ApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
 import type { ImportResult, Problem } from '@/api/generated/documents'
 import { describeApiError } from '@/composables/useForm'
+import { t } from '@/i18n'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiModal from '@/ui/UiModal.vue'
@@ -57,7 +58,7 @@ async function pick(event: Event) {
   fileName.value = file?.name ?? ''
   if (!file) return
   if (file.size > MAX_BYTES) {
-    failure.value = `Файл слишком большой: ${Math.ceil(file.size / 1024)} КиБ, не больше 1000 КиБ.`
+    failure.value = t('importFile.tooBig', { kib: Math.ceil(file.size / 1024) })
     return
   }
   busy.value = true
@@ -65,7 +66,7 @@ async function pick(event: Event) {
     try {
       parsed.value = JSON.parse(await file.text())
     } catch {
-      failure.value = 'Файл не разобран как JSON. Загружается файл, скачанный кнопкой «Скачать JSON» (не Markdown).'
+      failure.value = t('importFile.notJson')
       return
     }
     checked.value = await teamApi.importDocument(parsed.value, true)
@@ -93,39 +94,39 @@ async function create() {
   }
 }
 
-const statusNote = computed(() => (checked.value?.status_ignored ? `В файле статус «${checked.value.status_ignored}» — он не берётся: документ будет создан черновиком.` : ''))
+const statusNote = computed(() => (checked.value?.status_ignored ? t('importFile.statusIgnored', { status: checked.value.status_ignored }) : ''))
 </script>
 
 <template>
-  <UiModal v-model:open="open" title="Загрузить документ из файла" size="lg" testid="import-dialog">
+  <UiModal v-model:open="open" :title="$t('importFile.title')" size="lg" testid="import-dialog">
     <form novalidate @submit.prevent="create">
-      <p class="lead">Файл JSON, скачанный кнопкой «Скачать JSON» у документа (или собранный по описанию формата). Документ появится черновиком: его можно править и отправить на проверку.</p>
+      <p class="lead">{{ $t('importFile.lead') }}</p>
 
       <div class="pick">
-        <label for="import-file" class="pick__label">Файл</label>
+        <label for="import-file" class="pick__label">{{ $t('importFile.file') }}</label>
         <input id="import-file" ref="input" type="file" accept=".json,application/json" data-testid="import-file" :disabled="busy" @change="pick">
       </div>
 
-      <p class="visually-hidden" role="status">{{ busy ? 'Проверяем файл…' : checked ? 'Файл проверен: ошибок нет.' : '' }}</p>
+      <p class="visually-hidden" role="status">{{ busy ? $t('importFile.checking') : checked ? $t('importFile.checked') : '' }}</p>
       <UiAlert v-if="failure" tone="danger" data-testid="import-failure">{{ failure }}</UiAlert>
       <div v-if="problems.length" class="problems" data-testid="import-problems">
-        <p class="problems__title">Файл не прошёл проверку ({{ problems.length }}). Исправьте и загрузите заново:</p>
+        <p class="problems__title">{{ $t('importFile.problemsTitle', { n: problems.length }) }}</p>
         <ul>
           <li v-for="p in problems" :key="`${p.path}|${p.message}`"><code>{{ p.path }}</code>: {{ p.message }}</li>
         </ul>
       </div>
 
       <dl v-if="checked" class="summary" data-testid="import-summary">
-        <div><dt>Название</dt><dd>{{ checked.title }}</dd></div>
-        <div><dt>Тип</dt><dd>{{ checked.type_name }}</dd></div>
-        <div><dt>Шифр</dt><dd>{{ checked.code || 'номер присвоится при публикации' }}</dd></div>
-        <div><dt>Блоков</dt><dd>{{ checked.blocks }}</dd></div>
+        <div><dt>{{ $t('importFile.name') }}</dt><dd>{{ checked.title }}</dd></div>
+        <div><dt>{{ $t('importFile.type') }}</dt><dd>{{ checked.type_name }}</dd></div>
+        <div><dt>{{ $t('importFile.code') }}</dt><dd>{{ checked.code || $t('importFile.codeLater') }}</dd></div>
+        <div><dt>{{ $t('importFile.blocks') }}</dt><dd>{{ checked.blocks }}</dd></div>
       </dl>
       <UiAlert v-if="statusNote" tone="info" data-testid="import-status-note">{{ statusNote }}</UiAlert>
 
       <div class="actions">
-        <UiButton type="submit" variant="primary" icon="upload" :disabled="!checked" :loading="busy && !!checked" data-testid="import-create">Создать черновик</UiButton>
-        <UiButton variant="link" @click="open = false">Отмена</UiButton>
+        <UiButton type="submit" variant="primary" icon="upload" :disabled="!checked" :loading="busy && !!checked" data-testid="import-create">{{ $t('importFile.create') }}</UiButton>
+        <UiButton variant="link" @click="open = false">{{ $t('importFile.cancel') }}</UiButton>
       </div>
     </form>
   </UiModal>

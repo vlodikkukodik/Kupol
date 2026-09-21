@@ -11,9 +11,9 @@ defineProps<{ data: OutDocLink }>()
     <span class="link__main"><strong>{{ data.code }}</strong> {{ data.title }}</span>
     <span v-if="data.note" class="link__note">{{ data.note }}</span>
   </RouterLink>
-  <div v-else class="link link--closed" role="img" aria-label="Связанный документ засекречен">
-    <span class="link__kind">Связанный документ</span>
-    <span class="link__main">Засекречен</span>
+  <div v-else class="link link--closed" role="img" :aria-label="$t('doc.block.linkClosedLabel')">
+    <span class="link__kind">{{ $t('doc.block.linkKind') }}</span>
+    <span class="link__main">{{ $t('doc.block.linkClosed') }}</span>
   </div>
 </template>
 

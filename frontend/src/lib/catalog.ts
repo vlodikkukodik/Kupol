@@ -2,18 +2,24 @@
 // им можно поделиться, «назад» работает, перезагрузка ничего не теряет.
 import type { LocationQuery, LocationQueryRaw } from 'vue-router'
 
-export const CATEGORY_NAMES: Record<string, string> = {
-  person: 'Человек с аномальными свойствами',
-  entity: 'Существо или явление',
-  place: 'Место или локация',
-}
+import { t } from '@/i18n'
 
-export const CONTAINMENT_NAMES: Record<string, string> = {
-  contained: 'Содержится',
-  lost: 'Утрачен',
-  destroyed: 'Уничтожен',
-  studying: 'Изучается',
-}
+export const CATEGORIES = ['person', 'entity', 'place'] as const
+export const CONTAINMENTS = ['contained', 'lost', 'destroyed', 'studying'] as const
+export const STATUSES = ['draft', 'review', 'published', 'archived'] as const
+export const DOC_TYPES = ['object', 'order', 'incident', 'personnel', 'unit', 'protocol', 'testimony', 'memo'] as const
+
+// Названия — из каталога языка (domain.*); функции, а не константы: язык меняется, пока сайт открыт
+export const categoryName = (v: string): string => t(`domain.category.${v}`)
+export const containmentName = (v: string): string => t(`domain.containment.${v}`)
+export const typeName = (v: string): string => t(`domain.type.${v}`)
+/** Статус документа словами: «Черновик» */
+export const statusName = (v: string): string => t(`domain.status.${v}`)
+/** Статус в строке реестра: «черновик» */
+export const statusNameLower = (v: string): string => t(`domain.statusLower.${v}`)
+
+export const categoryOptions = () => CATEGORIES.map((value) => ({ value, label: categoryName(value) }))
+export const containmentOptions = () => CONTAINMENTS.map((value) => ({ value, label: containmentName(value) }))
 
 export const SORTS = ['code', 'title', 'year', 'class', 'deviation'] as const
 export type SortKey = (typeof SORTS)[number]

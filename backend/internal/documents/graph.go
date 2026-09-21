@@ -2,7 +2,6 @@ package documents
 
 import (
 	"context"
-	"fmt"
 	"slices"
 )
 
@@ -52,7 +51,7 @@ func (s *Service) Graph(ctx context.Context, v Viewer, ref string, depth int) (*
 		depth = 1
 	}
 	if depth < 1 || depth > maxGraphDepth {
-		return nil, &QueryError{"depth", fmt.Sprintf("глубина — от 1 до %d", maxGraphDepth)}
+		return nil, queryError("depth", "глубина — от 1 до %d", maxGraphDepth)
 	}
 	c, err := ParseCode(ref)
 	if err != nil {
@@ -140,7 +139,7 @@ func (s *Service) Graph(ctx context.Context, v Viewer, ref string, depth int) (*
 			continue
 		}
 		nodes = append(nodes, GraphNode{
-			Code: code, Slug: deref(d.Slug), Title: d.Title, Type: d.Type, TypeName: Type(d.Type).Name(),
+			Code: code, Slug: deref(d.Slug), Title: d.Title, Type: d.Type, TypeName: Type(d.Type).NameIn(v.Lang),
 			Level: d.Level, Year: d.ComposedYear, Depth: depthOf[code],
 		})
 	}

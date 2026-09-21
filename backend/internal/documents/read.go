@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"kupol/internal/i18n"
 )
 
 // DirectorateViewer — читатель для административных команд: видит всё, включая неопубликованное.
@@ -45,16 +47,16 @@ type Item struct {
 
 func itemFrom(d *Document, v Viewer) Item {
 	it := Item{
-		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).Name(), Title: d.Title, Level: d.Level,
+		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).NameIn(v.Lang), Title: d.Title, Level: d.Level,
 		Composed:    Composed{Year: d.ComposedYear, Month: d.ComposedMonth, Day: d.ComposedDay},
 		DangerClass: d.DangerClass, DeviationPoints: d.DeviationPoints, Department: d.Department,
 		Category: d.Category, ContainmentStatus: d.ContainmentStatus,
 	}
 	if d.Category != nil {
-		it.CategoryName = Category(*d.Category).Name()
+		it.CategoryName = Category(*d.Category).NameIn(v.Lang)
 	}
 	if d.ContainmentStatus != nil {
-		it.ContainmentName = Containment(*d.ContainmentStatus).Name()
+		it.ContainmentName = Containment(*d.ContainmentStatus).NameIn(v.Lang)
 	}
 	// Статус и реальная дата публикации — служебные сведения (спецификация §6): читателям не показываются.
 	if v.SeesUnpublished() {
@@ -71,13 +73,30 @@ func deref(s *string) string {
 	return *s
 }
 
-// QueryError — некорректный параметр запроса каталога.
+// QueryError — некорректный параметр запроса каталога. Message — по-русски; формат и значения запоминаются,
+// чтобы ответить на языке читателя (In).
 type QueryError struct {
 	Field   string
 	Message string
+
+	format string
+	args   []any
+}
+
+// queryError — ошибка параметра с текстом-форматом (он же ключ перевода).
+func queryError(field, format string, args ...any) *QueryError {
+	return &QueryError{Field: field, Message: i18n.RU.T(format, args...), format: format, args: args}
 }
 
 func (e *QueryError) Error() string { return e.Field + ": " + e.Message }
+
+// In — текст ошибки на языке l.
+func (e *QueryError) In(l i18n.Lang) string {
+	if e.format == "" {
+		return l.Translate(e.Message)
+	}
+	return l.T(e.format, e.args...)
+}
 
 // ListQuery — параметры каталога.
 type ListQuery struct {
@@ -114,55 +133,55 @@ var sortSQL = map[string]string{
 
 func (q *ListQuery) normalize(v Viewer) error {
 	if q.Type != "" && !Type(q.Type).Valid() {
-		return &QueryError{"type", fmt.Sprintf("неизвестный тип %q", q.Type)}
+		return queryError("type", "неизвестный тип %q", q.Type)
 	}
 	if q.Class != nil && (*q.Class < 1 || *q.Class > 5) {
-		return &QueryError{"class", "класс опасности — от 1 до 5"}
+		return queryError("class", "класс опасности — от 1 до 5")
 	}
 	if q.YearFrom != nil && (*q.YearFrom < 1900 || *q.YearFrom > 2099) {
-		return &QueryError{"year_from", "год — от 1900 до 2099"}
+		return queryError("year_from", "год — от 1900 до 2099")
 	}
 	if q.YearTo != nil && (*q.YearTo < 1900 || *q.YearTo > 2099) {
-		return &QueryError{"year_to", "год — от 1900 до 2099"}
+		return queryError("year_to", "год — от 1900 до 2099")
 	}
 	if q.YearFrom != nil && q.YearTo != nil && *q.YearFrom > *q.YearTo {
-		return &QueryError{"year_from", "начало периода позже его конца"}
+		return queryError("year_from", "начало периода позже его конца")
 	}
 	if q.Department != "" {
 		c, err := ParseCode(q.Department)
 		if err != nil || c.Type != TypeUnit {
-			return &QueryError{"department", "ожидается шифр отдела или филиала (ОТД-2, ОБ-14)"}
+			return queryError("department", "ожидается шифр отдела или филиала (ОТД-2, ОБ-14)")
 		}
 		q.Department = c.Canonical
 	}
 	if q.Category != "" && !Category(q.Category).Valid() {
-		return &QueryError{"category", fmt.Sprintf("неизвестная категория %q", q.Category)}
+		return queryError("category", "неизвестная категория %q", q.Category)
 	}
 	if q.Containment != "" && !Containment(q.Containment).Valid() {
-		return &QueryError{"containment", fmt.Sprintf("неизвестный статус содержания %q", q.Containment)}
+		return queryError("containment", "неизвестный статус содержания %q", q.Containment)
 	}
 	if q.Status != "" {
 		if !Status(q.Status).Valid() {
-			return &QueryError{"status", fmt.Sprintf("неизвестный статус %q", q.Status)}
+			return queryError("status", "неизвестный статус %q", q.Status)
 		}
 		if !v.SeesUnpublished() {
-			return &QueryError{"status", "фильтр по статусу недоступен"}
+			return queryError("status", "фильтр по статусу недоступен")
 		}
 	}
 	if q.Sort == "" {
 		q.Sort = "code"
 	}
 	if _, ok := sortSQL[q.Sort]; !ok {
-		return &QueryError{"sort", fmt.Sprintf("неизвестная сортировка %q; допустимы: code, title, year, class, deviation, published", q.Sort)}
+		return queryError("sort", "неизвестная сортировка %q; допустимы: code, title, year, class, deviation, published", q.Sort)
 	}
 	if q.Page < 0 {
-		return &QueryError{"page", "номер страницы не может быть отрицательным"}
+		return queryError("page", "номер страницы не может быть отрицательным")
 	}
 	if q.Page == 0 {
 		q.Page = 1
 	}
 	if q.PerPage < 0 || q.PerPage > maxPerPage {
-		return &QueryError{"per_page", fmt.Sprintf("размер страницы — от 1 до %d", maxPerPage)}
+		return queryError("per_page", "размер страницы — от 1 до %d", maxPerPage)
 	}
 	if q.PerPage == 0 {
 		q.PerPage = defaultPerPage
@@ -241,7 +260,7 @@ func (s *Service) List(ctx context.Context, v Viewer, q ListQuery) (*ListResult,
 // Recent — лента «Поступило в ЦАК»: последние опубликованные документы, доступные читателю.
 func (s *Service) Recent(ctx context.Context, v Viewer, limit int) ([]Item, error) {
 	if limit < 1 || limit > maxFeed {
-		return nil, &QueryError{"limit", fmt.Sprintf("от 1 до %d", maxFeed)}
+		return nil, queryError("limit", "от 1 до %d", maxFeed)
 	}
 	var docs []Document
 	err := s.db.WithContext(ctx).Model(&Document{}).
@@ -302,7 +321,7 @@ func (s *Service) Summary(ctx context.Context, v Viewer) (*Summary, error) {
 	}
 	for _, t := range Types { // в порядке каталога; типы без документов не показываем
 		if n := counts[string(t)]; n > 0 {
-			out.Types = append(out.Types, TypeCount{Type: string(t), Name: t.Name(), Count: n})
+			out.Types = append(out.Types, TypeCount{Type: string(t), Name: t.NameIn(i18n.From(ctx)), Count: n})
 		}
 	}
 
@@ -349,16 +368,16 @@ type OutDocument struct {
 	Blocks            []OutBlock `json:"blocks"`
 	// MentionedIn — документы, ссылающиеся на этот, из числа доступных читателю («Упоминается в»). В предпросмотре не заполняется.
 	MentionedIn []Mention `json:"mentioned_in,omitempty"`
-	// CopyNumber — номер экземпляра читателя, как у нумерованных копий секретных документов: «0042» из номера аккаунта, у Гражданина — «б/н».
+	// CopyNumber — номер экземпляра читателя, как у нумерованных копий секретных документов: «0042» из номера аккаунта, у Гражданина — пусто («б/н»).
 	CopyNumber string `json:"copy_number"`
 	// ReadCount — сколько зарегистрированных читателей ознакомилось с документом («лист ознакомления»; без имён — история чтения закрыта).
 	ReadCount int `json:"read_count"`
 }
 
-// copyNumber — номер экземпляра читателя.
+// copyNumber — номер экземпляра читателя; у Гражданина номера нет (пустая строка: интерфейс подпишет «б/н» на своём языке).
 func copyNumber(v Viewer) string {
 	if v.UserID == 0 {
-		return "б/н"
+		return ""
 	}
 	return fmt.Sprintf("%04d", v.UserID)
 }
@@ -433,7 +452,7 @@ func (s *Service) Get(ctx context.Context, v Viewer, ref string) (*OutDocument, 
 // что попадает в ответ, решается в одном месте.
 func outDocument(d *Document, authorLogin *string, blocks []OutBlock, v Viewer) *OutDocument {
 	out := &OutDocument{
-		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).Name(), Title: d.Title,
+		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).NameIn(v.Lang), Title: d.Title,
 		Grif: d.Grif, Level: d.Level,
 		Composed:    Composed{Year: d.ComposedYear, Month: d.ComposedMonth, Day: d.ComposedDay},
 		DangerClass: d.DangerClass, DeviationPoints: d.DeviationPoints, Department: d.Department,
@@ -441,10 +460,10 @@ func outDocument(d *Document, authorLogin *string, blocks []OutBlock, v Viewer) 
 		Author: authorLogin, Blocks: blocks, CopyNumber: copyNumber(v),
 	}
 	if d.Category != nil {
-		out.CategoryName = Category(*d.Category).Name()
+		out.CategoryName = Category(*d.Category).NameIn(v.Lang)
 	}
 	if d.ContainmentStatus != nil {
-		out.ContainmentName = Containment(*d.ContainmentStatus).Name()
+		out.ContainmentName = Containment(*d.ContainmentStatus).NameIn(v.Lang)
 	}
 	if v.SeesUnpublished() {
 		out.Status = d.Status
@@ -471,7 +490,7 @@ func (s *Service) linkResolver(ctx context.Context, v Viewer, blocks []Block) (L
 	targets := make(map[string]*LinkTarget, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		targets[deref(r.Code)] = &LinkTarget{Code: deref(r.Code), Slug: deref(r.Slug), Title: r.Title, Type: Type(r.Type)}
+		targets[deref(r.Code)] = &LinkTarget{Code: deref(r.Code), Slug: deref(r.Slug), Title: r.Title, Type: Type(r.Type), TypeName: Type(r.Type).NameIn(v.Lang)}
 	}
 	return func(code string) *LinkTarget { return targets[code] }, nil
 }

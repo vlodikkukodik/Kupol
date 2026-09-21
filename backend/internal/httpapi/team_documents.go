@@ -36,6 +36,7 @@ func actorFrom(c *gin.Context) documents.Actor {
 		CanManageTemplates: u.Can(accounts.CapManageTemplates),
 		CanManageGlossary:  u.Can(accounts.CapManageGlossary),
 		CanManageTimeline:  u.Can(accounts.CapManageTimeline),
+		Lang:               Lang(c),
 	}
 }
 
@@ -70,21 +71,26 @@ func (h *teamDocumentHandlers) fail(c *gin.Context, err error) {
 	case errors.As(err, &se):
 		Fail(c, http.StatusConflict, CodeInvalidState, "Это действие не подходит документу в его нынешнем статусе")
 	case errors.As(err, &lf):
-		failDetail(c, http.StatusUnprocessableEntity, ErrorDetail{Code: CodeLintFailed, Message: "Документ не прошёл проверку канона: " + lf.Report.Summary(), Lint: lf.Report})
+		lang := Lang(c)
+		failDetail(c, http.StatusUnprocessableEntity, ErrorDetail{
+			Code: CodeLintFailed, Message: lang.T("Документ не прошёл проверку канона: %s", lf.Report.SummaryIn(lang)), Lint: lf.Report.In(lang),
+		})
 	case errors.Is(err, documents.ErrCodeTaken):
 		FailFields(c, http.StatusConflict, CodeCodeTaken, "Этот шифр уже занят", map[string]string{"code": "Этот шифр уже занят другим документом"})
 	case errors.As(err, &le):
 		failDetail(c, http.StatusConflict, ErrorDetail{
-			Code: CodeLocked, Message: "Документ правит " + le.Holder, Lock: &LockDetail{Holder: le.Holder, ExpiresAt: le.ExpiresAt.UTC()},
+			Code: CodeLocked, Message: Lang(c).T("Документ правит %s", le.Holder), Lock: &LockDetail{Holder: le.Holder, ExpiresAt: le.ExpiresAt.UTC()},
 		})
 	case errors.As(err, &ce):
 		failDetail(c, http.StatusConflict, ErrorDetail{
-			Code: CodeConflict, Message: "Документ изменён после того, как вы его открыли", CurrentRevision: ce.CurrentRevision,
+			Code: CodeConflict, Message: Lang(c).T("Документ изменён после того, как вы его открыли"), CurrentRevision: ce.CurrentRevision,
 		})
 	case errors.As(err, &ve):
-		failDetail(c, http.StatusUnprocessableEntity, ErrorDetail{Code: CodeValidation, Message: "Проверьте содержимое документа", Problems: ve.Problems})
+		failDetail(c, http.StatusUnprocessableEntity, ErrorDetail{
+			Code: CodeValidation, Message: Lang(c).T("Проверьте содержимое документа"), Problems: documents.LocalizeProblems(Lang(c), ve.Problems),
+		})
 	case errors.As(err, &qe):
-		FailFields(c, http.StatusBadRequest, CodeBadRequest, "Некорректные параметры запроса", map[string]string{qe.Field: qe.Message})
+		FailFields(c, http.StatusBadRequest, CodeBadRequest, Lang(c).T("Некорректные параметры запроса"), map[string]string{qe.Field: qe.In(Lang(c))})
 	default:
 		h.log.Error("ошибка обработчика документов команды", "err", err, "path", c.Request.URL.Path, "request_id", RequestID(c))
 		Fail(c, http.StatusInternalServerError, CodeInternal, "Сбой архива")
@@ -103,7 +109,7 @@ func idParam(c *gin.Context, name string) (int64, bool) {
 
 // GET /api/team/document-types — справочник значений для форм (типы, статусы, свойства Объекта).
 func (h *teamDocumentHandlers) meta(c *gin.Context) {
-	c.JSON(http.StatusOK, documents.DocumentMeta())
+	c.JSON(http.StatusOK, documents.DocumentMetaIn(Lang(c)))
 }
 
 // GET /api/team/documents?status=&type=&q=&mine=1&page=&per_page=

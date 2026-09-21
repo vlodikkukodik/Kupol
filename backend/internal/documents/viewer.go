@@ -1,5 +1,7 @@
 package documents
 
+import "kupol/internal/i18n"
+
 // Уровни допуска документов и блоков (спецификация §3).
 const (
 	LevelPublic      = 0 // Гражданин: без регистрации
@@ -13,6 +15,8 @@ type Viewer struct {
 	UserID      int64 // 0 — Гражданин (без входа)
 	UserLevel   int   // уровень зарегистрированного пользователя, 1–6
 	Directorate bool
+	// Lang — язык ответа читателю (названия типов, статусов и уровней): русский, если не задан
+	Lang i18n.Lang `tstype:"string"`
 }
 
 // Guest — Гражданин.
@@ -38,8 +42,13 @@ func (v Viewer) Level() int {
 // Пока это только Директорат; роли персонала (этап 3) расширят правило.
 func (v Viewer) SeesUnpublished() bool { return v.Directorate }
 
-// LevelName — название уровня для интерфейса («уровень 3», «только Директорат»).
-func LevelName(level int) string {
+// LevelName — название уровня для интерфейса по-русски.
+func LevelName(level int) string { return LevelNameIn(i18n.RU, level) }
+
+// LevelNameIn — название уровня на языке l.
+func LevelNameIn(l i18n.Lang, level int) string { return l.Translate(levelNameRU(level)) }
+
+func levelNameRU(level int) string {
 	switch level {
 	case LevelPublic:
 		return "Гражданин"

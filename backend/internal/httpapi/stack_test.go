@@ -70,6 +70,7 @@ type client struct {
 	cookie *http.Cookie // текущая кука сессии
 	ip     string
 	origin string
+	lang   string // Accept-Language «браузера»; пусто — заголовка нет
 }
 
 // newClient создаёт «браузер» с собственным IP: регистрации разных клиентов не упираются в лимит по IP.
@@ -127,6 +128,9 @@ func (c *client) do(method, path string, body any) response {
 	req := httptest.NewRequest(method, path, rd)
 	req.RemoteAddr = c.ip + ":4000"
 	req.Header.Set("User-Agent", "test-browser")
+	if c.lang != "" {
+		req.Header.Set("Accept-Language", c.lang)
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

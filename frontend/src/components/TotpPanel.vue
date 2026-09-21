@@ -15,6 +15,7 @@ import { totpApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
 import { useForm } from '@/composables/useForm'
 import { groupSecret } from '@/lib/totp'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 
 // Код из приложения (TOTP) — по желанию: вход без него продолжает работать, пока человек сам не включит защиту.
@@ -44,7 +45,7 @@ const open = computed({
     if (v) return
     // Одноразовые коды показываются один раз: окно с ними не закрывается, пока их не сохранили.
     if (step.value === 'codes' && !saved.value) {
-      closeHint.value = 'Коды больше не покажут. Сохраните их и отметьте галочку — тогда окно можно закрыть.'
+      closeHint.value = t('totp.closeHint')
       return
     }
     reset()
@@ -77,7 +78,7 @@ async function refresh() {
 async function submitPassword() {
   form.clear()
   if (!password.value) {
-    form.errors.current_password = 'Введите пароль'
+    form.errors.current_password = t('totp.enterPassword')
     return
   }
   const ok = await form.submit(async () => {
@@ -92,7 +93,7 @@ async function submitPassword() {
 async function submitFirstCode() {
   form.clear()
   if (!code.value.trim()) {
-    form.errors.code = 'Введите код из приложения'
+    form.errors.code = t('totp.enterCode')
     return
   }
   const ok = await form.submit(async () => {
@@ -102,15 +103,15 @@ async function submitFirstCode() {
     code.value = ''
     setup.value = null // секрет после подключения больше не нужен на экране
     step.value = 'codes'
-    notice.value = 'Код из приложения включён. Остальные ваши сеансы завершены.'
+    notice.value = t('totp.enabledNotice')
     await refresh()
   }
 }
 
 async function submitConfirm() {
   form.clear()
-  if (!password.value) form.errors.current_password = 'Введите пароль'
-  if (!code.value.trim()) form.errors.code = 'Введите код из приложения или одноразовый код'
+  if (!password.value) form.errors.current_password = t('totp.enterPassword')
+  if (!code.value.trim()) form.errors.code = t('totp.enterCodeOrRecovery')
   if (Object.keys(form.errors).length) return
   const current = mode.value
   const ok = await form.submit(async () => {
@@ -121,45 +122,42 @@ async function submitConfirm() {
   password.value = ''
   code.value = ''
   if (current === 'disable') {
-    notice.value = 'Код из приложения выключен. Вход — по паролю.'
+    notice.value = t('totp.disabledNotice')
     reset()
   } else {
     step.value = 'codes'
-    notice.value = 'Выданы новые одноразовые коды; прежние больше не действуют.'
+    notice.value = t('totp.renewedNotice')
   }
   await refresh()
 }
 
-const title = computed(() => (mode.value === 'enable' ? 'Подключить код из приложения' : mode.value === 'renew' ? 'Новые одноразовые коды' : 'Выключить код из приложения'))
+const title = computed(() => (mode.value === 'enable' ? t('totp.titleEnable') : mode.value === 'renew' ? t('totp.titleRenew') : t('totp.titleDisable')))
 const lowCodes = computed(() => (status.data.value?.enabled ? status.data.value.recovery_left <= 2 : false))
 </script>
 
 <template>
   <div class="totp" data-testid="totp">
-    <UiSkeleton v-if="status.isPending.value" :lines="2" label="Загружаем состояние защиты…" />
+    <UiSkeleton v-if="status.isPending.value" :lines="2" :label="$t('totp.loading')" />
     <UiAlert v-else-if="status.isError.value" tone="danger">
-      Не удалось узнать, включена ли защита.
-      <UiButton variant="link" @click="status.refetch()">Повторить</UiButton>
+      {{ $t('totp.statusFailed') }}
+      <UiButton variant="link" @click="status.refetch()">{{ $t('totp.retry') }}</UiButton>
     </UiAlert>
 
     <template v-else-if="status.data.value?.enabled">
-      <p class="state state--on" data-testid="totp-state">Включена: при входе, кроме пароля, нужен код из приложения.</p>
+      <p class="state state--on" data-testid="totp-state">{{ $t('totp.on') }}</p>
       <p :class="{ warn: lowCodes }" data-testid="totp-left">
-        Одноразовых кодов осталось: <strong>{{ status.data.value.recovery_left }}</strong>.
-        <template v-if="lowCodes">Скоро закончатся — выпустите новые.</template>
+        <i18n-t keypath="totp.left" scope="global"><template #n><strong>{{ status.data.value.recovery_left }}</strong></template></i18n-t>
+        <template v-if="lowCodes"> {{ $t('totp.lowLeft') }}</template>
       </p>
       <div class="actions">
-        <UiButton icon="refresh" data-testid="totp-renew" @click="start('renew')">Новые одноразовые коды</UiButton>
-        <UiButton variant="ghost" data-testid="totp-disable" @click="start('disable')">Выключить</UiButton>
+        <UiButton icon="refresh" data-testid="totp-renew" @click="start('renew')">{{ $t('totp.renew') }}</UiButton>
+        <UiButton variant="ghost" data-testid="totp-disable" @click="start('disable')">{{ $t('totp.disable') }}</UiButton>
       </div>
     </template>
 
     <template v-else>
-      <p class="state" data-testid="totp-state">
-        Выключена. Можно добавить второй замок: при входе, кроме пароля, потребуется шестизначный код из приложения-аутентификатора на телефоне
-        (Google Authenticator, Aegis, 1Password и подобные). Это по желанию.
-      </p>
-      <UiButton icon="shield" data-testid="totp-enable" @click="start('enable')">Подключить</UiButton>
+      <p class="state" data-testid="totp-state">{{ $t('totp.off') }}</p>
+      <UiButton icon="shield" data-testid="totp-enable" @click="start('enable')">{{ $t('totp.enable') }}</UiButton>
     </template>
 
     <p class="visually-hidden" role="status">{{ notice }}</p>
@@ -168,79 +166,81 @@ const lowCodes = computed(() => (status.data.value?.enabled ? status.data.value.
     <UiModal v-model:open="open" :title="title" size="md" testid="totp-dialog">
       <!-- 1. пароль -->
       <form v-if="mode === 'enable' && step === 'password'" novalidate @submit.prevent="submitPassword">
-        <p>Сначала подтвердите пароль. Затем сервер выдаст секрет для приложения — защита включится только после первого верного кода.</p>
+        <p>{{ $t('totp.step1') }}</p>
         <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
-        <UiField id="totp-password" label="Пароль" :error="form.errors.current_password">
+        <UiField id="totp-password" :label="$t('common.password')" :error="form.errors.current_password">
           <UiInput v-model="password" type="password" autocomplete="current-password" reveal />
         </UiField>
         <div class="dlg-actions">
-          <UiButton type="submit" variant="primary" :loading="form.submitting.value" data-testid="totp-next">Продолжить</UiButton>
-          <UiButton variant="link" @click="open = false">Отмена</UiButton>
+          <UiButton type="submit" variant="primary" :loading="form.submitting.value" data-testid="totp-next">{{ $t('totp.next') }}</UiButton>
+          <UiButton variant="link" @click="open = false">{{ $t('totp.cancel') }}</UiButton>
         </div>
       </form>
 
       <!-- 2. QR и первый код -->
       <form v-else-if="mode === 'enable' && step === 'scan' && setup" novalidate @submit.prevent="submitFirstCode">
         <ol class="how">
-          <li>Откройте приложение-аутентификатор и добавьте учётную запись: отсканируйте QR-код или введите секрет вручную.</li>
-          <li>Введите шесть цифр, которые покажет приложение.</li>
+          <li>{{ $t('totp.scan1') }}</li>
+          <li>{{ $t('totp.scan2') }}</li>
         </ol>
         <div class="scan">
-          <QrCode :value="setup.uri" label="QR-код для приложения-аутентификатора" />
+          <QrCode :value="setup.uri" :label="$t('totp.qr')" />
           <div class="scan__manual">
-            <p class="scan__label">Секрет для ручного ввода</p>
+            <p class="scan__label">{{ $t('totp.secretLabel') }}</p>
             <p class="scan__secret" data-testid="totp-secret">{{ groupSecret(setup.secret) }}</p>
-            <p class="scan__hint">Тип — по времени (TOTP), SHA-1, 6 цифр, шаг 30 секунд.</p>
+            <p class="scan__hint">{{ $t('totp.secretHint') }}</p>
           </div>
         </div>
         <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
-        <UiField id="totp-code" label="Код из приложения" hint="Шесть цифр; пробелы не мешают." :error="form.errors.code">
+        <UiField id="totp-code" :label="$t('totp.codeLabel')" :hint="$t('totp.codeHint')" :error="form.errors.code">
           <UiInput v-model="code" inputmode="numeric" autocomplete="one-time-code" :maxlength="12" />
         </UiField>
         <div class="dlg-actions">
-          <UiButton type="submit" variant="primary" :loading="form.submitting.value" data-testid="totp-confirm">Включить защиту</UiButton>
-          <UiButton variant="link" @click="open = false">Отмена</UiButton>
+          <UiButton type="submit" variant="primary" :loading="form.submitting.value" data-testid="totp-confirm">{{ $t('totp.enableSubmit') }}</UiButton>
+          <UiButton variant="link" @click="open = false">{{ $t('totp.cancel') }}</UiButton>
         </div>
       </form>
 
       <!-- пароль и код: новые одноразовые коды или выключение -->
       <form v-else-if="step === 'confirm'" novalidate @submit.prevent="submitConfirm">
-        <p v-if="mode === 'disable'">Чтобы выключить защиту, подтвердите пароль и введите код из приложения (или один из одноразовых кодов).</p>
-        <p v-else>Прежние одноразовые коды перестанут действовать. Подтвердите пароль и введите код из приложения (или один из одноразовых кодов).</p>
+        <p v-if="mode === 'disable'">{{ $t('totp.confirmDisable') }}</p>
+        <p v-else>{{ $t('totp.confirmRenew') }}</p>
         <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
-        <UiField id="totp-password" label="Пароль" :error="form.errors.current_password">
+        <UiField id="totp-password" :label="$t('common.password')" :error="form.errors.current_password">
           <UiInput v-model="password" type="password" autocomplete="current-password" reveal />
         </UiField>
-        <UiField id="totp-code" label="Код из приложения или одноразовый код" :error="form.errors.code">
+        <UiField id="totp-code" :label="$t('totp.codeOrRecoveryLabel')" :error="form.errors.code">
           <UiInput v-model="code" autocomplete="one-time-code" :maxlength="16" />
         </UiField>
         <div class="dlg-actions">
           <UiButton type="submit" :variant="mode === 'disable' ? 'danger' : 'primary'" :loading="form.submitting.value" data-testid="totp-confirm">
-            {{ mode === 'disable' ? 'Выключить защиту' : 'Выпустить новые коды' }}
+            {{ mode === 'disable' ? $t('totp.disableSubmit') : $t('totp.renewSubmit') }}
           </UiButton>
-          <UiButton variant="link" @click="open = false">Отмена</UiButton>
+          <UiButton variant="link" @click="open = false">{{ $t('totp.cancel') }}</UiButton>
         </div>
       </form>
 
       <!-- 3. одноразовые коды -->
       <div v-else-if="step === 'codes'">
         <p>
-          Одноразовые коды — на случай, если телефон потерян или сломан: каждый подходит для входа <strong>один раз</strong> вместо кода из
-          приложения. Они показываются <strong>только сейчас</strong>. Сохраните их отдельно от пароля.
+          <i18n-t keypath="totp.codesIntro" scope="global">
+            <template #once><strong>{{ $t('totp.onceWord') }}</strong></template>
+            <template #now><strong>{{ $t('totp.nowWord') }}</strong></template>
+          </i18n-t>
         </p>
         <SecretCodesBox
           :codes="codes"
-          what="одноразовые коды для входа"
+          :what="$t('totp.codesWhat')"
           :login="auth.user?.login ?? ''"
           filename="kupol-one-time-codes.txt"
-          note="Каждый код действует один раз и заменяет код из приложения при входе. Храните их отдельно от пароля."
+          :note="$t('totp.codesNote')"
         />
         <div class="confirm">
-          <UiCheckbox v-model="saved" label="Я сохранил(а) коды в надёжном месте" />
+          <UiCheckbox v-model="saved" :label="$t('common.savedCodesPlural')" />
         </div>
         <UiAlert v-if="closeHint && !saved" tone="warning" data-testid="totp-close-hint">{{ closeHint }}</UiAlert>
         <div class="dlg-actions">
-          <UiButton variant="primary" :disabled="!saved" icon-end="check" data-testid="totp-done" @click="open = false">Готово</UiButton>
+          <UiButton variant="primary" :disabled="!saved" icon-end="check" data-testid="totp-done" @click="open = false">{{ $t('totp.done') }}</UiButton>
         </div>
       </div>
     </UiModal>

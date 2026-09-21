@@ -7,8 +7,8 @@ defineProps<{ data: RedactedData }>()
 </script>
 
 <template>
-  <div class="plate" role="img" :aria-label="`Засекреченный фрагмент: ${requiredAccess(data.level)}`" :data-level="data.level">
-    <span class="plate__title">Данные удалены</span>
+  <div class="plate" role="img" :aria-label="$t('doc.redactedRun', { access: requiredAccess(data.level) })" :data-level="data.level">
+    <span class="plate__title">{{ $t('doc.redactedBlock') }}</span>
     <span class="plate__need">{{ requiredAccess(data.level) }}</span>
   </div>
 </template>

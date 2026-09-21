@@ -18,16 +18,16 @@ function to(p: number): RouteLocationRaw {
 </script>
 
 <template>
-  <nav v-if="pages > 1" class="pages" :aria-label="label ?? 'Страницы каталога'">
+  <nav v-if="pages > 1" class="pages" :aria-label="label ?? $t('pager.label')">
     <!-- Роутер сравнивает только путь, а не query, и сам поставил бы aria-current="page" на все ссылки:
          текущая страница помечена вручную, у ссылок метка выключена. -->
-    <RouterLink v-if="page > 1" class="step" :to="to(page - 1)" rel="prev" aria-current-value="false">← Назад</RouterLink>
+    <RouterLink v-if="page > 1" class="step" :to="to(page - 1)" rel="prev" aria-current-value="false">{{ $t('pager.prev') }}</RouterLink>
     <template v-for="(p, i) in items" :key="i">
       <span v-if="p === null" class="gap" aria-hidden="true">…</span>
       <span v-else-if="p === page" class="current" aria-current="page">{{ p }}</span>
-      <RouterLink v-else class="num" :to="to(p)" :aria-label="`Страница ${p}`" aria-current-value="false">{{ p }}</RouterLink>
+      <RouterLink v-else class="num" :to="to(p)" :aria-label="$t('pager.page', { n: p })" aria-current-value="false">{{ p }}</RouterLink>
     </template>
-    <RouterLink v-if="page < pages" class="step" :to="to(page + 1)" rel="next" aria-current-value="false">Далее →</RouterLink>
+    <RouterLink v-if="page < pages" class="step" :to="to(page + 1)" rel="next" aria-current-value="false">{{ $t('pager.next') }}</RouterLink>
   </nav>
 </template>
 

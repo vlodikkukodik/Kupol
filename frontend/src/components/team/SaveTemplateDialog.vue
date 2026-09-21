@@ -5,6 +5,7 @@ import { teamApi } from '@/api/endpoints'
 import type { Content, InputBlock, Problem, TemplateFull } from '@/api/generated/documents'
 import { describeApiError } from '@/composables/useForm'
 import { blockPreview } from '@/lib/teamdoc'
+import { t } from '@/i18n'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiField from '@/ui/UiField.vue'
@@ -44,7 +45,10 @@ watch(open, (isOpen) => {
 })
 
 const blockOptions = computed(() =>
-  props.blocks.map((b, i) => ({ value: String(i + 1), label: `Блок ${i + 1} — ${props.kindName(b.type)}${blockPreview(b, 40) ? `: ${blockPreview(b, 40)}` : ''}` })),
+  props.blocks.map((b, i) => {
+    const preview = blockPreview(b, 40)
+    return { value: String(i + 1), label: preview ? t('saveTpl.blockOptionPreview', { n: i + 1, kind: props.kindName(b.type), preview }) : t('saveTpl.blockOption', { n: i + 1, kind: props.kindName(b.type) }) }
+  }),
 )
 const range = computed(() => {
   const a = Number(from.value)
@@ -58,17 +62,17 @@ async function save() {
   problems.value = []
   failure.value = ''
   if (!name.value.trim()) {
-    errors.value = { name: 'Введите название шаблона' }
+    errors.value = { name: t('saveTpl.enterName') }
     return
   }
   if (!chosen.value.length) {
-    failure.value = 'В документе нет блоков: сохранять в шаблон нечего.'
+    failure.value = t('saveTpl.empty')
     return
   }
   const c = props.content
   busy.value = true
   try {
-    const t = await teamApi.createTemplate(
+    const created = await teamApi.createTemplate(
       kind.value === 'document'
         ? {
             kind: 'document',
@@ -86,12 +90,12 @@ async function save() {
         : { kind: 'blockset', name: name.value, description: description.value, doc_type: '', content: { blocks: chosen.value } },
     )
     open.value = false
-    emit('saved', t)
+    emit('saved', created)
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
     errors.value = { ...err.fields }
     problems.value = err.problems
-    failure.value = err.problems.length ? 'Шаблон не прошёл проверку: исправьте отмеченное в документе.' : Object.keys(err.fields).length ? '' : describeApiError(err)
+    failure.value = err.problems.length ? t('saveTpl.failed') : Object.keys(err.fields).length ? '' : describeApiError(err)
   } finally {
     busy.value = false
   }
@@ -102,12 +106,12 @@ function where(path: string): string {
   const m = /^content\.blocks\[(\d+)\]\.?(.*)$/.exec(path)
   if (!m) return path
   const n = Number(m[1]) + (kind.value === 'blockset' ? range.value.a : 1)
-  return `Блок ${n}${m[2] ? ` · ${m[2]}` : ''}`
+  return m[2] ? t('saveTpl.whereField', { n, field: m[2] }) : t('saveTpl.where', { n })
 }
 </script>
 
 <template>
-  <UiModal v-model:open="open" title="Сохранить как шаблон" size="lg" testid="tpl-save-dialog">
+  <UiModal v-model:open="open" :title="$t('saveTpl.title')" size="lg" testid="tpl-save-dialog">
     <form novalidate @submit.prevent="save">
       <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
       <ul v-if="problems.length" class="problems" data-testid="tpl-problems">
@@ -115,39 +119,39 @@ function where(path: string): string {
       </ul>
 
       <fieldset class="kinds">
-        <legend>Что сохранить</legend>
+        <legend>{{ $t('saveTpl.what') }}</legend>
         <label class="kind" :class="{ 'is-active': kind === 'document' }">
           <input v-model="kind" type="radio" name="kind" value="document" data-testid="tpl-kind-document">
-          <span class="kind__label">Шаблон документа</span>
-          <span class="kind__help">Тип «{{ docTypeName }}», название, допуск, гриф и все блоки ({{ blocks.length }}) — заготовка нового документа.</span>
+          <span class="kind__label">{{ $t('saveTpl.document') }}</span>
+          <span class="kind__help">{{ $t('saveTpl.documentHelp', { type: docTypeName, n: blocks.length }) }}</span>
         </label>
         <label class="kind" :class="{ 'is-active': kind === 'blockset' }">
           <input v-model="kind" type="radio" name="kind" value="blockset" data-testid="tpl-kind-blockset">
-          <span class="kind__label">Набор блоков</span>
-          <span class="kind__help">Несколько блоков, которые потом вставляют в готовый документ.</span>
+          <span class="kind__label">{{ $t('saveTpl.blockset') }}</span>
+          <span class="kind__help">{{ $t('saveTpl.blocksetHelp') }}</span>
         </label>
       </fieldset>
 
       <div v-if="kind === 'blockset'" class="range">
-        <UiField label="С блока">
+        <UiField :label="$t('saveTpl.from')">
           <UiSelect v-model="from" :options="blockOptions" name="from" />
         </UiField>
-        <UiField label="По блок">
+        <UiField :label="$t('saveTpl.to')">
           <UiSelect v-model="to" :options="blockOptions" name="to" />
         </UiField>
       </div>
-      <p v-if="kind === 'blockset'" class="count" data-testid="tpl-count">В набор войдёт блоков: {{ chosen.length }}.</p>
+      <p v-if="kind === 'blockset'" class="count" data-testid="tpl-count">{{ $t('saveTpl.count', { n: chosen.length }) }}</p>
 
-      <UiField label="Название шаблона" required :error="errors.name">
+      <UiField :label="$t('saveTpl.name')" required :error="errors.name">
         <UiInput v-model="name" :maxlength="100" name="name" data-testid="tpl-name" />
       </UiField>
-      <UiField label="Описание (необязательно)" :error="errors.description">
+      <UiField :label="$t('saveTpl.description')" :error="errors.description">
         <UiTextarea v-model="description" :rows="3" :maxlength="500" name="description" />
       </UiField>
 
       <div class="actions">
-        <UiButton type="submit" variant="primary" :loading="busy" data-testid="tpl-submit">Сохранить шаблон</UiButton>
-        <UiButton variant="link" @click="open = false">Отмена</UiButton>
+        <UiButton type="submit" variant="primary" :loading="busy" data-testid="tpl-submit">{{ $t('saveTpl.submit') }}</UiButton>
+        <UiButton variant="link" @click="open = false">{{ $t('saveTpl.cancel') }}</UiButton>
       </div>
     </form>
   </UiModal>

@@ -7,6 +7,7 @@ import UiCheckbox from '@/ui/UiCheckbox.vue'
 import UiField from '@/ui/UiField.vue'
 import UiInput from '@/ui/UiInput.vue'
 import { useForm } from '@/composables/useForm'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -21,8 +22,8 @@ const confirmBox = ref<InstanceType<typeof UiCheckbox> | null>(null)
 
 async function onSubmit() {
   form.clear()
-  if (!password.value) form.errors.current_password = 'Введите пароль для подтверждения'
-  if (!confirmed.value) form.errors.confirm = 'Подтвердите, что понимаете последствия'
+  if (!password.value) form.errors.current_password = t('deleteAccount.enterPassword')
+  if (!confirmed.value) form.errors.confirm = t('deleteAccount.confirmNeeded')
   if (Object.keys(form.errors).length > 0) {
     await nextTick()
     if (form.errors.current_password) passwordField.value?.focus()
@@ -42,27 +43,27 @@ async function onSubmit() {
 
 <template>
   <section class="danger" aria-labelledby="danger-title">
-    <h3 id="danger-title">Сдать дело в архив</h3>
-    <p>Аккаунт и все связанные с ним данные будут удалены безвозвратно. Логин освободится. Восстановить дело будет невозможно.</p>
-    <UiButton v-if="!open" variant="danger" aria-expanded="false" icon="trash" @click="open = true">Сдать дело…</UiButton>
+    <h3 id="danger-title">{{ $t('deleteAccount.title') }}</h3>
+    <p>{{ $t('deleteAccount.text') }}</p>
+    <UiButton v-if="!open" variant="danger" aria-expanded="false" icon="trash" @click="open = true">{{ $t('deleteAccount.open') }}</UiButton>
 
-    <form v-else novalidate aria-label="Удаление аккаунта" @submit.prevent="onSubmit">
+    <form v-else novalidate :aria-label="$t('deleteAccount.form')" @submit.prevent="onSubmit">
       <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
-      <UiField id="del-password" label="Пароль для подтверждения" :error="form.errors.current_password">
+      <UiField id="del-password" :label="$t('deleteAccount.passwordLabel')" :error="form.errors.current_password">
         <UiInput ref="passwordField" v-model="password" type="password" autocomplete="current-password" />
       </UiField>
       <UiCheckbox
         id="del-confirm"
         ref="confirmBox"
         v-model="confirmed"
-        label="Я понимаю: аккаунт и все мои данные будут удалены навсегда"
+        :label="$t('deleteAccount.confirmLabel')"
         :invalid="Boolean(form.errors.confirm)"
         :describedby="form.errors.confirm ? 'del-confirm-error' : undefined"
       />
       <p v-if="form.errors.confirm" id="del-confirm-error" class="error">{{ form.errors.confirm }}</p>
       <div class="actions">
-        <UiButton type="submit" variant="danger" :loading="form.submitting.value">{{ form.submitting.value ? 'Удаление…' : 'Удалить аккаунт навсегда' }}</UiButton>
-        <UiButton variant="link" @click="open = false">Отмена</UiButton>
+        <UiButton type="submit" variant="danger" :loading="form.submitting.value">{{ form.submitting.value ? $t('deleteAccount.submitting') : $t('deleteAccount.submit') }}</UiButton>
+        <UiButton variant="link" @click="open = false">{{ $t('deleteAccount.cancel') }}</UiButton>
       </div>
     </form>
   </section>

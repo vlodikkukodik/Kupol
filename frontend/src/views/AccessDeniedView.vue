@@ -17,14 +17,14 @@ const mine = computed(() => (auth.user ? (auth.user.directorate ? 7 : auth.user.
 </script>
 
 <template>
-  <UiNotice stamp="Доступ запрещён" title="Доступ запрещён" data-testid="access-denied">
-    <p>Для этого дела нужен {{ requiredAccess(props.level) }}.</p>
-    <p v-if="!auth.user">Вы не вошли в архив (уровень 0, {{ levelName(0) }}). Возможно, после входа дело откроется.</p>
-    <p v-else>Ваш допуск: уровень {{ mine }} ({{ auth.user.directorate ? 'Директорат' : levelName(mine) }}).</p>
+  <UiNotice :stamp="$t('notice.denied.stamp')" :title="$t('notice.denied.title')" data-testid="access-denied">
+    <p>{{ $t('notice.denied.need', { access: requiredAccess(props.level) }) }}</p>
+    <p v-if="!auth.user">{{ $t('notice.denied.guest', { name: levelName(0) }) }}</p>
+    <p v-else>{{ $t('notice.denied.mine', { level: mine, name: auth.user.directorate ? levelName(7) : levelName(mine) }) }}</p>
     <template #actions>
       <!-- окно входа поверх документа; после входа читатель вернётся на этот же адрес (уровень мог вырасти) -->
-      <UiButton v-if="!auth.user" variant="primary" icon="user" @click="ui.openAuth({ next: route.fullPath })">Войти или зарегистрироваться</UiButton>
-      <UiButton to="/catalog" icon="book">В каталог</UiButton>
+      <UiButton v-if="!auth.user" variant="primary" icon="user" @click="ui.openAuth({ next: route.fullPath })">{{ $t('notice.denied.signIn') }}</UiButton>
+      <UiButton to="/catalog" icon="book">{{ $t('notice.denied.catalog') }}</UiButton>
     </template>
   </UiNotice>
 </template>

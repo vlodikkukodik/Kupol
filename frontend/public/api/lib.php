@@ -342,7 +342,7 @@ function runs_text(mixed $runs): string
  * @param array<string,mixed> $api
  * @return array{title:string,description:string,url:string}|null
  */
-function og_from_document(array $api, string $origin): ?array
+function og_from_document(array $api, string $origin, string $lang = 'ru'): ?array
 {
     $d = $api['document'] ?? null;
     if (!is_array($d) || !isset($d['code'], $d['slug'], $d['title']) || !is_string($d['code']) || !is_string($d['slug']) || !is_string($d['title'])) {
@@ -361,10 +361,14 @@ function og_from_document(array $api, string $origin): ?array
     }
     if ($description === '') {
         $year = is_array($d['composed'] ?? null) ? (int)($d['composed']['year'] ?? 0) : 0;
-        $description = ((string)($d['type_name'] ?? 'Документ')) . ($year > 0 ? ', ' . $year . ' г' : '') . '. Центральный архив КУПОЛ.';
+        if ($lang === 'it') {
+            $description = ((string)($d['type_name'] ?? 'Documento')) . ($year > 0 ? ', ' . $year : '') . '. Archivio centrale KUPOL.';
+        } else {
+            $description = ((string)($d['type_name'] ?? 'Документ')) . ($year > 0 ? ', ' . $year . ' г' : '') . '. Центральный архив КУПОЛ.';
+        }
     }
     return [
-        'title'       => $d['code'] . ' — ' . $d['title'] . ' — КУПОЛ',
+        'title'       => $d['code'] . ' — ' . $d['title'] . ' — ' . ($lang === 'it' ? 'KUPOL' : 'КУПОЛ'),
         'description' => truncate_text($description, OG_DESCRIPTION_MAX),
         'url'         => rtrim($origin, '/') . '/doc/' . rawurlencode($d['slug']),
     ];
@@ -398,8 +402,10 @@ function h(string $s): string
  *
  * @param array{title:string,description:string,url:string} $meta
  */
-function inject_og(string $html, array $meta): string
+function inject_og(string $html, array $meta, string $lang = 'ru'): string
 {
+    $siteName = $lang === 'it' ? 'KUPOL' : 'КУПОЛ';
+    $locale = $lang === 'it' ? 'it_IT' : 'ru_RU';
     $title = h($meta['title']);
     $desc = h($meta['description']);
     $url = h($meta['url']);
@@ -417,8 +423,8 @@ function inject_og(string $html, array $meta): string
         '<meta name="description" content="' . $desc . '" />',
         '<link rel="canonical" href="' . $url . '" />',
         '<meta property="og:type" content="article" />',
-        '<meta property="og:site_name" content="КУПОЛ" />',
-        '<meta property="og:locale" content="ru_RU" />',
+        '<meta property="og:site_name" content="' . $siteName . '" />',
+        '<meta property="og:locale" content="' . $locale . '" />',
         '<meta property="og:title" content="' . $title . '" />',
         '<meta property="og:description" content="' . $desc . '" />',
         '<meta property="og:url" content="' . $url . '" />',
@@ -426,7 +432,58 @@ function inject_og(string $html, array $meta): string
         '<meta name="twitter:title" content="' . $title . '" />',
         '<meta name="twitter:description" content="' . $desc . '" />',
     ]);
+    $html = preg_replace('#<html\s+lang="[^"]*"#i', '<html lang="' . $lang . '"', $html, 1) ?? $html;
     return preg_replace_callback('#</head>#i', static fn(): string => "    $tags\n  </head>", $html, 1) ?? $html;
+}
+
+/** Языки сайта; первый — основной (совпадает с backend/internal/i18n и frontend/src/i18n). */
+const LANGS = ['ru', 'it'];
+
+/**
+ * Язык ответа: параметр ?lang= (ссылка на итальянскую версию) главнее заголовка Accept-Language; побеждает поддерживаемый язык
+ * с наибольшим весом q, при равенстве — тот, что раньше в списке. Ничего подходящего — русский. Правило то же, что у Go API.
+ */
+function pick_lang(?string $acceptLanguage, ?string $queryLang = null): string
+{
+    if ($queryLang !== null && in_array($queryLang, LANGS, true)) {
+        return $queryLang;
+    }
+    $best = LANGS[0];
+    $bestQ = -1.0;
+    foreach (explode(',', (string)$acceptLanguage) as $part) {
+        $tag = trim($part);
+        $q = 1.0;
+        $semi = strpos($tag, ';');
+        if ($semi !== false) {
+            foreach (explode(';', substr($tag, $semi + 1)) as $param) {
+                $param = trim($param);
+                if (str_starts_with($param, 'q=') && is_numeric(substr($param, 2))) {
+                    $q = (float)substr($param, 2);
+                }
+            }
+            $tag = trim(substr($tag, 0, $semi));
+        }
+        $base = strtolower(explode('-', $tag, 2)[0]);
+        if (in_array($base, LANGS, true) && $q > $bestQ) {
+            $best = $base;
+            $bestQ = $q;
+        }
+    }
+    return $best;
+}
+
+/** Итальянские переводы собственных сообщений прокси (русский текст — ключ, как в Go API). */
+const PROXY_MESSAGES_IT = [
+    'Сбой архива'             => "Guasto dell'archivio",
+    'Метод не поддерживается' => 'Metodo non supportato',
+    'Дело не найдено'         => 'Fascicolo non trovato',
+    'Слишком большой запрос'  => 'Richiesta troppo grande',
+];
+
+/** Сообщение прокси на языке $lang; нет перевода — русский текст. */
+function proxy_message(string $message, string $lang): string
+{
+    return $lang === 'it' ? (PROXY_MESSAGES_IT[$message] ?? $message) : $message;
 }
 
 /** Тело собственной ошибки прокси в том же формате, что и Go API. */

@@ -1,5 +1,7 @@
 package documents
 
+import "kupol/internal/i18n"
+
 // Справочник для форм team panel: какие бывают типы, статусы и значения свойств Объекта.
 // Единственный источник — этот пакет; интерфейс ничего из этого у себя не дублирует.
 
@@ -24,9 +26,12 @@ var blockKindNames = map[string]string{
 }
 
 // BlockKindName — название типа блока (для неизвестного — сам тип).
-func BlockKindName(kind string) string {
+func BlockKindName(kind string) string { return BlockKindNameIn(i18n.RU, kind) }
+
+// BlockKindNameIn — то же на языке l.
+func BlockKindNameIn(l i18n.Lang, kind string) string {
 	if n, ok := blockKindNames[kind]; ok {
-		return n
+		return l.Translate(n)
 	}
 	return kind
 }
@@ -64,30 +69,33 @@ type Meta struct {
 	DefaultGrif string `json:"default_grif"`
 }
 
-// DocumentMeta возвращает справочник значений для форм.
-func DocumentMeta() Meta {
+// DocumentMeta возвращает справочник значений для форм по-русски.
+func DocumentMeta() Meta { return DocumentMetaIn(i18n.RU) }
+
+// DocumentMetaIn — справочник на языке l.
+func DocumentMetaIn(l i18n.Lang) Meta {
 	m := Meta{
 		MaxLevel:    MaxLevel,
 		DefaultGrif: DefaultGrif,
 		DirectLinks: []Option{
-			{string(DirectLinkNotFound), "«Дело не найдено» (существование не раскрывается)"},
-			{string(DirectLinkForbidden), "«Доступ запрещён» с указанием нужного допуска"},
+			{string(DirectLinkNotFound), l.T("«Дело не найдено» (существование не раскрывается)")},
+			{string(DirectLinkForbidden), l.T("«Доступ запрещён» с указанием нужного допуска")},
 		},
 	}
 	for _, k := range KindNames() {
-		m.BlockKinds = append(m.BlockKinds, Option{k, BlockKindName(k)})
+		m.BlockKinds = append(m.BlockKinds, Option{k, BlockKindNameIn(l, k)})
 	}
 	for _, s := range []Status{StatusDraft, StatusReview, StatusPublished, StatusArchived} {
-		m.Statuses = append(m.Statuses, Option{string(s), s.Name()})
+		m.Statuses = append(m.Statuses, Option{string(s), s.NameIn(l)})
 	}
 	for _, t := range Types {
-		m.Types = append(m.Types, TypeOption{Option: Option{string(t), t.Name()}, CodeExample: t.CodeExample(), CodeOptional: t.CodeOptional()})
+		m.Types = append(m.Types, TypeOption{Option: Option{string(t), t.NameIn(l)}, CodeExample: t.CodeExample(), CodeOptional: t.CodeOptional()})
 	}
 	for _, c := range []Category{CategoryPerson, CategoryEntity, CategoryPlace} {
-		m.Categories = append(m.Categories, Option{string(c), c.Name()})
+		m.Categories = append(m.Categories, Option{string(c), c.NameIn(l)})
 	}
 	for _, c := range []Containment{ContainmentContained, ContainmentLost, ContainmentDestroyed, ContainmentStudying} {
-		m.Containment = append(m.Containment, Option{string(c), c.Name()})
+		m.Containment = append(m.Containment, Option{string(c), c.NameIn(l)})
 	}
 	return m
 }

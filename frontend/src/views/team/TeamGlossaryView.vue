@@ -8,6 +8,7 @@ import type { TermOut } from '@/api/generated/documents'
 import { keys } from '@/api/query'
 import { describeApiError } from '@/composables/useForm'
 import { useQueryFilters } from '@/composables/useQueryFilters'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
@@ -57,11 +58,11 @@ const errors = ref<Record<string, string>>({})
 const failure = ref('')
 const busy = ref(false)
 
-function openForm(t: TermOut | 'new') {
-  editing.value = t
-  term.value = t === 'new' ? '' : t.term
-  definition.value = t === 'new' ? '' : t.definition
-  aliases.value = t === 'new' ? '' : t.aliases.join('\n')
+function openForm(item: TermOut | 'new') {
+  editing.value = item
+  term.value = item === 'new' ? '' : item.term
+  definition.value = item === 'new' ? '' : item.definition
+  aliases.value = item === 'new' ? '' : item.aliases.join('\n')
   errors.value = {}
   failure.value = ''
 }
@@ -81,8 +82,8 @@ async function refresh(message: string) {
 async function save() {
   errors.value = {}
   failure.value = ''
-  if (!term.value.trim()) errors.value.term = 'Введите термин'
-  if (!definition.value.trim()) errors.value.definition = 'Напишите определение'
+  if (!term.value.trim()) errors.value.term = t('glossary.enterTerm')
+  if (!definition.value.trim()) errors.value.definition = t('glossary.enterDefinition')
   if (Object.keys(errors.value).length) return
   const body = { term: term.value, definition: definition.value, aliases: aliases.value.split('\n') }
   busy.value = true
@@ -91,7 +92,7 @@ async function save() {
     if (current === 'new') await teamApi.createTerm(body)
     else if (current) await teamApi.updateTerm(current.id, body)
     editing.value = null
-    await refresh(current === 'new' ? `Термин «${body.term.trim()}» добавлен.` : `Термин «${body.term.trim()}» сохранён.`)
+    await refresh(t(current === 'new' ? 'glossary.added' : 'glossary.saved', { term: body.term.trim() }))
   } catch (err) {
     fail(err)
   } finally {
@@ -102,14 +103,14 @@ async function save() {
 const removing = ref<TermOut | null>(null)
 const removeOpen = computed({ get: () => removing.value !== null, set: (v) => { if (!v) removing.value = null } })
 async function confirmRemove() {
-  const t = removing.value
-  if (!t) return
+  const item = removing.value
+  if (!item) return
   failure.value = ''
   busy.value = true
   try {
-    await teamApi.deleteTerm(t.id)
+    await teamApi.deleteTerm(item.id)
     removing.value = null
-    await refresh(`Термин «${t.term}» удалён.`)
+    await refresh(t('glossary.removed', { term: item.term }))
   } catch (err) {
     fail(err)
   } finally {
@@ -122,70 +123,70 @@ async function confirmRemove() {
   <ErrorView v-if="list.isError.value" :request-id="requestId" :retrying="list.isFetching.value" @retry="list.refetch()" />
   <UiSheet v-else as="section" aria-labelledby="glossary-title" data-testid="glossary">
     <div class="head">
-      <h2 id="glossary-title">Глоссарий канона</h2>
-      <UiButton v-if="canManage" variant="primary" icon="plus" data-testid="term-new" @click="openForm('new')">Добавить термин</UiButton>
+      <h2 id="glossary-title">{{ $t('glossary.title') }}</h2>
+      <UiButton v-if="canManage" variant="primary" icon="plus" data-testid="term-new" @click="openForm('new')">{{ $t('glossary.add') }}</UiButton>
     </div>
-    <p class="lead">Справочник терминов вселенной: как пишется, что значит, какие бывают другие написания. Сверяйтесь с ним, когда пишете документ.</p>
+    <p class="lead">{{ $t('glossary.lead') }}</p>
 
-    <form class="search" role="search" aria-label="Поиск по глоссарию" @submit.prevent="find">
-      <UiField label="Найти" hint="По термину, другому написанию или определению">
+    <form class="search" role="search" :aria-label="$t('glossary.searchLabel')" @submit.prevent="find">
+      <UiField :label="$t('glossary.find')" :hint="$t('glossary.findHint')">
         <UiInput v-model="search" type="search" :maxlength="100" name="q" />
       </UiField>
       <div class="search__actions">
-        <UiButton type="submit" icon="search">Найти</UiButton>
-        <UiButton v-if="q" variant="link" @click="clear">Сбросить</UiButton>
+        <UiButton type="submit" icon="search">{{ $t('glossary.find') }}</UiButton>
+        <UiButton v-if="q" variant="link" @click="clear">{{ $t('glossary.reset') }}</UiButton>
       </div>
     </form>
 
     <p class="visually-hidden" role="status">{{ notice }}</p>
     <p v-if="notice" class="notice" data-testid="glossary-notice">{{ notice }}</p>
-    <p v-if="list.data.value" class="total" data-testid="glossary-total">Найдено: {{ list.data.value.length }}</p>
+    <p v-if="list.data.value" class="total" data-testid="glossary-total">{{ $t('glossary.total', { n: list.data.value.length }) }}</p>
 
-    <UiSkeleton v-if="list.isPending.value" :lines="4" label="Загружаем глоссарий…" />
-    <UiEmpty v-else-if="!list.data.value?.length" icon="book" :title="q ? 'Ничего не найдено' : 'Глоссарий пока пуст'">
-      <template v-if="q">По запросу «{{ q }}» терминов нет: проверьте написание или сбросьте поиск.</template>
-      <template v-else-if="canManage">Добавьте первый термин кнопкой выше.</template>
-      <template v-else>Термины добавляют Редактор и Архивариус.</template>
+    <UiSkeleton v-if="list.isPending.value" :lines="4" :label="$t('glossary.loading')" />
+    <UiEmpty v-else-if="!list.data.value?.length" icon="book" :title="q ? $t('glossary.nothingFound') : $t('glossary.emptyTitle')">
+      <template v-if="q">{{ $t('glossary.nothingFor', { q }) }}</template>
+      <template v-else-if="canManage">{{ $t('glossary.addFirst') }}</template>
+      <template v-else>{{ $t('glossary.whoAdds') }}</template>
     </UiEmpty>
     <dl v-else class="terms" data-testid="glossary-list">
-      <div v-for="t in list.data.value" :key="t.id" class="term" :data-term="t.id">
-        <dt class="term__name">{{ t.term }}</dt>
+      <div v-for="item in list.data.value" :key="item.id" class="term" :data-term="item.id">
+        <dt class="term__name">{{ item.term }}</dt>
         <dd class="term__body">
-          <p class="term__def">{{ t.definition }}</p>
-          <p v-if="t.aliases.length" class="term__aliases">Другие написания: {{ t.aliases.join(' · ') }}</p>
-          <div v-if="t.can_edit" class="term__actions">
-            <UiButton size="sm" icon="edit" data-testid="term-edit" @click="openForm(t)">Изменить</UiButton>
-            <UiButton size="sm" variant="ghost" icon="trash" data-testid="term-delete" @click="removing = t">Удалить</UiButton>
+          <p class="term__def">{{ item.definition }}</p>
+          <p v-if="item.aliases.length" class="term__aliases">{{ $t('glossary.aliases', { list: item.aliases.join(' · ') }) }}</p>
+          <div v-if="item.can_edit" class="term__actions">
+            <UiButton size="sm" icon="edit" data-testid="term-edit" @click="openForm(item)">{{ $t('glossary.edit') }}</UiButton>
+            <UiButton size="sm" variant="ghost" icon="trash" data-testid="term-delete" @click="removing = item">{{ $t('glossary.remove') }}</UiButton>
           </div>
         </dd>
       </div>
     </dl>
 
-    <UiModal v-model:open="dialogOpen" :title="editing === 'new' ? 'Новый термин' : 'Изменить термин'" testid="term-dialog">
+    <UiModal v-model:open="dialogOpen" :title="editing === 'new' ? $t('glossary.newTitle') : $t('glossary.editTitle')" testid="term-dialog">
       <form novalidate @submit.prevent="save">
         <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
-        <UiField label="Термин" required :error="errors.term">
+        <UiField :label="$t('glossary.term')" required :error="errors.term">
           <UiInput v-model="term" :maxlength="100" name="term" />
         </UiField>
-        <UiField label="Определение" required :error="errors.definition">
+        <UiField :label="$t('glossary.definition')" required :error="errors.definition">
           <UiTextarea v-model="definition" :rows="5" :maxlength="2000" name="definition" />
         </UiField>
-        <UiField label="Другие написания" hint="По одному на строке, не больше десяти. Ищутся так же, как сам термин." :error="errors.aliases">
+        <UiField :label="$t('glossary.aliasesLabel')" :hint="$t('glossary.aliasesHint')" :error="errors.aliases">
           <UiTextarea v-model="aliases" :rows="3" name="aliases" />
         </UiField>
         <div class="dlg-actions">
-          <UiButton type="submit" variant="primary" :loading="busy" data-testid="term-save">Сохранить</UiButton>
-          <UiButton variant="link" @click="editing = null">Отмена</UiButton>
+          <UiButton type="submit" variant="primary" :loading="busy" data-testid="term-save">{{ $t('glossary.save') }}</UiButton>
+          <UiButton variant="link" @click="editing = null">{{ $t('glossary.cancel') }}</UiButton>
         </div>
       </form>
     </UiModal>
 
-    <UiModal v-model:open="removeOpen" title="Удалить термин?" testid="term-delete-dialog">
-      <p>Термин «{{ removing?.term }}» будет удалён из глоссария.</p>
+    <UiModal v-model:open="removeOpen" :title="$t('glossary.removeTitle')" testid="term-delete-dialog">
+      <p>{{ $t('glossary.removeText', { term: removing?.term ?? '' }) }}</p>
       <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
       <div class="dlg-actions">
-        <UiButton variant="danger" icon="trash" :loading="busy" data-testid="term-confirm-delete" @click="confirmRemove">Удалить</UiButton>
-        <UiButton variant="link" @click="removing = null">Отмена</UiButton>
+        <UiButton variant="danger" icon="trash" :loading="busy" data-testid="term-confirm-delete" @click="confirmRemove">{{ $t('glossary.remove') }}</UiButton>
+        <UiButton variant="link" @click="removing = null">{{ $t('glossary.cancel') }}</UiButton>
       </div>
     </UiModal>
   </UiSheet>

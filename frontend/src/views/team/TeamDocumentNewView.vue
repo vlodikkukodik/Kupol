@@ -16,6 +16,7 @@ import { keys } from '@/api/query'
 import { useDocumentMeta } from '@/composables/useDocumentMeta'
 import { useForm } from '@/composables/useForm'
 import { contentFromForm, formFromContent, problemsToFields } from '@/lib/teamdoc'
+import { t } from '@/i18n'
 import ErrorView from '../ErrorView.vue'
 
 const router = useRouter()
@@ -34,7 +35,7 @@ const templateId = ref(typeof route.query.template === 'string' ? route.query.te
 const templateNote = ref('')
 const templateError = ref('')
 const templates = useQuery({ queryKey: keys.teamTemplates('document'), queryFn: ({ signal }) => teamApi.templates('document', { signal }), staleTime: 0 })
-const templateOptions = computed(() => (templates.data.value ?? []).map((t) => ({ value: String(t.id), label: `${t.name} — ${t.doc_type_name}` })))
+const templateOptions = computed(() => (templates.data.value ?? []).map((tpl) => ({ value: String(tpl.id), label: `${tpl.name} — ${tpl.doc_type_name}` })))
 
 async function applyTemplate(id: string) {
   templateError.value = ''
@@ -44,29 +45,29 @@ async function applyTemplate(id: string) {
     return
   }
   try {
-    const t = await teamApi.template(Number(id))
-    if (t.kind !== 'document' || !t.doc_type) throw new Error('не шаблон документа')
-    type.value = t.doc_type
-    fields.value.title = t.content.title ?? ''
-    fields.value.level = String(t.content.level ?? 0)
-    fields.value.direct_link = t.content.direct_link || 'not_found'
-    fields.value.grif = t.content.grif ?? ''
-    blocks.value = t.content.blocks
-    templateNote.value = `Подставлено из шаблона «${t.name}»: тип, название, допуск, гриф и блоки (${t.content.blocks.length}). Дату составления и шифр укажите сами.`
+    const tpl = await teamApi.template(Number(id))
+    if (tpl.kind !== 'document' || !tpl.doc_type) throw new Error('not a document template')
+    type.value = tpl.doc_type
+    fields.value.title = tpl.content.title ?? ''
+    fields.value.level = String(tpl.content.level ?? 0)
+    fields.value.direct_link = tpl.content.direct_link || 'not_found'
+    fields.value.grif = tpl.content.grif ?? ''
+    blocks.value = tpl.content.blocks
+    templateNote.value = t('newDoc.templateApplied', { name: tpl.name, n: tpl.content.blocks.length })
   } catch {
-    templateError.value = 'Не удалось открыть шаблон: возможно, его удалили.'
+    templateError.value = t('newDoc.templateFailed')
     templateId.value = ''
     blocks.value = []
   }
 }
 watch(templateId, (id) => void applyTemplate(id), { immediate: true })
 
-const typeInfo = computed(() => meta.value?.types.find((t) => t.id === type.value) ?? null)
-const typeOptions = computed(() => (meta.value?.types ?? []).map((t) => ({ value: t.id, label: t.name })))
+const typeInfo = computed(() => meta.value?.types.find((it) => it.id === type.value) ?? null)
+const typeOptions = computed(() => (meta.value?.types ?? []).map((it) => ({ value: it.id, label: it.name })))
 const codeHint = computed(() => {
-  if (!typeInfo.value) return 'Сначала выберите тип документа.'
-  const example = `Например, ${typeInfo.value.code_example}.`
-  return typeInfo.value.code_optional ? `${example} Можно не указывать: номер присвоится при публикации.` : example
+  if (!typeInfo.value) return t('newDoc.codeFirst')
+  const example = t('newDoc.codeExample', { example: typeInfo.value.code_example })
+  return typeInfo.value.code_optional ? t('newDoc.codeOptional', { example }) : example
 })
 const metaRequestId = computed(() => (isApiError(metaQuery.error.value) ? metaQuery.error.value.requestId : ''))
 
@@ -78,7 +79,7 @@ async function focusFirstError() {
 async function onSubmit() {
   form.clear()
   otherProblems.value = []
-  if (!type.value) form.errors.type = 'Выберите тип документа'
+  if (!type.value) form.errors.type = t('newDoc.chooseType')
   const { content, errors } = contentFromForm({ ...fields.value, props: null, blocks: blocks.value })
   Object.assign(form.errors, errors)
   if (Object.keys(form.errors).length > 0) return focusFirstError()
@@ -97,7 +98,7 @@ async function onSubmit() {
     const { byPath, other } = problemsToFields(err.problems)
     Object.assign(form.errors, byPath)
     otherProblems.value = other
-    form.formError.value = 'Проверьте поля бланка.'
+    form.formError.value = t('newDoc.checkForm')
   }
   return focusFirstError()
 }
@@ -105,53 +106,53 @@ async function onSubmit() {
 
 <template>
   <UiSheet as="section" class="new-doc" aria-labelledby="new-title">
-    <h2 id="new-title">Новый документ</h2>
-    <p class="note">Документ появится черновиком: его видите только вы и Директорат, пока не отправите на проверку.</p>
+    <h2 id="new-title">{{ $t('newDoc.title') }}</h2>
+    <p class="note">{{ $t('newDoc.note') }}</p>
 
     <ErrorView v-if="metaQuery.isError.value" :request-id="metaRequestId" :retrying="metaQuery.isFetching.value" @retry="metaQuery.refetch()" />
     <UiSkeleton v-else-if="!meta" :lines="4" />
 
-    <form v-else novalidate aria-label="Новый документ" @submit.prevent="onSubmit">
+    <form v-else novalidate :aria-label="$t('newDoc.formLabel')" @submit.prevent="onSubmit">
       <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
       <ul v-if="otherProblems.length" class="problems">
         <li v-for="p in otherProblems" :key="p.path"><code>{{ p.path }}</code>: {{ p.message }}</li>
       </ul>
 
-      <UiField id="nd-template" label="Шаблон (необязательно)" hint="Тип, название, допуск, гриф и блоки подставятся из шаблона; потом всё можно изменить." :error="templateError">
-        <UiSelect v-model="templateId" :options="templateOptions" placeholder="Без шаблона" data-testid="nd-template" />
+      <UiField id="nd-template" :label="$t('newDoc.template')" :hint="$t('newDoc.templateHint')" :error="templateError">
+        <UiSelect v-model="templateId" :options="templateOptions" :placeholder="$t('newDoc.noTemplate')" data-testid="nd-template" />
       </UiField>
       <p v-if="templateNote" class="template-note" data-testid="nd-template-note">{{ templateNote }}</p>
 
-      <UiField id="nd-type" label="Тип документа" :error="form.errors.type">
-        <UiSelect v-model="type" :options="typeOptions" placeholder="Выберите…" />
+      <UiField id="nd-type" :label="$t('newDoc.type')" :error="form.errors.type">
+        <UiSelect v-model="type" :options="typeOptions" :placeholder="$t('newDoc.typePlaceholder')" />
       </UiField>
-      <UiField id="nd-code" label="Шифр" :hint="codeHint" :error="form.errors.code">
+      <UiField id="nd-code" :label="$t('newDoc.code')" :hint="codeHint" :error="form.errors.code">
         <UiInput v-model="code" :maxlength="40" />
       </UiField>
-      <UiField id="nd-title" label="Название" :error="form.errors.title">
+      <UiField id="nd-title" :label="$t('newDoc.name')" :error="form.errors.title">
         <UiInput v-model="fields.title" :maxlength="300" />
       </UiField>
 
       <fieldset class="date">
-        <legend>Дата составления (внутри вселенной)</legend>
+        <legend>{{ $t('newDoc.date') }}</legend>
         <div class="date__row">
-          <UiField id="nd-year" label="Год" :error="form.errors['composed.year']">
+          <UiField id="nd-year" :label="$t('newDoc.year')" :error="form.errors['composed.year']">
             <UiInput v-model="fields.year" inputmode="numeric" :maxlength="4" />
           </UiField>
-          <UiField id="nd-month" label="Месяц" :error="form.errors['composed.month']">
+          <UiField id="nd-month" :label="$t('newDoc.month')" :error="form.errors['composed.month']">
             <UiInput v-model="fields.month" inputmode="numeric" :maxlength="2" />
           </UiField>
-          <UiField id="nd-day" label="День" :error="form.errors['composed.day']">
+          <UiField id="nd-day" :label="$t('newDoc.day')" :error="form.errors['composed.day']">
             <UiInput v-model="fields.day" inputmode="numeric" :maxlength="2" />
           </UiField>
         </div>
-        <p class="hint">Месяц и день можно не указывать.</p>
+        <p class="hint">{{ $t('newDoc.dateHint') }}</p>
         <p v-if="form.errors.composed" class="error">{{ form.errors.composed }}</p>
       </fieldset>
 
       <div class="actions">
-        <UiButton type="submit" variant="primary" :loading="form.submitting.value">{{ form.submitting.value ? 'Заводим…' : 'Завести черновик' }}</UiButton>
-        <UiButton :to="{ name: 'team-documents' }" variant="link">Отмена</UiButton>
+        <UiButton type="submit" variant="primary" :loading="form.submitting.value">{{ form.submitting.value ? $t('newDoc.submitting') : $t('newDoc.submit') }}</UiButton>
+        <UiButton :to="{ name: 'team-documents' }" variant="link">{{ $t('newDoc.cancel') }}</UiButton>
       </div>
     </form>
   </UiSheet>

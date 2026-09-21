@@ -9,6 +9,8 @@ import UiIcon from '@/ui/UiIcon.vue'
 import UiSeal from '@/ui/UiSeal.vue'
 import ErrorView from '@/views/ErrorView.vue'
 import MaintenanceView from '@/views/MaintenanceView.vue'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useConnectionStore } from '@/stores/connection'
 import { useUiStore } from '@/stores/ui'
@@ -44,19 +46,11 @@ const blocked = computed(() => {
   return null
 })
 
-const statusText = computed(
-  () =>
-    ({
-      unknown: 'Связь с архивом: проверка…',
-      online: 'Связь с архивом: установлена',
-      outage: 'Связь с архивом: нарушена',
-      maintenance: 'Архив закрыт на инвентаризацию',
-    })[connection.state],
-)
+const statusText = computed(() => t(`app.status.${connection.state}`))
 </script>
 
 <template>
-  <a class="skip-link" href="#content">К содержимому</a>
+  <a class="skip-link" href="#content">{{ $t('app.skipLink') }}</a>
 
   <!-- Пока открыто меню или окно входа, страница под ними недоступна ни мыши, ни клавиатуре, ни скринридеру -->
   <div class="app" :inert="ui.overlayOpen">
@@ -65,7 +59,7 @@ const statusText = computed(
         id="menu-toggle"
         type="button"
         class="burger"
-        aria-label="Меню"
+        :aria-label="$t('app.menu')"
         aria-haspopup="dialog"
         aria-controls="site-menu"
         :aria-expanded="ui.menuOpen ? 'true' : 'false'"
@@ -73,15 +67,16 @@ const statusText = computed(
       >
         <UiIcon name="menu" size="1.5rem" />
       </button>
-      <RouterLink to="/" class="brand" aria-label="КУПОЛ — на главную">
+      <RouterLink to="/" class="brand" :aria-label="$t('app.brandHome')">
         <UiSeal :size="40" decorative class="brand__seal" />
-        <span class="brand__name">Купол</span>
+        <span class="brand__name">{{ $t('app.brandName') }}</span>
       </RouterLink>
-      <nav class="masthead__nav" aria-label="Разделы">
-        <RouterLink to="/catalog">Каталог</RouterLink>
-        <RouterLink to="/search">Поиск</RouterLink>
-        <RouterLink to="/about">О КУПОЛЕ</RouterLink>
+      <nav class="masthead__nav" :aria-label="$t('app.sections')">
+        <RouterLink to="/catalog">{{ $t('app.nav.catalog') }}</RouterLink>
+        <RouterLink to="/search">{{ $t('app.nav.search') }}</RouterLink>
+        <RouterLink to="/about">{{ $t('app.nav.about') }}</RouterLink>
       </nav>
+      <LanguageSwitcher class="masthead__lang" />
       <PassCard v-if="auth.user" class="masthead__pass" :login="auth.user.login" :level-name="auth.user.level_name" :level="auth.user.level" />
     </header>
 
@@ -95,12 +90,9 @@ const statusText = computed(
     <CookieNotice />
 
     <footer class="colophon">
-      <span>Форма КУПОЛ-1 · Центральный архив · <RouterLink to="/about#privacy">Конфиденциальность</RouterLink></span>
+      <span>{{ $t('app.footerLine') }} <RouterLink to="/about#privacy">{{ $t('app.privacy') }}</RouterLink></span>
       <span class="status" :data-state="connection.state" role="status">{{ statusText }}</span>
-      <p class="disclaimer">
-        Примечание автора: КУПОЛ, его объекты, сотрудники и события — художественный вымысел. Любые совпадения
-        с реальными организациями, документами и людьми случайны. Это литературно-игровой архив, а не источник фактов.
-      </p>
+      <p class="disclaimer">{{ $t('app.disclaimer') }}</p>
     </footer>
   </div>
 
@@ -125,7 +117,7 @@ const statusText = computed(
   margin-inline: auto;
   padding: var(--space-3) 0;
 }
-.masthead__pass {
+.masthead__lang {
   margin-left: auto;
 }
 .brand {

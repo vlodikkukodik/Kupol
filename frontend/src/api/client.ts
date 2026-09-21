@@ -1,5 +1,6 @@
 // Клиент API. Все обычные запросы идут на тот же домен (/api/...), где их принимает PHP-прокси и передаёт Go API.
 // Ошибки приводятся к единому виду ApiError; о каждом исходе можно узнать через subscribe (сторы связи и сессии).
+import { locale, t } from '@/i18n'
 import type { ErrorBody } from './generated/httpapi'
 import type { LintIssue, LintReport, Problem } from './generated/documents'
 
@@ -162,7 +163,7 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError({
     status: res.status,
     code: 'bad_response',
-    message: res.statusText || 'Неожиданный ответ сервера',
+    message: res.statusText || t('errors.clientBadResponse'),
     requestId: res.headers.get('x-request-id') ?? '',
     retryAfter: Number(res.headers.get('retry-after')) || 0,
   })
@@ -180,9 +181,10 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
 
   /** Отправляет запрос и возвращает успешный ответ; сбой связи и коды не 2xx — ApiError (и событие для сторов связи). */
   async function send({ path, method = 'GET', body, signal, headers = {} }: RequestOptions & { path: string }): Promise<Response> {
-    if (!path.startsWith('/')) throw new TypeError(`путь API должен начинаться с "/": ${path}`)
+    if (!path.startsWith('/')) throw new TypeError(`API path must start with "/": ${path}`)
 
-    const init: RequestInit = { method, headers: { Accept: 'application/json', ...headers }, credentials: 'same-origin' }
+    // Язык интерфейса уходит серверу: сообщения об ошибках, названия уровней и статусов приходят на нём
+    const init: RequestInit = { method, headers: { Accept: 'application/json', 'Accept-Language': locale.value, ...headers }, credentials: 'same-origin' }
     if (body !== undefined) {
       ;(init.headers as Record<string, string>)['Content-Type'] = 'application/json'
       init.body = JSON.stringify(body)
@@ -200,7 +202,7 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
       const err = new ApiError({
         status: 0,
         code: timedOut ? 'timeout' : 'network',
-        message: timedOut ? 'Архив не ответил вовремя' : 'Нет связи с архивом',
+        message: timedOut ? t('errors.clientTimeout') : t('errors.clientNetwork'),
       })
       notify({ ok: false, error: err })
       throw err
@@ -223,7 +225,7 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
     try {
       return JSON.parse(text) as T
     } catch {
-      const err = new ApiError({ status: res.status, code: 'bad_response', message: 'Неожиданный ответ сервера' })
+      const err = new ApiError({ status: res.status, code: 'bad_response', message: t('errors.clientBadResponse') })
       notify({ ok: false, error: err })
       throw err
     }

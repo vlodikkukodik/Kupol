@@ -124,7 +124,7 @@ func (s *Service) termRows(db *gorm.DB, id int64, q string) ([]termRow, error) {
 func (s *Service) GlossaryList(ctx context.Context, a Actor, q string) ([]TermOut, error) {
 	q = strings.TrimSpace(q)
 	if utf8.RuneCountInString(q) > 100 {
-		return nil, &QueryError{Field: "q", Message: "слишком длинный запрос"}
+		return nil, queryError("q", "слишком длинный запрос")
 	}
 	rows, err := s.termRows(s.db.WithContext(ctx), 0, q)
 	if err != nil {

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import type { Item } from '@/api/generated/documents'
-import { ariaSort, nextSort, type SortKey } from '@/lib/catalog'
+import { computed } from 'vue'
+import { ariaSort, nextSort, statusNameLower, type SortKey } from '@/lib/catalog'
+import { t } from '@/i18n'
 
 defineProps<{
   items: Item[]
@@ -12,16 +14,14 @@ defineProps<{
 const route = useRoute()
 const router = useRouter()
 
-// Неопубликованное видит только Директорат; статус в реестре — словами архива.
-const STATUS_NAMES: Record<string, string> = { draft: 'черновик', review: 'на проверке', archived: 'в архиве' }
-
-const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: 'code', label: '№' },
-  { key: 'title', label: 'Название' },
-  { key: 'class', label: 'Класс' },
-  { key: 'year', label: 'Год' },
-  { key: 'deviation', label: 'П.о.' },
-]
+// Неопубликованное видит только Директорат; статус в реестре — словами архива (statusNameLower).
+const COLUMNS = computed<{ key: SortKey; label: string }[]>(() => [
+  { key: 'code', label: t('catalog.col.code') },
+  { key: 'title', label: t('catalog.col.title') },
+  { key: 'class', label: t('catalog.col.class') },
+  { key: 'year', label: t('catalog.col.year') },
+  { key: 'deviation', label: t('catalog.col.deviation') },
+])
 const ARROWS = { ascending: '↑', descending: '↓', none: '' }
 
 function sortBy(key: SortKey) {
@@ -30,9 +30,9 @@ function sortBy(key: SortKey) {
 </script>
 
 <template>
-  <div class="wrap" tabindex="0" role="region" aria-label="Реестр документов">
+  <div class="wrap" tabindex="0" role="region" :aria-label="$t('catalog.registry')">
     <table class="registry" data-testid="registry">
-      <caption class="visually-hidden">Реестр документов</caption>
+      <caption class="visually-hidden">{{ $t('catalog.registry') }}</caption>
       <thead>
         <tr>
           <th v-for="c in COLUMNS" :key="c.key" scope="col" :aria-sort="ariaSort(route.query, c.key)">
@@ -49,7 +49,7 @@ function sortBy(key: SortKey) {
           <td class="title">
             <RouterLink :to="{ name: 'document', params: { ref: it.slug } }">{{ it.title }}</RouterLink>
             <span class="sub">
-              {{ it.type_name }}<template v-if="it.department"> · {{ it.department }}</template><template v-if="it.level > 0"> · допуск {{ it.level }}</template><template v-if="showStatus && it.status && it.status !== 'published'"> · {{ STATUS_NAMES[it.status] ?? it.status }}</template>
+              {{ it.type_name }}<template v-if="it.department"> · {{ it.department }}</template><template v-if="it.level > 0"> · {{ $t('catalog.access', { level: it.level }) }}</template><template v-if="showStatus && it.status && it.status !== 'published'"> · {{ statusNameLower(it.status) }}</template>
             </span>
           </td>
           <td class="num">{{ it.danger_class ?? '—' }}</td>

@@ -1,23 +1,15 @@
 // «Реалистичность архива» (спецификация §7): гриф по уровню, архивный шифр, зачернения разной длины. Чистые функции — их проверяет vitest.
 import type { OutBlock, OutDocument } from '@/api/generated/documents'
+import { t } from '@/i18n'
 
 /**
  * Гриф секретности документа по его уровню допуска — верхний и нижний колонтитул листа. Шкала — от «несекретно» до «особой важности»;
  * уровни Особого Совета и Директората — та же «особая важность» с пометкой, кому открыто.
  */
-export const CLASSIFICATION = [
-  'Несекретно',
-  'Для служебного пользования',
-  'Конфиденциально',
-  'Секретно',
-  'Совершенно секретно',
-  'Особой важности',
-  'Особой важности · Особый Совет',
-  'Особой важности · только Директорат',
-] as const
+export const CLASSIFICATION_LEVELS = 8
 
 export function classification(level: number): string {
-  return CLASSIFICATION[Math.max(0, Math.min(CLASSIFICATION.length - 1, Math.trunc(level) || 0))] ?? CLASSIFICATION[0]
+  return t(`doc.classification.${Math.max(0, Math.min(CLASSIFICATION_LEVELS - 1, Math.trunc(level) || 0))}`)
 }
 
 /** Фонд по типу документа: как разложены дела в архиве. */
@@ -65,10 +57,10 @@ export function archiveMark(doc: Pick<OutDocument, 'type' | 'code' | 'composed' 
   }
 }
 
-export const archiveMarkText = (m: ArchiveMark): string => `Фонд ${m.fond} · Опись ${m.inventory} · Дело ${m.file} · Листов ${m.sheets}`
+export const archiveMarkText = (m: ArchiveMark): string => t('doc.archiveMark', { ...m })
 
-/** «экз. № 0042» или «экз. б/н». */
-export const copyText = (copy: string): string => `экз. ${copy === 'б/н' ? copy : `№ ${copy}`}`
+/** «экз. № 0042»; у Гражданина номера нет (сервер присылает пустую строку) — «экз. б/н». */
+export const copyText = (copy: string): string => (copy ? t('doc.copyNumber', { n: copy }) : t('doc.copyNone'))
 
 function hash(seed: string): number {
   let h = 2166136261

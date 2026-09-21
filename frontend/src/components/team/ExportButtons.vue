@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { ApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
 import { describeApiError } from '@/composables/useForm'
+import { t } from '@/i18n'
 import UiButton from '@/ui/UiButton.vue'
 
 // Скачивание документа файлом. JSON — тот же формат, что принимает «Загрузить из файла» (экспорт → правка → загрузка);
@@ -28,7 +29,7 @@ async function save(format: 'json' | 'md') {
     a.click()
     a.remove()
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
-    notice.value = `Файл ${file.filename} сохранён.`
+    notice.value = t('exportFiles.saved', { name: file.filename })
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
     failure.value = describeApiError(err)
@@ -41,12 +42,12 @@ async function save(format: 'json' | 'md') {
 <template>
   <span class="export" data-testid="export">
     <UiButton variant="link" icon="download" :loading="busy === 'json'" :aria-describedby="dirty ? 'export-hint' : undefined" data-testid="export-json" @click="save('json')">
-      Скачать JSON
+      {{ $t('exportFiles.json') }}
     </UiButton>
     <UiButton variant="link" icon="download" :loading="busy === 'md'" :aria-describedby="dirty ? 'export-hint' : undefined" data-testid="export-md" @click="save('md')">
-      Скачать Markdown
+      {{ $t('exportFiles.md') }}
     </UiButton>
-    <span v-if="dirty" id="export-hint" class="hint">В файл попадёт сохранённая версия, без несохранённых правок.</span>
+    <span v-if="dirty" id="export-hint" class="hint">{{ $t('exportFiles.hint') }}</span>
     <span class="visually-hidden" role="status">{{ notice }}</span>
     <span v-if="failure" class="failure" role="alert" data-testid="export-error">{{ failure }}</span>
   </span>

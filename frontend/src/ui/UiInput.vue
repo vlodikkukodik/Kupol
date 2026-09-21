@@ -64,7 +64,7 @@ defineExpose({ focus: () => el.value?.focus(), el })
       :aria-controls="field?.id"
       @click="revealed = !revealed"
     >
-      {{ revealed ? 'Скрыть' : 'Показать' }}
+      {{ revealed ? $t('ui.hide') : $t('ui.show') }}
     </button>
   </div>
 </template>

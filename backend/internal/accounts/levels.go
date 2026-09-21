@@ -1,6 +1,8 @@
 // Package accounts — пользователи, серверные сессии, вход, регистрация, восстановление доступа.
 package accounts
 
+import "kupol/internal/i18n"
+
 // Уровни допуска (спецификация §3). Гражданин — посетитель без входа, в БД его нет.
 const (
 	LevelGuest    = 0
@@ -25,15 +27,18 @@ var levelNames = [...]string{
 // DirectorateName — звание Директората: он стоит вне лестницы уровней и выдаётся только автором.
 const DirectorateName = "Директорат"
 
-// LevelName возвращает звание. Директорат показывается вместо уровня.
-func LevelName(level int, directorate bool) string {
+// LevelName возвращает звание по-русски. Директорат показывается вместо уровня.
+func LevelName(level int, directorate bool) string { return LevelNameIn(i18n.RU, level, directorate) }
+
+// LevelNameIn — звание на языке l.
+func LevelNameIn(l i18n.Lang, level int, directorate bool) string {
 	if directorate {
-		return DirectorateName
+		return l.Translate(DirectorateName)
 	}
 	if level < 0 || level >= len(levelNames) {
 		return ""
 	}
-	return levelNames[level]
+	return l.Translate(levelNames[level])
 }
 
 // ValidLevel — допустимый уровень зарегистрированного пользователя.

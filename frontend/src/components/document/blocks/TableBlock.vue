@@ -6,7 +6,7 @@ defineProps<{ data: OutTable }>()
 </script>
 
 <template>
-  <div class="table-wrap" tabindex="0" role="region" :aria-label="data.caption || 'Таблица'">
+  <div class="table-wrap" tabindex="0" role="region" :aria-label="data.caption || $t('doc.block.table')">
     <table>
       <caption v-if="data.caption">{{ data.caption }}</caption>
       <thead>

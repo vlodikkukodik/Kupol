@@ -45,6 +45,7 @@ func New(d Deps) (*gin.Engine, error) {
 
 	r.Use(
 		requestIDMiddleware(),
+		languageMiddleware(),
 		recoveryMiddleware(d.Log),
 		proxyTrustMiddleware(d.Config.ProxySecret, d.Log),
 		accessLogMiddleware(d.Log),

@@ -1,5 +1,6 @@
 // Предпросмотр «глазами уровня N»: вспомогательная логика. Что закрыто, решает сервер; здесь только подсчёт для подписи.
 import type { OutDocument } from '@/api/generated/documents'
+import { t, tc } from '@/i18n'
 
 export interface RedactionStats {
   /** Блоки, закрытые целиком (метка redacted вместо блока) */
@@ -33,13 +34,8 @@ function countFragments(value: unknown): number {
 
 /** «2 блока и 3 фрагмента»; пусто — «ничего не закрыто». */
 export function describeRedactions({ blocks, fragments }: RedactionStats): string {
-  const plural = (n: number, one: string, few: string, many: string) => {
-    const m10 = n % 10
-    const m100 = n % 100
-    return m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many
-  }
   const parts: string[] = []
-  if (blocks) parts.push(`${blocks} ${plural(blocks, 'блок', 'блока', 'блоков')}`)
-  if (fragments) parts.push(`${fragments} ${plural(fragments, 'фрагмент', 'фрагмента', 'фрагментов')}`)
-  return parts.length ? parts.join(' и ') : 'ничего не закрыто'
+  if (blocks) parts.push(tc('doc.redaction.blocks', blocks))
+  if (fragments) parts.push(tc('doc.redaction.fragments', fragments))
+  return parts.length ? parts.join(t('doc.redaction.and')) : t('doc.redaction.none')
 }

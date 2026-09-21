@@ -19,6 +19,7 @@ import { isApiError } from '@/api/client'
 import { keys } from '@/api/query'
 import { useQueryFilters } from '@/composables/useQueryFilters'
 import { hasFilters, toApiParams, withFilters } from '@/lib/catalog'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import ErrorView from './ErrorView.vue'
 
@@ -59,18 +60,18 @@ function resetFilters() {
 }
 
 // Порядок карточек: в реестре его задают заголовки столбцов, у карточек их нет — вместо них список готовых порядков (sort + order в адресе).
-const CARD_ORDERS = [
-  { value: 'code', label: 'По шифру' },
-  { value: 'title', label: 'По названию' },
-  { value: 'year:desc', label: 'По году — сначала новые' },
-  { value: 'year', label: 'По году — сначала старые' },
-  { value: 'class:desc', label: 'По классу опасности — сначала высокий' },
-  { value: 'deviation:desc', label: 'По п.о. — сначала больше' },
-]
+const CARD_ORDERS = computed(() => [
+  { value: 'code', label: t('catalog.orders.code') },
+  { value: 'title', label: t('catalog.orders.title') },
+  { value: 'year:desc', label: t('catalog.orders.yearDesc') },
+  { value: 'year', label: t('catalog.orders.year') },
+  { value: 'class:desc', label: t('catalog.orders.classDesc') },
+  { value: 'deviation:desc', label: t('catalog.orders.deviationDesc') },
+])
 const cardsOrder = computed(() => {
   const sort = typeof route.query.sort === 'string' ? route.query.sort : 'code'
   const key = route.query.order === 'desc' ? `${sort}:desc` : sort
-  return CARD_ORDERS.some((o) => o.value === key) ? key : 'code'
+  return CARD_ORDERS.value.some((o) => o.value === key) ? key : 'code'
 })
 function setCardsOrder(value: string) {
   const [sort = 'code', order] = value.split(':')
@@ -92,12 +93,12 @@ function openFolder(type: string) {
 
 <template>
   <div>
-    <UiPageHeader title="Каталог" kicker="Реестр Центрального архива">
+    <UiPageHeader :title="$t('catalog.title')" :kicker="$t('catalog.kicker')">
       <template #actions>
-        <div class="views" role="group" aria-label="Вид каталога">
-          <button type="button" class="view" :aria-pressed="view === 'table' ? 'true' : 'false'" @click="setView('table')">Реестр</button>
-          <button type="button" class="view" :aria-pressed="view === 'cards' ? 'true' : 'false'" data-testid="view-cards" @click="setView('cards')">Картотека</button>
-          <button type="button" class="view" :aria-pressed="view === 'folders' ? 'true' : 'false'" @click="setView('folders')">Папки</button>
+        <div class="views" role="group" :aria-label="$t('catalog.views')">
+          <button type="button" class="view" :aria-pressed="view === 'table' ? 'true' : 'false'" @click="setView('table')">{{ $t('catalog.viewTable') }}</button>
+          <button type="button" class="view" :aria-pressed="view === 'cards' ? 'true' : 'false'" data-testid="view-cards" @click="setView('cards')">{{ $t('catalog.viewCards') }}</button>
+          <button type="button" class="view" :aria-pressed="view === 'folders' ? 'true' : 'false'" @click="setView('folders')">{{ $t('catalog.viewFolders') }}</button>
         </div>
       </template>
     </UiPageHeader>
@@ -109,16 +110,16 @@ function openFolder(type: string) {
 
       <UiSheet v-else wide>
         <SearchBox id="catalog-q" class="catalog-search" />
-        <p v-if="list.data.value" class="total" role="status">Найдено: {{ list.data.value.total }}</p>
+        <p v-if="list.data.value" class="total" role="status">{{ $t('catalog.found', { n: list.data.value.total }) }}</p>
         <CatalogFilters :query="route.query" :summary="summary.data.value" @change="changeFilters" @reset="resetFilters" />
 
-        <UiSkeleton v-if="list.isPending.value" :lines="6" label="Загрузка реестра…" />
+        <UiSkeleton v-if="list.isPending.value" :lines="6" :label="$t('catalog.loading')" />
 
         <template v-else-if="list.data.value">
           <div :class="{ 'is-stale': list.isPlaceholderData.value }">
             <template v-if="list.data.value.items.length">
               <div v-if="view === 'cards'" class="cards-order">
-                <UiField id="cards-order" label="Порядок карточек">
+                <UiField id="cards-order" :label="$t('catalog.cardsOrder')">
                   <UiSelect :model-value="cardsOrder" :options="CARD_ORDERS" @update:model-value="setCardsOrder" />
                 </UiField>
               </div>
@@ -127,10 +128,10 @@ function openFolder(type: string) {
             </template>
             <p v-else class="state" data-testid="catalog-empty">
               <template v-if="filtered">
-                По заданным условиям ничего не найдено.
-                <UiButton variant="link" @click="resetFilters">Сбросить фильтры</UiButton>
+                {{ $t('catalog.nothingFound') }}
+                <UiButton variant="link" @click="resetFilters">{{ $t('catalog.reset') }}</UiButton>
               </template>
-              <template v-else>В архиве пока нет документов, доступных вам.</template>
+              <template v-else>{{ $t('catalog.empty') }}</template>
             </p>
           </div>
           <PaginationNav :page="list.data.value.page" :pages="list.data.value.pages" />

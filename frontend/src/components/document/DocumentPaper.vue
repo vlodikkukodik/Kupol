@@ -4,6 +4,7 @@ import { asDocBlocks } from '@/api/blocks'
 import type { OutDocument } from '@/api/generated/documents'
 import BlockRenderer from '@/components/document/BlockRenderer.vue'
 import { provideDocument } from '@/components/document/context'
+import { statusName } from '@/lib/catalog'
 import { archiveMark, archiveMarkText, classification, copyText } from '@/lib/realism'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiStamp from '@/ui/UiStamp.vue'
@@ -28,7 +29,7 @@ const mark = computed(() => archiveMark(props.doc))
       <p class="paper__kicker">{{ doc.type_name }} · {{ doc.code }}</p>
       <p class="paper__mark" data-testid="archive-mark">{{ archiveMarkText(mark) }} · {{ copyText(doc.copy_number) }}</p>
       <h1 data-doc-title tabindex="-1">{{ doc.title }}</h1>
-      <UiStamp v-if="doc.status && doc.status !== 'published'" class="paper__status" :text="doc.status === 'draft' ? 'Черновик' : doc.status === 'review' ? 'На проверке' : 'Архив'" tone="ink" size="sm" />
+      <UiStamp v-if="doc.status && doc.status !== 'published'" class="paper__status" :text="statusName(doc.status)" tone="ink" size="sm" />
     </header>
 
     <div class="paper__body">
@@ -36,11 +37,11 @@ const mark = computed(() => archiveMark(props.doc))
       <BlockRenderer v-for="(block, i) in blocks" :id="block.id ? `b-${block.id}` : undefined" :key="block.id ?? `redacted-${i}`" :block="block" />
     </div>
 
-    <p v-if="doc.slug" class="paper__graph"><RouterLink :to="{ name: 'graph', params: { ref: doc.slug } }" data-testid="graph-link">Связи документа: доска с нитками →</RouterLink></p>
+    <p v-if="doc.slug" class="paper__graph"><RouterLink :to="{ name: 'graph', params: { ref: doc.slug } }" data-testid="graph-link">{{ $t('doc.graphLink') }}</RouterLink></p>
 
     <!-- Документы, которые ссылаются на этот: сервер отдаёт только доступные читателю (и документ, и сам блок-ссылку) -->
     <section v-if="doc.mentioned_in?.length" class="paper__mentions" aria-labelledby="mentioned-title" data-testid="mentions">
-      <h2 id="mentioned-title">Упоминается в</h2>
+      <h2 id="mentioned-title">{{ $t('doc.mentionedIn') }}</h2>
       <ul>
         <li v-for="m in doc.mentioned_in" :key="m.code">
           <RouterLink :to="{ name: 'document', params: { ref: m.slug } }">{{ m.code }} — {{ m.title }}</RouterLink>
@@ -51,11 +52,11 @@ const mark = computed(() => archiveMark(props.doc))
 
     <!-- Лист ознакомления: сколько читателей открыло документ — без имён, история чтения закрыта -->
     <section v-if="doc.read_count > 0" class="paper__sheet" aria-labelledby="acquaint-title" data-testid="acquaint">
-      <h2 id="acquaint-title">Лист ознакомления</h2>
-      <p>Ознакомлено читателей: <strong>{{ doc.read_count }}</strong></p>
+      <h2 id="acquaint-title">{{ $t('doc.acquaintTitle') }}</h2>
+      <p><i18n-t keypath="doc.acquaintCount" scope="global"><template #n><strong>{{ doc.read_count }}</strong></template></i18n-t></p>
     </section>
 
-    <footer v-if="doc.author" class="paper__foot">Составил(а): <strong>{{ doc.author }}</strong></footer>
+    <footer v-if="doc.author" class="paper__foot"><i18n-t keypath="doc.composedBy" scope="global"><template #author><strong>{{ doc.author }}</strong></template></i18n-t></footer>
     <div class="paper__strip paper__strip--bottom" data-testid="strip-bottom">
       <span>{{ classification(doc.level) }}</span>
       <span>{{ copyText(doc.copy_number) }}</span>

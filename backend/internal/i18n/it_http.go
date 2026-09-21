@@ -1,0 +1,84 @@
+package i18n
+
+// Итальянские переводы: ответы API (ошибки, поля форм), названия уровней допуска, роли и права, анкета при регистрации.
+func init() {
+	register(IT, map[string]string{
+		// ——— общие ошибки API ———
+		"Сбой архива":                              "Guasto dell'archivio",
+		"Дело не найдено":                          "Fascicolo non trovato",
+		"Доступ запрещён":                          "Accesso negato",
+		"Недостаточно прав":                        "Diritti insufficienti",
+		"Требуется вход":                           "Accesso richiesto",
+		"Метод не поддерживается":                  "Metodo non supportato",
+		"Некорректные параметры запроса":           "Parametri della richiesta non validi",
+		"Некорректный запрос":                      "Richiesta non valida",
+		"Слишком большой запрос":                   "Richiesta troppo grande",
+		"Не удалось прочитать запрос":              "Impossibile leggere la richiesta",
+		"Ожидается Content-Type: application/json": "È previsto Content-Type: application/json",
+		"Запрос с чужого сайта отклонён":           "Richiesta da un altro sito respinta",
+		"Запрос без Origin отклонён":               "Richiesta senza Origin respinta",
+		"Подпись прокси недействительна":           "La firma del proxy non è valida",
+		"Слишком много попыток. Повторите позже.":  "Troppi tentativi. Riprova più tardi.",
+
+		// ——— значения параметров запроса ———
+		"ожидается целое число": "è previsto un numero intero",
+		"ожидается число":       "è previsto un numero",
+		"asc или desc":          "asc o desc",
+		"0 или 1":               "0 o 1",
+		"live или номер версии": "live o numero di versione",
+		"json или md":           "json o md",
+		"document или blockset": "document o blockset",
+		"от 1 до %d":            "da 1 a %d",
+
+		// ——— аккаунты ———
+		"Проверьте поля формы":                                 "Controlla i campi del modulo",
+		"Этот логин уже занят":                                 "Questo login è già occupato",
+		"Неверный ответ на вопрос анкеты":                      "Risposta errata alla domanda del questionario",
+		"Неверный ответ. Вопрос обновлён — ответьте на новый.": "Risposta errata. La domanda è stata aggiornata — rispondi a quella nuova.",
+		"Введите код из приложения-аутентификатора":            "Inserisci il codice dell'app di autenticazione",
+		"Неверный код":                                         "Codice errato",
+		"Неверный или уже использованный код":                  "Codice errato o già utilizzato",
+		"Код из приложения уже включён":                        "Il codice dell'app è già attivo",
+		"Код из приложения не включён":                         "Il codice dell'app non è attivo",
+		"Неверный пароль":                                      "Password errata",
+		"Неверный логин или пароль":                            "Login o password errati",
+		"Неверный логин или резервный код":                     "Login o codice di riserva errati",
+		"Ответьте на вопрос анкеты":                            "Rispondi alla domanda del questionario",
+		"Введите логин":                                        "Inserisci il login",
+		"Введите пароль":                                       "Inserisci la password",
+		"Введите резервный код":                                "Inserisci il codice di riserva",
+		"Новый пароль совпадает с текущим":                     "La nuova password coincide con quella attuale",
+		"Пользователь не найден":                               "Utente non trovato",
+		"Такой роли нет":                                       "Questo ruolo non esiste",
+		"неизвестная роль":                                     "ruolo sconosciuto",
+		"номер страницы не может быть отрицательным":           "il numero di pagina non può essere negativo",
+		"размер страницы — от 1 до 100":                        "la dimensione della pagina è da 1 a 100",
+		"слишком длинный запрос":                               "richiesta troppo lunga",
+
+		// ——— уровни допуска ———
+		"Гражданин":    "Cittadino",
+		"Посетитель":   "Visitatore",
+		"Стажёр":       "Tirocinante",
+		"Сотрудник":    "Dipendente",
+		"Надзиратель":  "Sorvegliante",
+		"Куратор":      "Curatore",
+		"Особый Совет": "Consiglio Speciale",
+		"Директорат":   "Direttorato",
+
+		// ——— роли и права ———
+		"Автор":      "Autore",
+		"Редактор":   "Redattore",
+		"Модератор":  "Moderatore",
+		"Архивариус": "Archivista",
+
+		"Входить в панель команды":                    "Accedere al pannello della squadra",
+		"Создавать документы и править черновики":     "Creare documenti e modificare le bozze",
+		"Проверять документы и выносить вердикт":      "Verificare i documenti ed emettere il verdetto",
+		"Публиковать проверенные документы (не свои)": "Pubblicare i documenti verificati (non i propri)",
+		"Править опубликованное на месте":             "Modificare il pubblicato sul posto",
+		"Вести глоссарий канона":                      "Tenere il glossario del canone",
+		"Вести шаблоны и наборы блоков":               "Tenere i modelli e gli insiemi di blocchi",
+		"Вести хронологию «О КУПОЛЕ»":                 "Tenere la cronologia «SU KUPOL»",
+		"Выдавать и снимать роли":                     "Assegnare e togliere i ruoli",
+	})
+}

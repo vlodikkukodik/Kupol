@@ -13,6 +13,6 @@ export function useDocumentOptional(): ComputedRef<OutDocument | null> {
 
 export function useDocument(): ComputedRef<OutDocument | null> {
   const doc = inject(KEY)
-  if (!doc) throw new Error('useDocument: блок рисуется вне документа')
+  if (!doc) throw new Error('useDocument: the block is rendered outside a document')
   return doc
 }

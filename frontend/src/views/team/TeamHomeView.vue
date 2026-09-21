@@ -7,6 +7,7 @@ import UiTable from '@/ui/UiTable.vue'
 import { isApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
+import { levelName } from '@/lib/levels'
 import { useAuthStore, type Capability } from '@/stores/auth'
 import ErrorView from '../ErrorView.vue'
 
@@ -18,7 +19,7 @@ const requestId = computed(() => (isApiError(query.error.value) ? query.error.va
 const mine = computed(() => {
   const u = auth.user
   if (!u) return []
-  return u.directorate ? [{ id: 'directorate', name: 'Директорат' }] : u.roles
+  return u.directorate ? [{ id: 'directorate', name: levelName(7) }] : u.roles
 })
 const has = (capability: string) => auth.can(capability as Capability)
 </script>
@@ -29,31 +30,31 @@ const has = (capability: string) => auth.can(capability as Capability)
 
   <div v-else class="stack">
     <UiSheet as="section" aria-labelledby="mine-title">
-      <h2 id="mine-title">Ваши роли</h2>
+      <h2 id="mine-title">{{ $t('roles.mineTitle') }}</h2>
       <p v-if="mine.length" data-testid="my-roles">
         <template v-for="(r, i) in mine" :key="r.id"><strong>{{ r.name }}</strong><template v-if="i < mine.length - 1">, </template></template>
       </p>
-      <p v-if="auth.user?.directorate">Директорат подразумевает все роли и все права. Роли остальным выдаются на экране «Команда».</p>
+      <p v-if="auth.user?.directorate">{{ $t('roles.directorateAll') }}</p>
 
-      <h3>Что вам разрешено</h3>
+      <h3>{{ $t('roles.allowedTitle') }}</h3>
       <ul class="rights" data-testid="my-rights">
         <li v-for="c in data.capabilities" :key="c.id" :class="{ off: !has(c.id) }">
           <span class="mark" aria-hidden="true">{{ has(c.id) ? '✓' : '—' }}</span>
-          <span class="visually-hidden">{{ has(c.id) ? 'Разрешено:' : 'Не разрешено:' }}</span>
+          <span class="visually-hidden">{{ has(c.id) ? $t('roles.allowed') : $t('roles.notAllowed') }}</span>
           {{ c.name }}
         </li>
       </ul>
     </UiSheet>
 
     <UiSheet as="section" aria-labelledby="roles-title">
-      <h2 id="roles-title">Что даёт каждая роль</h2>
-      <p class="note">Ролей у человека может быть несколько, права складываются. Роли выдаёт Директорат.</p>
-      <UiTable label="Таблица ролей и прав">
+      <h2 id="roles-title">{{ $t('roles.eachTitle') }}</h2>
+      <p class="note">{{ $t('roles.note') }}</p>
+      <UiTable :label="$t('roles.tableLabel')">
         <table class="matrix" data-testid="roles-matrix">
-          <caption class="visually-hidden">Права по ролям</caption>
+          <caption class="visually-hidden">{{ $t('roles.caption') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Право</th>
+              <th scope="col">{{ $t('roles.right') }}</th>
               <th v-for="r in data.roles" :key="r.id" scope="col">{{ r.name }}</th>
               <th scope="col">{{ data.directorate.name }}</th>
             </tr>
@@ -63,11 +64,11 @@ const has = (capability: string) => auth.can(capability as Capability)
               <th scope="row">{{ c.name }}</th>
               <td v-for="r in data.roles" :key="r.id" class="cell">
                 <template v-if="r.capabilities.some((x) => x.id === c.id)">
-                  <span aria-hidden="true">✓</span><span class="visually-hidden">да</span>
+                  <span aria-hidden="true">✓</span><span class="visually-hidden">{{ $t('roles.yes') }}</span>
                 </template>
-                <template v-else><span aria-hidden="true" class="no">—</span><span class="visually-hidden">нет</span></template>
+                <template v-else><span aria-hidden="true" class="no">—</span><span class="visually-hidden">{{ $t('roles.no') }}</span></template>
               </td>
-              <td class="cell"><span aria-hidden="true">✓</span><span class="visually-hidden">да</span></td>
+              <td class="cell"><span aria-hidden="true">✓</span><span class="visually-hidden">{{ $t('roles.yes') }}</span></td>
             </tr>
           </tbody>
         </table>

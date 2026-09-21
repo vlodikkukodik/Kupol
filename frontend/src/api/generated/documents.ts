@@ -40,6 +40,10 @@ export interface LinkTarget {
   Slug: string;
   Title: string;
   Type: Type;
+  /**
+   * TypeName — название типа на языке читателя; пусто — по-русски
+   */
+  TypeName: string;
 }
 /**
  * LinkResolver возвращает описание цели ссылки или nil, если документа нет либо читатель его не видит.
@@ -735,6 +739,7 @@ export interface PreviewResult {
 
 /**
  * Problem — замечание к загружаемому документу; Path указывает место в JSON: «blocks[3].data.text».
+ * Message — по-русски; формат и значения запоминаются, чтобы при ответе сказать то же на языке читателя (In).
  */
 export interface Problem {
   path: string;
@@ -777,7 +782,8 @@ export interface Item {
   published_at?: string /* RFC 3339 */;
 }
 /**
- * QueryError — некорректный параметр запроса каталога.
+ * QueryError — некорректный параметр запроса каталога. Message — по-русски; формат и значения запоминаются,
+ * чтобы ответить на языке читателя (In).
  */
 export interface QueryError {
   Field: string;
@@ -860,7 +866,7 @@ export interface OutDocument {
    */
   mentioned_in?: Mention[];
   /**
-   * CopyNumber — номер экземпляра читателя, как у нумерованных копий секретных документов: «0042» из номера аккаунта, у Гражданина — «б/н».
+   * CopyNumber — номер экземпляра читателя, как у нумерованных копий секретных документов: «0042» из номера аккаунта, у Гражданина — пусто («б/н»).
    */
   copy_number: string;
   /**
@@ -1066,6 +1072,10 @@ export interface Actor {
    * CanManageTimeline — вести хронологию «О КУПОЛЕ»
    */
   CanManageTimeline: boolean;
+  /**
+   * Lang — язык ответа: русский, если не задан
+   */
+  Lang: string;
 }
 /**
  * ConflictError — документ изменился после того, как редактор его открыл.
@@ -1429,6 +1439,10 @@ export interface Viewer {
   UserID: number /* int64 */; // 0 — Гражданин (без входа)
   UserLevel: number /* int */; // уровень зарегистрированного пользователя, 1–6
   Directorate: boolean;
+  /**
+   * Lang — язык ответа читателю (названия типов, статусов и уровней): русский, если не задан
+   */
+  Lang: string;
 }
 
 //////////

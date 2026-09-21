@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { authApi } from '@/api/endpoints'
 import { api } from '@/api'
+import { t } from '@/i18n'
 import type { UserDTO } from '@/api/generated/httpapi'
 
 /** Права, которые присылает сервер (accounts.Capability). Интерфейс из ролей ничего не выводит — решает сервер. */
@@ -89,7 +90,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function deleteAccount(password: string) {
     await authApi.deleteAccount(password)
     user.value = null
-    flash.value = 'Дело сдано в архив. Аккаунт и связанные с ним данные удалены.'
+    flash.value = t('deleteAccount.flash')
   }
 
   function acknowledgeBackupCode() {

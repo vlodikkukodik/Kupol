@@ -1,6 +1,10 @@
 package accounts
 
-import "slices"
+import (
+	"slices"
+
+	"kupol/internal/i18n"
+)
 
 // Роли команды (спецификация §12). Выдаёт Директорат. Директорат — не роль, а флаг пользователя;
 // он подразумевает все роли и все права.
@@ -28,6 +32,9 @@ func (r Role) Valid() bool { _, ok := roleNames[r]; return ok }
 
 // Name — название роли для интерфейса.
 func (r Role) Name() string { return roleNames[r] }
+
+// NameIn — название роли на языке l.
+func (r Role) NameIn(l i18n.Lang) string { return l.Translate(roleNames[r]) }
 
 // ParseRole разбирает имя роли (author, editor, moderator, archivist).
 func ParseRole(s string) (Role, bool) {
@@ -71,6 +78,9 @@ var capabilityNames = map[Capability]string{
 
 // Name — описание права для интерфейса.
 func (c Capability) Name() string { return capabilityNames[c] }
+
+// NameIn — описание права на языке l.
+func (c Capability) NameIn(l i18n.Lang) string { return l.Translate(capabilityNames[c]) }
 
 // roleCapabilities — что даёт каждая роль. Директорат получает всё (см. User.Can).
 var roleCapabilities = map[Role][]Capability{

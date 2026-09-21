@@ -6,6 +6,7 @@ import { teamApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
 import { describeApiError } from '@/composables/useForm'
 import { formatDateTime } from '@/lib/format'
+import { t } from '@/i18n'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiField from '@/ui/UiField.vue'
@@ -40,7 +41,7 @@ async function save() {
   try {
     const saved = await teamApi.updateSite(contact.value)
     contact.value = saved.contact
-    notice.value = saved.contact ? 'Контакты сохранены: они видны на странице «О КУПОЛЕ».' : 'Контакты убраны: раздел на странице «О КУПОЛЕ» не показывается.'
+    notice.value = saved.contact ? t('site.savedWith') : t('site.savedEmpty')
     await Promise.all([client.invalidateQueries({ queryKey: keys.teamSite }), client.invalidateQueries({ queryKey: keys.site })])
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
@@ -54,24 +55,25 @@ async function save() {
 <template>
   <ErrorView v-if="site.isError.value" :request-id="requestId" :retrying="site.isFetching.value" @retry="site.refetch()" />
   <UiSheet v-else as="section" aria-labelledby="site-title" data-testid="team-site">
-    <h2 id="site-title">Сайт: контакты автора</h2>
+    <h2 id="site-title">{{ $t('site.title') }}</h2>
     <p class="lead">
-      Текст из этого поля показывается на странице <RouterLink to="/about#author">«О КУПОЛЕ»</RouterLink> в разделе «Об авторе и контакты». Адреса вида
-      https://… и электронная почта становятся ссылками. Пустое поле — раздела контактов на странице нет.
+      <i18n-t keypath="site.lead" scope="global">
+        <template #about><RouterLink to="/about#author">{{ $t('site.aboutLink') }}</RouterLink></template>
+      </i18n-t>
     </p>
-    <UiSkeleton v-if="site.isPending.value" :lines="3" label="Загружаем настройки…" />
+    <UiSkeleton v-if="site.isPending.value" :lines="3" :label="$t('site.loading')" />
     <template v-else-if="site.data.value">
-      <p v-if="!site.data.value.can_edit" class="readonly" data-testid="site-readonly">Менять контакты может только Директорат. Сейчас на странице показано то, что ниже.</p>
+      <p v-if="!site.data.value.can_edit" class="readonly" data-testid="site-readonly">{{ $t('site.readonly') }}</p>
       <form novalidate @submit.prevent="save">
         <UiAlert v-if="error" tone="danger" data-testid="site-error">{{ error }}</UiAlert>
         <UiAlert v-if="notice" tone="success" data-testid="site-notice">{{ notice }}</UiAlert>
-        <UiField label="Контакты" hint="До 1000 знаков; можно в несколько строк.">
+        <UiField :label="$t('site.contacts')" :hint="$t('site.hint')">
           <UiTextarea v-model="contact" :rows="5" :maxlength="1000" name="contact" :disabled="!site.data.value.can_edit" />
         </UiField>
         <div class="actions">
-          <UiButton v-if="site.data.value.can_edit" type="submit" variant="primary" :loading="busy" :disabled="!dirty" data-testid="site-save">Сохранить</UiButton>
+          <UiButton v-if="site.data.value.can_edit" type="submit" variant="primary" :loading="busy" :disabled="!dirty" data-testid="site-save">{{ $t('site.save') }}</UiButton>
           <span v-if="site.data.value.updated_at" class="meta">
-            Изменено {{ formatDateTime(site.data.value.updated_at) }}<template v-if="site.data.value.updated_by"> · {{ site.data.value.updated_by }}</template>
+            {{ site.data.value.updated_by ? $t('site.changedBy', { when: formatDateTime(site.data.value.updated_at), who: site.data.value.updated_by }) : $t('site.changed', { when: formatDateTime(site.data.value.updated_at) }) }}
           </span>
         </div>
       </form>

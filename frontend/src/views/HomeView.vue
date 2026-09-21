@@ -6,7 +6,6 @@ import UiButton from '@/ui/UiButton.vue'
 import UiSeal from '@/ui/UiSeal.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiStamp from '@/ui/UiStamp.vue'
-import { HOME_FULL_NAME, HOME_LEAD, HOME_NAME } from '@/content/site'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
@@ -25,32 +24,35 @@ onMounted(() => {
 <template>
   <UiSheet as="article" fold class="door">
     <div class="door__marking">
-      <UiStamp text="Форма КУПОЛ-1" tone="ink" :tilt="-2" :animate="false" size="sm" />
+      <UiStamp :text="$t('home.form')" tone="ink" :tilt="-2" :animate="false" size="sm" />
     </div>
 
     <div class="door__title">
       <UiSeal :size="132" class="door__seal" />
       <div>
-        <h1>{{ HOME_NAME }}</h1>
-        <p class="door__full">{{ HOME_FULL_NAME }}</p>
+        <h1>{{ $t('home.name') }}</h1>
+        <p class="door__full">{{ $t('home.fullName') }}</p>
       </div>
     </div>
 
     <UiAlert v-if="flash" tone="success">{{ flash }}</UiAlert>
 
-    <p class="door__lead">{{ HOME_LEAD }}</p>
+    <p class="door__lead">{{ $t('home.lead') }}</p>
 
     <section v-if="auth.user" class="door__welcome" aria-labelledby="welcome-title">
-      <h2 id="welcome-title">Допуск оформлен</h2>
+      <h2 id="welcome-title">{{ $t('home.welcomeTitle') }}</h2>
       <p>
-        Вы вошли как <strong>{{ auth.user.login }}</strong> ({{ auth.user.level_name }}).
+        <i18n-t keypath="home.signedIn" scope="global">
+          <template #login><strong>{{ auth.user.login }}</strong></template>
+          <template #level>{{ auth.user.level_name }}</template>
+        </i18n-t>
       </p>
-      <UiButton to="/file" variant="primary" icon="user">Личное дело</UiButton>
+      <UiButton to="/file" variant="primary" icon="user">{{ $t('home.file') }}</UiButton>
     </section>
     <section v-else-if="auth.status === 'ready'" class="door__welcome" aria-labelledby="guest-title">
-      <h2 id="guest-title">Уровень 0 · Гражданин</h2>
-      <p>Вам открыты общедоступные дела. Оформите допуск, чтобы читать больше, — почта не нужна.</p>
-      <UiButton variant="primary" icon="user" @click="ui.openAuth()">Получить допуск</UiButton>
+      <h2 id="guest-title">{{ $t('home.guestTitle') }}</h2>
+      <p>{{ $t('home.guestText') }}</p>
+      <UiButton variant="primary" icon="user" @click="ui.openAuth()">{{ $t('home.getAccess') }}</UiButton>
     </section>
 
     <RecentFeed />

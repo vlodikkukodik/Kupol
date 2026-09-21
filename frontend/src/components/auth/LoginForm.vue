@@ -6,6 +6,7 @@ import UiButton from '@/ui/UiButton.vue'
 import UiField from '@/ui/UiField.vue'
 import UiInput from '@/ui/UiInput.vue'
 import { useForm } from '@/composables/useForm'
+import { t } from '@/i18n'
 import { safeNextPath } from '@/router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -42,9 +43,9 @@ function backToPassword() {
 
 async function onSubmit() {
   form.clear()
-  if (!login.value.trim()) form.errors.login = 'Введите логин'
-  if (!password.value) form.errors.password = 'Введите пароль'
-  if (needCode.value && !totp.value.trim()) form.errors.totp = 'Введите код из приложения'
+  if (!login.value.trim()) form.errors.login = t('common.enterLogin')
+  if (!password.value) form.errors.password = t('common.enterPassword')
+  if (needCode.value && !totp.value.trim()) form.errors.totp = t('login.needCode')
   if (Object.keys(form.errors).length > 0) return focusFirstProblem()
 
   // Куда вернуть после входа — запоминаем до отправки: адрес может измениться, пока идёт запрос.
@@ -75,29 +76,26 @@ async function onSubmit() {
 </script>
 
 <template>
-  <form novalidate aria-label="Вход" @submit.prevent="onSubmit">
+  <form novalidate :aria-label="$t('login.form')" @submit.prevent="onSubmit">
     <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
     <template v-if="!needCode">
-      <UiField id="login-login" label="Логин" :error="form.errors.login">
+      <UiField id="login-login" :label="$t('common.login')" :error="form.errors.login">
         <UiInput ref="loginField" v-model="login" autocomplete="username" />
       </UiField>
-      <UiField id="login-password" label="Пароль" :error="form.errors.password">
+      <UiField id="login-password" :label="$t('common.password')" :error="form.errors.password">
         <UiInput ref="passwordField" v-model="password" type="password" autocomplete="current-password" reveal />
       </UiField>
     </template>
     <template v-else>
-      <p class="second" data-testid="login-second-step">
-        Пароль верный. У {{ login.trim() }} включён код из приложения: введите шесть цифр из приложения-аутентификатора
-        или один из одноразовых кодов.
-      </p>
-      <UiField id="login-totp" label="Код из приложения" hint="Шесть цифр или одноразовый код." :error="form.errors.totp">
+      <p class="second" data-testid="login-second-step">{{ $t('login.secondStep', { login: login.trim() }) }}</p>
+      <UiField id="login-totp" :label="$t('login.codeLabel')" :hint="$t('login.codeHint')" :error="form.errors.totp">
         <UiInput ref="totpField" v-model="totp" inputmode="numeric" autocomplete="one-time-code" :maxlength="16" />
       </UiField>
     </template>
     <div class="actions">
-      <UiButton type="submit" variant="primary" :loading="form.submitting.value">{{ form.submitting.value ? 'Проверка…' : 'Войти' }}</UiButton>
-      <UiButton v-if="needCode" variant="link" data-testid="login-back" @click="backToPassword">Назад</UiButton>
-      <UiButton v-else to="/restore" variant="link">Забыли пароль?</UiButton>
+      <UiButton type="submit" variant="primary" :loading="form.submitting.value">{{ form.submitting.value ? $t('common.checking') : $t('login.submit') }}</UiButton>
+      <UiButton v-if="needCode" variant="link" data-testid="login-back" @click="backToPassword">{{ $t('common.back') }}</UiButton>
+      <UiButton v-else to="/restore" variant="link">{{ $t('login.forgot') }}</UiButton>
     </div>
   </form>
 </template>

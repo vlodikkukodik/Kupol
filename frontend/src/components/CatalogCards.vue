@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Item } from '@/api/generated/documents'
+import { statusNameLower } from '@/lib/catalog'
 
 // «Картотека»: третий вид каталога — карточки, как в ящике архивной картотеки. Те же документы и порядок, что в реестре.
 defineProps<{
@@ -7,8 +8,6 @@ defineProps<{
   /** Директорат видит статус документа */
   showStatus?: boolean
 }>()
-
-const STATUS_NAMES: Record<string, string> = { draft: 'черновик', review: 'на проверке', archived: 'в архиве' }
 </script>
 
 <template>
@@ -23,27 +22,27 @@ const STATUS_NAMES: Record<string, string> = { draft: 'черновик', review
       </h3>
       <dl class="card__facts">
         <div>
-          <dt>Год</dt>
+          <dt>{{ $t('catalog.card.year') }}</dt>
           <dd>{{ it.composed.year }}</dd>
         </div>
         <div v-if="it.danger_class">
-          <dt>Класс</dt>
+          <dt>{{ $t('catalog.card.class') }}</dt>
           <dd>{{ it.danger_class }}</dd>
         </div>
         <div v-if="it.department">
-          <dt>Отдел</dt>
+          <dt>{{ $t('catalog.card.department') }}</dt>
           <dd>{{ it.department }}</dd>
         </div>
         <div v-if="it.level > 0">
-          <dt>Допуск</dt>
+          <dt>{{ $t('catalog.card.access') }}</dt>
           <dd>{{ it.level }}</dd>
         </div>
         <div v-if="it.containment_name">
-          <dt>Содержание</dt>
+          <dt>{{ $t('catalog.card.containment') }}</dt>
           <dd>{{ it.containment_name }}</dd>
         </div>
       </dl>
-      <p v-if="showStatus && it.status && it.status !== 'published'" class="card__status">{{ STATUS_NAMES[it.status] ?? it.status }}</p>
+      <p v-if="showStatus && it.status && it.status !== 'published'" class="card__status">{{ statusNameLower(it.status) }}</p>
     </li>
   </ul>
 </template>

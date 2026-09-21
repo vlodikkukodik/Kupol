@@ -57,13 +57,13 @@ func TestCopyNumberIsPerReader(t *testing.T) {
 	e := newEnv(t)
 	e.imp(obj("О-852", "Экземпляр", "published", 0, blocks(para("a", nil, "текст"))))
 	guest, _ := e.svc.Get(ctx, Guest, "О-852")
-	if guest.CopyNumber != "б/н" {
+	if guest.CopyNumber != "" { // у Гражданина номера нет: интерфейс подписывает «б/н» на своём языке
 		t.Errorf("гость: %q", guest.CopyNumber)
 	}
 	a, b := e.reader("copy_a", 1), e.reader("copy_b", 3)
 	da, _ := e.svc.Get(ctx, a, "О-852")
 	db, _ := e.svc.Get(ctx, b, "О-852")
-	if len(da.CopyNumber) != 4 || da.CopyNumber == db.CopyNumber || da.CopyNumber == "б/н" {
+	if len(da.CopyNumber) != 4 || da.CopyNumber == db.CopyNumber {
 		t.Errorf("номера экземпляров: %q и %q", da.CopyNumber, db.CopyNumber)
 	}
 	// один и тот же читатель всегда получает свой номер

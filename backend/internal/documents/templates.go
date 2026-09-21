@@ -168,7 +168,7 @@ func (s *Service) templateItem(a Actor, r templateRow, blocks int) TemplateItem 
 		Author: r.AuthorLogin, UpdatedAt: r.UpdatedAt.UTC(), CanEdit: a.canManageTemplates(),
 	}
 	if r.DocType != nil {
-		it.DocTypeName = Type(*r.DocType).Name()
+		it.DocTypeName = Type(*r.DocType).NameIn(a.Lang)
 	}
 	return it
 }
@@ -240,7 +240,7 @@ func (s *Service) TemplateCreate(ctx context.Context, a Actor, in TemplateInput)
 	}
 	kind := TemplateKind(in.Kind)
 	if !kind.Valid() {
-		return nil, &ValidationError{Problems: []Problem{{Path: "kind", Message: "document или blockset"}}}
+		return nil, oneProblem("kind", "document или blockset")
 	}
 	content, problems := checkTemplate(kind, in.Name, in.Description, in.DocType, in.Content, true)
 	if len(problems) > 0 {

@@ -12,6 +12,7 @@ import UiStamp from '@/ui/UiStamp.vue'
 import { ApiError } from '@/api/client'
 import { describeApiError } from '@/composables/useForm'
 import { formatDate } from '@/lib/format'
+import { levelName } from '@/lib/levels'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
@@ -38,33 +39,33 @@ async function logout() {
 
 <template>
   <div v-if="auth.user" class="file">
-    <UiPageHeader title="Личное дело" kicker="Пропуск и сведения о допуске" />
+    <UiPageHeader :title="$t('file.title')" :kicker="$t('file.kicker')" />
 
     <div class="file__grid">
-      <UiSheet as="article" class="file__card" aria-label="Карточка допуска">
+      <UiSheet as="article" class="file__card" :aria-label="$t('file.card')">
         <div class="file__head">
           <p class="file__level" aria-hidden="true">{{ auth.user.level }}</p>
-          <UiStamp v-if="auth.user.directorate" text="Директорат" :tilt="-4" />
+          <UiStamp v-if="auth.user.directorate" :text="levelName(7)" :tilt="-4" />
         </div>
         <dl class="dossier">
           <div>
-            <dt>Ник</dt>
+            <dt>{{ $t('file.nick') }}</dt>
             <dd data-testid="file-login">{{ auth.user.login }}</dd>
           </div>
           <div>
-            <dt>Звание</dt>
+            <dt>{{ $t('file.rank') }}</dt>
             <dd data-testid="file-rank">{{ auth.user.level_name }}</dd>
           </div>
           <div v-if="!auth.user.directorate">
-            <dt>Уровень допуска</dt>
+            <dt>{{ $t('file.level') }}</dt>
             <dd>{{ auth.user.level }}</dd>
           </div>
           <div v-if="auth.user.roles.length">
-            <dt>Роли команды</dt>
+            <dt>{{ $t('file.roles') }}</dt>
             <dd data-testid="file-roles">{{ auth.user.roles.map((r) => r.name).join(', ') }}</dd>
           </div>
           <div>
-            <dt>Принят в архив</dt>
+            <dt>{{ $t('file.joined') }}</dt>
             <dd>{{ formatDate(auth.user.created_at) }}</dd>
           </div>
         </dl>
@@ -72,19 +73,19 @@ async function logout() {
 
       <div class="file__side">
         <UiSheet as="section" aria-labelledby="pw-title">
-          <h2 id="pw-title">Смена пароля</h2>
+          <h2 id="pw-title">{{ $t('file.passwordTitle') }}</h2>
           <ChangePasswordForm />
         </UiSheet>
 
         <UiSheet as="section" aria-labelledby="totp-title">
-          <h2 id="totp-title">Код из приложения</h2>
+          <h2 id="totp-title">{{ $t('file.totpTitle') }}</h2>
           <TotpPanel />
         </UiSheet>
 
         <UiSheet as="section" aria-labelledby="session-title">
-          <h2 id="session-title">Сеанс</h2>
+          <h2 id="session-title">{{ $t('file.sessionTitle') }}</h2>
           <UiAlert v-if="logoutError" tone="danger">{{ logoutError }}</UiAlert>
-          <UiButton :loading="loggingOut" icon="logout" @click="logout">{{ loggingOut ? 'Выход…' : 'Выйти' }}</UiButton>
+          <UiButton :loading="loggingOut" icon="logout" @click="logout">{{ loggingOut ? $t('file.loggingOut') : $t('file.logout') }}</UiButton>
         </UiSheet>
 
         <UiSheet as="div"><DeleteAccountForm /></UiSheet>
@@ -93,9 +94,9 @@ async function logout() {
   </div>
 
   <UiSheet v-else as="article">
-    <h1>Личное дело</h1>
-    <p>Чтобы открыть личное дело, нужно войти.</p>
-    <UiButton variant="primary" @click="ui.openAuth()">Войти</UiButton>
+    <h1>{{ $t('file.title') }}</h1>
+    <p>{{ $t('file.needLogin') }}</p>
+    <UiButton variant="primary" @click="ui.openAuth()">{{ $t('file.signIn') }}</UiButton>
   </UiSheet>
 </template>
 

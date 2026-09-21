@@ -4,6 +4,7 @@ import { ApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
 import type { LintReport, TeamDocument } from '@/api/generated/documents'
 import { describeApiError } from '@/composables/useForm'
+import { t } from '@/i18n'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiField from '@/ui/UiField.vue'
@@ -31,27 +32,11 @@ const verdict = ref<VerdictChoice>('approve')
 const comment = ref('')
 const commentError = ref('')
 
-const STATUS_HINT: Record<string, string> = {
-  draft: 'Черновик: его видит и правит только автор. Когда текст готов — отправьте на проверку.',
-  review: 'На проверке: Редактор читает документ и выносит вердикт. Пока вердикта нет, автор может забрать документ обратно.',
-  published: 'Опубликован: читатели видят его по своему допуску. Править «на месте» вправе Редактор и Директорат.',
-  archived: 'В архиве: читателям не виден. Вернуть в опубликованные вправе Редактор и Директорат.',
-}
-const hint = computed(() => STATUS_HINT[props.doc.status] ?? '')
+const STATUSES_WITH_HINT = ['draft', 'review', 'published', 'archived']
+const hint = computed(() => (STATUSES_WITH_HINT.includes(props.doc.status) ? t(`flow.hint.${props.doc.status}`) : ''))
 
-const VERDICTS: { value: VerdictChoice; label: string; help: string }[] = [
-  { value: 'approve', label: 'Принять и опубликовать', help: 'Документ станет виден читателям сразу; объекту без шифра присвоится номер О-№.' },
-  { value: 'return', label: 'Вернуть на доработку', help: 'Документ снова станет черновиком автора; причина обязательна.' },
-  { value: 'reject', label: 'Отклонить', help: 'Документ уйдёт в архив; причина обязательна.' },
-]
+const VERDICTS: VerdictChoice[] = ['approve', 'return', 'reject']
 const needsReason = computed(() => mode.value === 'verdict' && verdict.value !== 'approve')
-
-const DIALOG_TITLES: Record<Mode, string> = {
-  verdict: 'Вердикт по документу',
-  withdraw: 'Забрать документ с проверки',
-  archive: 'Убрать документ в архив',
-  unarchive: 'Вернуть документ из архива',
-}
 
 function openDialog(next: Mode) {
   mode.value = next
@@ -82,14 +67,13 @@ async function run(action: () => Promise<{ document: TeamDocument }>, message: (
   }
 }
 
-const submit = () =>
-  run(() => teamApi.submit(props.doc.id, props.doc.revision), () => 'Документ отправлен на проверку. Редактор увидит его в списке «На проверке».')
+const submit = () => run(() => teamApi.submit(props.doc.id, props.doc.revision), () => t('flow.done.submit'))
 
 async function confirm() {
   commentError.value = ''
   const text = comment.value.trim()
   if (needsReason.value && text === '') {
-    commentError.value = 'Укажите причину: автору нужно знать, что исправить.'
+    commentError.value = t('flow.reasonNeeded')
     return
   }
   const id = props.doc.id
@@ -99,20 +83,15 @@ async function confirm() {
       const rev = props.doc.revision
       return run(
         () => teamApi.verdict(id, { verdict: choice, comment: text, base_revision: rev }),
-        (d) =>
-          choice === 'approve'
-            ? `Документ опубликован${d.code ? ` как ${d.code}` : ''}.`
-            : choice === 'return'
-              ? 'Документ возвращён автору на доработку.'
-              : 'Документ отклонён и убран в архив.',
+        (d) => (choice === 'approve' ? (d.code ? t('flow.done.approveCode', { code: d.code }) : t('flow.done.approve')) : t(`flow.done.${choice}`)),
       )
     }
     case 'withdraw':
-      return run(() => teamApi.withdraw(id, text), () => 'Документ снова черновик: его можно править и отправить заново.')
+      return run(() => teamApi.withdraw(id, text), () => t('flow.done.withdraw'))
     case 'archive':
-      return run(() => teamApi.archive(id, text), () => 'Документ убран в архив: читатели его больше не видят.')
+      return run(() => teamApi.archive(id, text), () => t('flow.done.archive'))
     case 'unarchive':
-      return run(() => teamApi.unarchive(id, text), () => 'Документ снова опубликован.')
+      return run(() => teamApi.unarchive(id, text), () => t('flow.done.unarchive'))
     default:
       return undefined
   }
@@ -122,45 +101,43 @@ const anyAction = computed(() => wf.value.submit || wf.value.withdraw || wf.valu
 </script>
 
 <template>
-  <section class="flow" aria-label="Ход документа" data-testid="workflow">
+  <section class="flow" :aria-label="$t('flow.label')" data-testid="workflow">
     <p class="flow__hint" data-testid="workflow-hint">{{ hint }}</p>
 
     <div v-if="anyAction" class="flow__actions">
       <UiButton v-if="wf.submit" variant="primary" icon="arrow-right" :loading="busy" :disabled="dirty" data-testid="wf-submit" @click="submit">
-        Отправить на проверку
+        {{ $t('flow.submit') }}
       </UiButton>
-      <UiButton v-if="wf.review" variant="primary" icon="check" :disabled="busy" data-testid="wf-verdict" @click="openDialog('verdict')">Вынести вердикт</UiButton>
-      <UiButton v-if="wf.withdraw" :disabled="busy" data-testid="wf-withdraw" @click="openDialog('withdraw')">Забрать на доработку</UiButton>
-      <UiButton v-if="wf.archive" :disabled="busy" data-testid="wf-archive" @click="openDialog('archive')">В архив</UiButton>
-      <UiButton v-if="wf.unarchive" :disabled="busy" data-testid="wf-unarchive" @click="openDialog('unarchive')">Вернуть из архива</UiButton>
-      <span v-if="wf.submit && dirty" class="flow__note" data-testid="wf-dirty-note">Сначала сохраните правки: на проверку уходит сохранённая редакция.</span>
+      <UiButton v-if="wf.review" variant="primary" icon="check" :disabled="busy" data-testid="wf-verdict" @click="openDialog('verdict')">{{ $t('flow.verdict') }}</UiButton>
+      <UiButton v-if="wf.withdraw" :disabled="busy" data-testid="wf-withdraw" @click="openDialog('withdraw')">{{ $t('flow.withdraw') }}</UiButton>
+      <UiButton v-if="wf.archive" :disabled="busy" data-testid="wf-archive" @click="openDialog('archive')">{{ $t('flow.archive') }}</UiButton>
+      <UiButton v-if="wf.unarchive" :disabled="busy" data-testid="wf-unarchive" @click="openDialog('unarchive')">{{ $t('flow.unarchive') }}</UiButton>
+      <span v-if="wf.submit && dirty" class="flow__note" data-testid="wf-dirty-note">{{ $t('flow.saveFirst') }}</span>
     </div>
 
-    <UiModal v-model:open="dialogOpen" :title="mode ? DIALOG_TITLES[mode] : ''" testid="wf-dialog">
+    <UiModal v-model:open="dialogOpen" :title="mode ? $t(`flow.dialog.${mode}`) : ''" testid="wf-dialog">
       <form v-if="mode" class="dialog" novalidate @submit.prevent="confirm">
         <fieldset v-if="mode === 'verdict'" class="verdicts">
-          <legend class="verdicts__legend">Что решаете</legend>
-          <label v-for="v in VERDICTS" :key="v.value" class="verdicts__item" :class="{ 'is-active': verdict === v.value }">
-            <input v-model="verdict" type="radio" name="verdict" :value="v.value" :data-testid="`verdict-${v.value}`">
-            <span class="verdicts__label">{{ v.label }}</span>
-            <span class="verdicts__help">{{ v.help }}</span>
+          <legend class="verdicts__legend">{{ $t('flow.decide') }}</legend>
+          <label v-for="v in VERDICTS" :key="v" class="verdicts__item" :class="{ 'is-active': verdict === v }">
+            <input v-model="verdict" type="radio" name="verdict" :value="v" :data-testid="`verdict-${v}`">
+            <span class="verdicts__label">{{ $t(`flow.verdicts.${v}.label`) }}</span>
+            <span class="verdicts__help">{{ $t(`flow.verdicts.${v}.help`) }}</span>
           </label>
         </fieldset>
-        <p v-else-if="mode === 'withdraw'" class="dialog__lead">Документ вернётся в черновики: вы сможете его править и отправить заново. Рецензент увидит, что вы его забрали.</p>
-        <p v-else-if="mode === 'archive'" class="dialog__lead">Опубликованный документ пропадёт из каталога для читателей. Его можно вернуть из архива.</p>
-        <p v-else class="dialog__lead">Документ снова станет виден читателям по своему допуску.</p>
+        <p v-else-if="mode === 'withdraw'" class="dialog__lead">{{ $t('flow.withdrawLead') }}</p>
+        <p v-else-if="mode === 'archive'" class="dialog__lead">{{ $t('flow.archiveLead') }}</p>
+        <p v-else class="dialog__lead">{{ $t('flow.unarchiveLead') }}</p>
 
-        <UiField :label="needsReason ? 'Причина' : 'Пояснение (необязательно)'" :required="needsReason" :error="commentError">
+        <UiField :label="needsReason ? $t('flow.reason') : $t('flow.note')" :required="needsReason" :error="commentError">
           <UiTextarea v-model="comment" :rows="4" :maxlength="2000" name="comment" />
         </UiField>
 
-        <UiAlert v-if="mode === 'verdict' && verdict === 'approve' && !doc.code" tone="info">
-          У объекта ещё нет шифра: номер О-№ присвоится при публикации — следующий по порядку.
-        </UiAlert>
+        <UiAlert v-if="mode === 'verdict' && verdict === 'approve' && !doc.code" tone="info">{{ $t('flow.autoCode') }}</UiAlert>
 
         <div class="dialog__actions">
-          <UiButton type="submit" variant="primary" :loading="busy" data-testid="wf-confirm">Подтвердить</UiButton>
-          <UiButton variant="link" @click="mode = null">Отмена</UiButton>
+          <UiButton type="submit" variant="primary" :loading="busy" data-testid="wf-confirm">{{ $t('flow.confirm') }}</UiButton>
+          <UiButton variant="link" @click="mode = null">{{ $t('flow.cancel') }}</UiButton>
         </div>
       </form>
     </UiModal>

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"kupol/internal/i18n"
 )
 
 // Status — состояние документа (спецификация §6: черновик → на проверке → опубликован → архив).
@@ -24,6 +26,9 @@ var statusNames = map[Status]string{
 func (s Status) Valid() bool  { _, ok := statusNames[s]; return ok }
 func (s Status) Name() string { return statusNames[s] }
 
+// NameIn — название на языке l.
+func (s Status) NameIn(l i18n.Lang) string { return l.Translate(statusNames[s]) }
+
 // Category — вид Объекта (канон, «Типы объектов»).
 type Category string
 
@@ -42,6 +47,9 @@ var categoryNames = map[Category]string{
 func (c Category) Valid() bool  { _, ok := categoryNames[c]; return ok }
 func (c Category) Name() string { return categoryNames[c] }
 
+// NameIn — название на языке l.
+func (c Category) NameIn(l i18n.Lang) string { return l.Translate(categoryNames[c]) }
+
 // Containment — статус содержания Объекта.
 type Containment string
 
@@ -59,6 +67,9 @@ var containmentNames = map[Containment]string{
 
 func (c Containment) Valid() bool  { _, ok := containmentNames[c]; return ok }
 func (c Containment) Name() string { return containmentNames[c] }
+
+// NameIn — название на языке l.
+func (c Containment) NameIn(l i18n.Lang) string { return l.Translate(containmentNames[c]) }
 
 // DirectLink — что видит читатель без допуска, открывший документ по прямой ссылке.
 type DirectLink string

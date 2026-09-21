@@ -23,6 +23,7 @@ import { describeApiError } from '@/composables/useForm'
 import { useReview } from '@/composables/useReview'
 import { blockIndexes } from '@/editor/problems'
 import { formatDateTime, formatTime } from '@/lib/format'
+import { locale, t } from '@/i18n'
 import { canonicalContent, contentFromForm, formFromContent, problemsToFields, sameContent, type DocForm } from '@/lib/teamdoc'
 import { useAuthStore } from '@/stores/auth'
 import ErrorView from '../ErrorView.vue'
@@ -36,7 +37,7 @@ const { meta, query: metaQuery, statusName, blockKindName } = useDocumentMeta()
 const id = computed(() => Number(route.params.id))
 type Tab = 'document' | 'preview' | 'review' | 'history'
 const TABS: Tab[] = ['preview', 'review', 'history']
-const tab = computed<Tab>(() => TABS.find((t) => t === route.query.tab) ?? 'document')
+const tab = computed<Tab>(() => TABS.find((x) => x === route.query.tab) ?? 'document')
 // Уровень читателя в предпросмотре живёт в адресе: страницу можно переслать и обновить, не теряя выбор
 const previewLevel = computed(() => {
   const n = Number(route.query.level)
@@ -82,7 +83,7 @@ function showProblems(problems: Problem[], sent: InputBlock[] | null = null) {
   Object.assign(errors, byPath)
   otherProblems.value = other
   sentBlocks.value = sent
-  failure.value = 'Документ не прошёл проверку: исправьте отмеченное.'
+  failure.value = t('tdoc.invalid')
 }
 
 /** Замечание сервера к блоку: какой это блок (номер и вид) и его идентификатор в редакторе. */
@@ -105,8 +106,15 @@ function applyDoc(d: TeamDocument, { remount = true } = {}) {
   baseline.value = canonicalContent(d.content)
   form.value = formFromContent(d.content, d.type)
   if (remount) editorKey.value++
-  document.title = `${d.code ?? 'Документ без шифра'} — ${d.content.title} — Панель команды — КУПОЛ`
+  syncTitle()
 }
+
+/** Заголовок вкладки; пересчитывается и при смене языка интерфейса (роутер этот маршрут не трогает) */
+function syncTitle() {
+  const d = doc.value
+  if (d) document.title = t('tdoc.tabTitle', { code: d.code ?? t('tdoc.noCode'), title: d.content.title })
+}
+watch(locale, syncTitle)
 
 async function load() {
   loading.value = true
@@ -128,9 +136,9 @@ watch(id, load, { immediate: true })
 
 /** Кто-то другой взял документ: форма становится только для чтения. */
 function lostLock(err: ApiError) {
-  if (doc.value) doc.value.lock = { holder: err.lock?.holder ?? 'другой сотрудник', mine: false, acquired_at: '', expires_at: err.lock?.expiresAt ?? '' }
+  if (doc.value) doc.value.lock = { holder: err.lock?.holder ?? t('tdoc.takenBy'), mine: false, acquired_at: '', expires_at: err.lock?.expiresAt ?? '' }
   autosave.stop()
-  failure.value = `${describeApiError(err)} Ваши последние правки остались в истории версий как автосохранение.`
+  failure.value = t('tdoc.lostLock', { message: describeApiError(err) })
 }
 
 const autosave = useAutosave(async () => {
@@ -183,7 +191,7 @@ async function save() {
   const { content, errors: local } = contentFromForm(form.value)
   if (Object.keys(local).length > 0) {
     Object.assign(errors, local)
-    failure.value = 'Исправьте отмеченные поля.'
+    failure.value = t('tdoc.fixFields')
     return focusFirstInvalid()
   }
   saving.value = true
@@ -193,7 +201,7 @@ async function save() {
     // Редактор пересоздаётся, только если сервер привёл содержимое к другому виду: иначе после каждого «Сохранить»
     // пропадали бы положение курсора и история отмены.
     applyDoc(res.document, { remount: !sameContent(canonicalContent(res.document.content), content) })
-    notice.value = res.changed ? `Сохранено: редакция ${res.document.revision}.` : 'Изменений нет — сохранять нечего.'
+    notice.value = res.changed ? t('tdoc.saved', { rev: res.document.revision }) : t('tdoc.nothingToSave')
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
     if (err.code === 'validation') {
@@ -220,7 +228,7 @@ async function revert() {
   form.value = formFromContent(baseline.value, doc.value.type)
   editorKey.value++
   clearProblems()
-  notice.value = 'Правки отменены.'
+  notice.value = t('tdoc.reverted')
   if (mineLock.value) {
     try {
       await teamApi.autosave(id.value, baseline.value)
@@ -235,7 +243,7 @@ function useDraft() {
   form.value = formFromContent(doc.value.draft.content, doc.value.type)
   editorKey.value++
   draftDismissed.value = true
-  notice.value = 'Несохранённые правки открыты. Проверьте и сохраните.'
+  notice.value = t('tdoc.draftOpened')
   void ensureLock()
 }
 
@@ -256,7 +264,7 @@ async function releaseLock() {
   failure.value = ''
   try {
     await teamApi.releaseLock(id.value)
-    notice.value = lockedBy.value ? `Замок снят: ${lockedBy.value.holder} больше не правит документ.` : 'Работа завершена: документ свободен.'
+    notice.value = lockedBy.value ? t('tdoc.lockReleasedBy', { holder: lockedBy.value.holder }) : t('tdoc.lockReleased')
     await load()
   } catch (err) {
     if (!(err instanceof ApiError)) throw err
@@ -270,7 +278,7 @@ function onRestored(res: SaveResult) {
   autosave.cancel()
   clearProblems()
   applyDoc(res.document)
-  notice.value = res.changed ? `Версия возвращена: редакция ${res.document.revision}.` : 'Документ уже совпадает с этой версией.'
+  notice.value = res.changed ? t('tdoc.restored', { rev: res.document.revision }) : t('tdoc.alreadySame')
 }
 
 /** Ctrl+S / ⌘S в редакторе — «Сохранить», а не сохранение страницы браузером. */
@@ -295,8 +303,9 @@ function setPreviewLevel(level: number) {
 
 // ——— «Сохранить как шаблон» (право вести шаблоны) ———
 const templateOpen = ref(false)
-function onTemplateSaved(t: TemplateFull) {
-  notice.value = `Шаблон «${t.name}» сохранён (${t.kind === 'document' ? 'шаблон документа' : `набор блоков: ${t.blocks}`}). Он появился в разделе «Шаблоны».`
+function onTemplateSaved(tpl: TemplateFull) {
+  const what = tpl.kind === 'document' ? t('tdoc.templateWhatDocument') : t('tdoc.templateWhatSet', { n: tpl.blocks })
+  notice.value = t('tdoc.templateSaved', { name: tpl.name, what })
 }
 
 /** Документ перевели (отправили, вернули, опубликовали…): показать его новым и объявить итог. */
@@ -310,7 +319,7 @@ function onFlowChanged(next: TeamDocument, message: string) {
 /** Канон не пропустил: причины — на вкладке «Рецензия», в самом блоке проверки. */
 function onLintFailed(report: LintReport | null) {
   notice.value = ''
-  failure.value = `Документ не прошёл проверку канона${report?.errors ? ` (ошибок: ${report.errors})` : ''}: исправьте отмеченное.`
+  failure.value = report?.errors ? t('tdoc.lintFailedN', { n: report.errors }) : t('tdoc.lintFailed')
   void setTab('review')
 }
 
@@ -349,15 +358,13 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 const autosaveText = computed(() => {
   switch (autosave.state.value) {
     case 'pending':
-      return 'Есть несохранённые правки…'
+      return t('tdoc.autosave.pending')
     case 'saving':
-      return 'Автосохранение…'
+      return t('tdoc.autosave.saving')
     case 'saved':
-      return `Правки автосохранены в ${autosave.savedAt.value ? formatTime(autosave.savedAt.value) : ''}`
+      return t('tdoc.autosave.saved', { time: autosave.savedAt.value ? formatTime(autosave.savedAt.value) : '' })
     case 'error':
-      return isApiError(autosave.error.value) && autosave.error.value.code === 'locked'
-        ? 'Автосохранение остановлено: документ взял другой сотрудник.'
-        : 'Автосохранение не удалось — повторим при следующей правке.'
+      return isApiError(autosave.error.value) && autosave.error.value.code === 'locked' ? t('tdoc.autosave.lockedError') : t('tdoc.autosave.error')
     default:
       return ''
   }
@@ -372,38 +379,38 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
   <NotFoundView v-if="loadError && loadError.status === 404" />
   <ErrorView v-else-if="loadError" :request-id="loadRequestId" :retrying="loading" @retry="load" />
   <ErrorView v-else-if="metaQuery.isError.value" :request-id="metaRequestId" @retry="metaQuery.refetch()" />
-  <UiSheet v-else-if="!doc || !meta || !form" wide><UiSkeleton :lines="6" label="Загрузка документа…" /></UiSheet>
+  <UiSheet v-else-if="!doc || !meta || !form" wide><UiSkeleton :lines="6" :label="$t('tdoc.loading')" /></UiSheet>
 
   <UiSheet v-else as="section" wide class="editor" aria-labelledby="doc-title" :data-doc-id="doc.id">
     <header class="doc-head">
       <p class="kicker">
         {{ doc.type_name }} ·
-        <span data-testid="doc-code">{{ doc.code ?? 'без шифра (номер присвоится при публикации)' }}</span>
+        <span data-testid="doc-code">{{ doc.code ?? $t('tdoc.noCodeYet') }}</span>
       </p>
       <h2 id="doc-title">{{ doc.content.title }}</h2>
       <dl class="facts">
         <div>
-          <dt>Статус</dt>
+          <dt>{{ $t('tdoc.status') }}</dt>
           <dd data-testid="doc-status"><UiBadge :tone="statusTone(doc.status)">{{ statusName(doc.status) }}</UiBadge></dd>
         </div>
-        <div><dt>Редакция</dt><dd data-testid="doc-revision">{{ doc.revision }}</dd></div>
-        <div v-if="doc.author"><dt>Автор</dt><dd>{{ doc.author }}</dd></div>
-        <div><dt>Изменён</dt><dd>{{ formatDateTime(doc.updated_at) }}</dd></div>
+        <div><dt>{{ $t('tdoc.revision') }}</dt><dd data-testid="doc-revision">{{ doc.revision }}</dd></div>
+        <div v-if="doc.author"><dt>{{ $t('tdoc.author') }}</dt><dd>{{ doc.author }}</dd></div>
+        <div><dt>{{ $t('tdoc.changed') }}</dt><dd>{{ formatDateTime(doc.updated_at) }}</dd></div>
       </dl>
       <p v-if="doc.status === 'published' && doc.slug" class="public">
-        <RouterLink :to="{ name: 'document', params: { ref: doc.slug } }">Открыть как читатель</RouterLink>
+        <RouterLink :to="{ name: 'document', params: { ref: doc.slug } }">{{ $t('tdoc.openAsReader') }}</RouterLink>
       </p>
     </header>
 
     <WorkflowBar :doc="doc" :dirty="dirty" @changed="onFlowChanged" @lint-failed="onLintFailed" @conflict="onFlowConflict" @failure="failure = $event" />
 
-    <div class="views" role="group" aria-label="Раздел документа">
-      <button type="button" class="view" :aria-pressed="tab === 'document' ? 'true' : 'false'" @click="void setTab('document')">Документ</button>
-      <button type="button" class="view" :aria-pressed="tab === 'preview' ? 'true' : 'false'" data-testid="tab-preview" @click="void setTab('preview')">Предпросмотр</button>
+    <div class="views" role="group" :aria-label="$t('tdoc.sectionsLabel')">
+      <button type="button" class="view" :aria-pressed="tab === 'document' ? 'true' : 'false'" @click="void setTab('document')">{{ $t('tdoc.tabDocument') }}</button>
+      <button type="button" class="view" :aria-pressed="tab === 'preview' ? 'true' : 'false'" data-testid="tab-preview" @click="void setTab('preview')">{{ $t('tdoc.tabPreview') }}</button>
       <button type="button" class="view" :aria-pressed="tab === 'review' ? 'true' : 'false'" data-testid="tab-review" @click="void setTab('review')">
-        Рецензия<span v-if="openComments" class="view__count" data-testid="tab-review-count">{{ openComments }}</span>
+        {{ $t('tdoc.tabReview') }}<span v-if="openComments" class="view__count" data-testid="tab-review-count">{{ openComments }}</span>
       </button>
-      <button type="button" class="view" :aria-pressed="tab === 'history' ? 'true' : 'false'" @click="void setTab('history')">История</button>
+      <button type="button" class="view" :aria-pressed="tab === 'history' ? 'true' : 'false'" @click="void setTab('history')">{{ $t('tdoc.tabHistory') }}</button>
     </div>
 
     <!-- Объявления: об успехе — вежливо, об ошибке — сразу -->
@@ -413,7 +420,7 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
     <ul v-if="problemRows.length" class="problems" data-testid="problems">
       <li v-for="p in problemRows" :key="`${p.path}|${p.message}`">
         <template v-if="p.block">
-          <button type="button" class="problem-link" @click="goToBlock(p.block.id)">Блок {{ p.block.number }} — {{ p.block.kind }}</button>
+          <button type="button" class="problem-link" @click="goToBlock(p.block.id)">{{ $t('tdoc.problemBlock', { n: p.block.number, kind: p.block.kind }) }}</button>
           <template v-if="fieldPath(p.path)"> (<code>{{ fieldPath(p.path) }}</code>)</template>: {{ p.message }}
         </template>
         <template v-else><code>{{ p.path }}</code>: {{ p.message }}</template>
@@ -422,51 +429,48 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
 
     <UiAlert v-if="lockedBy" tone="warning" data-testid="lock-banner">
       <p>
-        <strong>Редактирует: {{ lockedBy.holder }}</strong>
-        <template v-if="lockedBy.expires_at"> — до {{ formatTime(lockedBy.expires_at) }}, если не продлит.</template>
-        Пока документ в работе, для вас он только для чтения.
+        <strong>{{ $t('tdoc.editingBy', { holder: lockedBy.holder }) }}</strong>
+        <template v-if="lockedBy.expires_at">{{ $t('tdoc.editingUntil', { time: formatTime(lockedBy.expires_at) }) }}</template>
+        {{ $t('tdoc.readOnlyWhileLocked') }}
       </p>
-      <UiButton v-if="doc.can_break_lock" :loading="lockBusy" @click="releaseLock">Снять замок</UiButton>
+      <UiButton v-if="doc.can_break_lock" :loading="lockBusy" @click="releaseLock">{{ $t('tdoc.breakLock') }}</UiButton>
     </UiAlert>
     <UiAlert v-else-if="!doc.can_edit" tone="info" data-testid="readonly-banner">
-      <p v-if="doc.status === 'published' || doc.status === 'archived'">Опубликованный документ правят только Редактор и Директорат.</p>
-      <p v-else>У вас нет права править этот документ.</p>
+      <p v-if="doc.status === 'published' || doc.status === 'archived'">{{ $t('tdoc.readonlyPublished') }}</p>
+      <p v-else>{{ $t('tdoc.readonlyNoRight') }}</p>
     </UiAlert>
 
     <UiAlert v-if="conflict" tone="warning" data-testid="conflict-banner">
-      <p>
-        Документ изменён после того, как вы его открыли (сейчас редакция {{ conflict }}). Ваши правки не потеряны: они
-        в истории версий как автосохранение — их можно сравнить с новой редакцией.
-      </p>
-      <UiButton @click="load">Открыть актуальную редакцию</UiButton>
+      <p>{{ $t('tdoc.conflict', { rev: conflict }) }}</p>
+      <UiButton @click="load">{{ $t('tdoc.openCurrent') }}</UiButton>
     </UiAlert>
 
     <UiAlert v-if="offeredDraft" tone="info" data-testid="draft-banner">
       <p>
-        Есть несохранённые правки<template v-if="offeredDraft.author"> ({{ offeredDraft.author }}, {{ formatDateTime(offeredDraft.saved_at) }})</template><template v-else> ({{ formatDateTime(offeredDraft.saved_at) }})</template>.
+        {{ $t('tdoc.draftFound') }}<template v-if="offeredDraft.author">{{ $t('tdoc.draftBy', { author: offeredDraft.author, when: formatDateTime(offeredDraft.saved_at) }) }}</template><template v-else>{{ $t('tdoc.draftAt', { when: formatDateTime(offeredDraft.saved_at) }) }}</template>.
       </p>
       <div class="banner-actions">
-        <UiButton :disabled="!editable" @click="useDraft">Продолжить с ними</UiButton>
-        <UiButton variant="link" @click="dismissDraft">Отбросить</UiButton>
+        <UiButton :disabled="!editable" @click="useDraft">{{ $t('tdoc.draftContinue') }}</UiButton>
+        <UiButton variant="link" @click="dismissDraft">{{ $t('tdoc.draftDismiss') }}</UiButton>
       </div>
     </UiAlert>
 
     <!-- Вкладка «Документ» только скрывается: редактор остаётся в памяти, не теряются курсор и история отмены -->
     <div v-show="tab === 'document'">
-      <form id="doc-form" novalidate aria-label="Свойства документа" @submit.prevent="save" @input.capture="ensureLock" @change.capture="ensureLock">
+      <form id="doc-form" novalidate :aria-label="$t('tdoc.propsForm')" @submit.prevent="save" @input.capture="ensureLock" @change.capture="ensureLock">
         <DocumentPropsForm v-model="form" :meta="meta" :errors="errors" :disabled="!editable" />
       </form>
 
       <!-- Редактор — вне формы: Enter в его полях не должен отправлять форму (сохранение — кнопкой или Ctrl+S) -->
       <section class="blocks" aria-labelledby="blocks-title" @keydown="onEditorKeydown">
-        <h3 id="blocks-title">Содержание</h3>
+        <h3 id="blocks-title">{{ $t('tdoc.content') }}</h3>
         <BlockEditor ref="blockEditor" :key="editorKey" v-model:blocks="form.blocks" :editable="editable" :problem-blocks="problemBlockIds" />
       </section>
 
       <div class="save-bar" data-testid="save-bar">
-        <UiButton type="submit" form="doc-form" variant="primary" icon="check" :disabled="!editable" :loading="saving">{{ saving ? 'Сохраняем…' : 'Сохранить' }}</UiButton>
-        <UiButton v-if="dirty && editable" variant="link" @click="revert">Отменить правки</UiButton>
-        <UiButton v-if="auth.can('manage_templates')" variant="link" icon="layers" data-testid="save-as-template" @click="templateOpen = true">Сохранить как шаблон</UiButton>
+        <UiButton type="submit" form="doc-form" variant="primary" icon="check" :disabled="!editable" :loading="saving">{{ saving ? $t('tdoc.saving') : $t('tdoc.save') }}</UiButton>
+        <UiButton v-if="dirty && editable" variant="link" @click="revert">{{ $t('tdoc.revert') }}</UiButton>
+        <UiButton v-if="auth.can('manage_templates')" variant="link" icon="layers" data-testid="save-as-template" @click="templateOpen = true">{{ $t('tdoc.saveAsTemplate') }}</UiButton>
         <ExportButtons :doc-id="doc.id" :dirty="dirty" />
         <UiButton
           v-if="mineLock && !lockedBy"
@@ -475,9 +479,9 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
           :aria-describedby="dirty ? 'finish-hint' : undefined"
           @click="releaseLock"
         >
-          Завершить работу
+          {{ $t('tdoc.finish') }}
         </UiButton>
-        <span v-if="dirty && mineLock" id="finish-hint" class="hint">Сохраните или отмените правки, чтобы отпустить документ.</span>
+        <span v-if="dirty && mineLock" id="finish-hint" class="hint">{{ $t('tdoc.finishHint') }}</span>
         <span class="autosave" data-testid="autosave-state" :data-state="autosave.state.value">{{ autosaveText }}</span>
       </div>
     </div>

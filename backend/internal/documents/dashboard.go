@@ -99,7 +99,7 @@ func (s *Service) TeamDashboard(ctx context.Context, a Actor) (*Dashboard, error
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.dashItems(db, mine)
+	items, err := s.dashItems(db, a, mine)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (s *Service) TeamDashboard(ctx context.Context, a Actor) (*Dashboard, error
 		if err != nil {
 			return nil, err
 		}
-		if out.Queue, err = s.dashItems(db, rows); err != nil {
+		if out.Queue, err = s.dashItems(db, a, rows); err != nil {
 			return nil, err
 		}
 	}
@@ -156,7 +156,7 @@ func (s *Service) dashRows(q *gorm.DB) ([]dashRow, error) {
 }
 
 // dashItems превращает строки в элементы списка: добавляет число открытых замечаний и причину возврата.
-func (s *Service) dashItems(db *gorm.DB, rows []dashRow) ([]DashboardItem, error) {
+func (s *Service) dashItems(db *gorm.DB, a Actor, rows []dashRow) ([]DashboardItem, error) {
 	ids := make([]int64, len(rows))
 	for i, r := range rows {
 		ids[i] = r.ID
@@ -201,7 +201,7 @@ func (s *Service) dashItems(db *gorm.DB, rows []dashRow) ([]DashboardItem, error
 	out := make([]DashboardItem, len(rows))
 	for i, r := range rows {
 		it := DashboardItem{
-			ID: r.ID, Code: r.Code, Type: r.Type, TypeName: Type(r.Type).Name(), Title: r.Title, Status: r.Status, Revision: r.Revision,
+			ID: r.ID, Code: r.Code, Type: r.Type, TypeName: Type(r.Type).NameIn(a.Lang), Title: r.Title, Status: r.Status, Revision: r.Revision,
 			Author: r.AuthorLogin, UpdatedAt: r.UpdatedAt.UTC(), OpenComments: open[r.ID],
 		}
 		if r.SubmittedAt != nil {

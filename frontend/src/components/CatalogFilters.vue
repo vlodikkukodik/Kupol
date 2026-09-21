@@ -6,7 +6,7 @@ import UiField from '@/ui/UiField.vue'
 import UiInput from '@/ui/UiInput.vue'
 import UiSelect from '@/ui/UiSelect.vue'
 import type { Summary } from '@/api/generated/documents'
-import { CATEGORY_NAMES, CONTAINMENT_NAMES, hasFilters } from '@/lib/catalog'
+import { categoryOptions, containmentOptions, hasFilters } from '@/lib/catalog'
 
 const props = withDefaults(
   defineProps<{
@@ -17,7 +17,7 @@ const props = withDefaults(
     /** Название группы для скринридера */
     label?: string
   }>(),
-  { summary: null, label: 'Фильтры каталога' },
+  { summary: null, label: undefined },
 )
 const emit = defineEmits<{ change: [changes: Record<string, string>]; reset: [] }>()
 
@@ -35,41 +35,41 @@ watch(() => one(props.query.to), (v) => (to.value = v))
 const typeOptions = computed(() => (props.summary?.types ?? []).map((t) => ({ value: t.type, label: `${t.name} (${t.count})` })))
 const classOptions = computed(() => (props.summary?.classes ?? []).map((c) => ({ value: String(c.class), label: `${c.class} (${c.count})` })))
 const deptOptions = computed(() => (props.summary?.departments ?? []).map((d) => ({ value: d.code, label: `${d.code} (${d.count})` })))
-const categoryOptions = Object.entries(CATEGORY_NAMES).map(([value, label]) => ({ value, label }))
-const containmentOptions = Object.entries(CONTAINMENT_NAMES).map(([value, label]) => ({ value, label }))
+const categories = computed(() => categoryOptions())
+const containments = computed(() => containmentOptions())
 </script>
 
 <template>
-  <form class="filters" :aria-label="label" @submit.prevent>
-    <UiField id="f-type" label="Тип">
-      <UiSelect :model-value="one(query.type)" :options="typeOptions" placeholder="Все типы" @update:model-value="emit('change', { type: $event })" />
+  <form class="filters" :aria-label="label ?? $t('catalog.filters.label')" @submit.prevent>
+    <UiField id="f-type" :label="$t('catalog.filters.type')">
+      <UiSelect :model-value="one(query.type)" :options="typeOptions" :placeholder="$t('catalog.filters.allTypes')" @update:model-value="emit('change', { type: $event })" />
     </UiField>
-    <UiField id="f-class" label="Класс опасности">
-      <UiSelect :model-value="one(query.class)" :options="classOptions" placeholder="Любой" @update:model-value="emit('change', { class: $event })" />
+    <UiField id="f-class" :label="$t('catalog.filters.dangerClass')">
+      <UiSelect :model-value="one(query.class)" :options="classOptions" :placeholder="$t('catalog.filters.any')" @update:model-value="emit('change', { class: $event })" />
     </UiField>
-    <UiField id="f-dept" label="Отдел">
-      <UiSelect :model-value="one(query.dept)" :options="deptOptions" placeholder="Любой" @update:model-value="emit('change', { dept: $event })" />
+    <UiField id="f-dept" :label="$t('catalog.filters.department')">
+      <UiSelect :model-value="one(query.dept)" :options="deptOptions" :placeholder="$t('catalog.filters.any')" @update:model-value="emit('change', { dept: $event })" />
     </UiField>
-    <UiField id="f-category" label="Категория">
-      <UiSelect :model-value="one(query.category)" :options="categoryOptions" placeholder="Любая" @update:model-value="emit('change', { category: $event })" />
+    <UiField id="f-category" :label="$t('catalog.filters.category')">
+      <UiSelect :model-value="one(query.category)" :options="categories" :placeholder="$t('catalog.filters.anyF')" @update:model-value="emit('change', { category: $event })" />
     </UiField>
-    <UiField id="f-containment" label="Статус содержания">
-      <UiSelect :model-value="one(query.containment)" :options="containmentOptions" placeholder="Любой" @update:model-value="emit('change', { containment: $event })" />
+    <UiField id="f-containment" :label="$t('catalog.filters.containment')">
+      <UiSelect :model-value="one(query.containment)" :options="containments" :placeholder="$t('catalog.filters.any')" @update:model-value="emit('change', { containment: $event })" />
     </UiField>
     <fieldset class="years">
-      <legend>Период, год</legend>
+      <legend>{{ $t('catalog.filters.period') }}</legend>
       <div class="years__row">
-        <UiField id="f-from" label="Год не ранее" hide-label>
-          <UiInput v-model="from" type="number" :min="1900" :max="2099" inputmode="numeric" placeholder="с" @change="emit('change', { from })" />
+        <UiField id="f-from" :label="$t('catalog.filters.yearFrom')" hide-label>
+          <UiInput v-model="from" type="number" :min="1900" :max="2099" inputmode="numeric" :placeholder="$t('catalog.filters.from')" @change="emit('change', { from })" />
         </UiField>
         <span aria-hidden="true">—</span>
-        <UiField id="f-to" label="Год не позднее" hide-label>
-          <UiInput v-model="to" type="number" :min="1900" :max="2099" inputmode="numeric" placeholder="по" @change="emit('change', { to })" />
+        <UiField id="f-to" :label="$t('catalog.filters.yearTo')" hide-label>
+          <UiInput v-model="to" type="number" :min="1900" :max="2099" inputmode="numeric" :placeholder="$t('catalog.filters.to')" @change="emit('change', { to })" />
         </UiField>
       </div>
     </fieldset>
     <div v-if="active" class="reset">
-      <UiButton variant="link" icon="refresh" @click="emit('reset')">Сбросить фильтры</UiButton>
+      <UiButton variant="link" icon="refresh" @click="emit('reset')">{{ $t('catalog.filters.reset') }}</UiButton>
     </div>
   </form>
 </template>

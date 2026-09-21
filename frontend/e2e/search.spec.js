@@ -165,7 +165,7 @@ test('допуск читателя расширяет выдачу ровно �
   const pb = await boss.newPage()
   await search(pb, WORD)
   await expect(hits(pb)).toHaveCount(3)
-  await expect(hit(pb, CODES.draft)).toContainText('draft')
+  await expect(hit(pb, CODES.draft)).toContainText('Черновик') // статус — словами, а не кодом
   await boss.close()
 })
 

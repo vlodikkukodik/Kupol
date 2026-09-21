@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { BlockChange, Diff } from '@/api/generated/documents'
 import { blockPreview, describeValue } from '@/lib/teamdoc'
+import { t } from '@/i18n'
 
 defineProps<{
   /** ответ /versions/:vid/diff */
@@ -8,18 +9,19 @@ defineProps<{
   blockKindName: (id: string) => string
 }>()
 
-const CHANGE_NAMES: Record<string, string> = { added: 'Добавлен', removed: 'Удалён', changed: 'Изменён', moved: 'Перенесён' }
+const CHANGES = ['added', 'removed', 'changed', 'moved']
+const changeName = (c: string): string => (CHANGES.includes(c) ? t(`diff.change.${c}`) : c)
 const levelOf = (b: BlockChange['before']): number => b?.level ?? 0
 </script>
 
 <template>
   <div class="diff" data-testid="version-diff">
-    <p v-if="diff.same" class="same">Отличий нет.</p>
+    <p v-if="diff.same" class="same">{{ $t('diff.same') }}</p>
     <template v-else>
       <table v-if="diff.fields.length" class="fields">
-        <caption>Свойства документа</caption>
+        <caption>{{ $t('diff.props') }}</caption>
         <thead>
-          <tr><th scope="col">Поле</th><th scope="col">Было</th><th scope="col">Стало</th></tr>
+          <tr><th scope="col">{{ $t('diff.field') }}</th><th scope="col">{{ $t('diff.before') }}</th><th scope="col">{{ $t('diff.after') }}</th></tr>
         </thead>
         <tbody>
           <tr v-for="f in diff.fields" :key="f.field" :data-field="f.field">
@@ -31,24 +33,24 @@ const levelOf = (b: BlockChange['before']): number => b?.level ?? 0
       </table>
 
       <template v-if="diff.blocks.length">
-        <h4>Блоки</h4>
+        <h4>{{ $t('diff.blocks') }}</h4>
         <ul class="blocks">
           <li v-for="b in diff.blocks" :key="`${b.change}-${b.id}`" :class="`change change--${b.change}`" :data-change="b.change" :data-block="b.id">
-            <span class="what">{{ CHANGE_NAMES[b.change] }}</span>
+            <span class="what">{{ changeName(b.change) }}</span>
             <span class="kind">{{ blockKindName(b.type) }} <code>{{ b.id }}</code></span>
             <span v-if="b.change === 'changed' && levelOf(b.before) !== levelOf(b.after)" class="level">
-              допуск {{ levelOf(b.before) }} → {{ levelOf(b.after) }}
+              {{ $t('diff.level', { from: levelOf(b.before), to: levelOf(b.after) }) }}
             </span>
             <span v-if="b.before && b.change !== 'added'" class="text text--before">
-              <span class="visually-hidden">Было:</span>{{ blockPreview(b.before) || '(без текста)' }}
+              <span class="visually-hidden">{{ $t('diff.before') }}:</span>{{ blockPreview(b.before) || $t('diff.noText') }}
             </span>
             <span v-if="b.after" class="text text--after">
-              <span class="visually-hidden">Стало:</span>{{ blockPreview(b.after) || '(без текста)' }}
+              <span class="visually-hidden">{{ $t('diff.after') }}:</span>{{ blockPreview(b.after) || $t('diff.noText') }}
             </span>
           </li>
         </ul>
       </template>
-      <p class="unchanged">Блоков без изменений: {{ diff.unchanged_blocks }}.</p>
+      <p class="unchanged">{{ $t('diff.unchanged', { n: diff.unchanged_blocks }) }}</p>
     </template>
   </div>
 </template>

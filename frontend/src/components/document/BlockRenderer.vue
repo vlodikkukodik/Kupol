@@ -46,7 +46,7 @@ const kind = computed(() => (Object.hasOwn(KINDS, props.block.type) ? KINDS[prop
 
 <template>
   <component :is="kind" v-if="kind" :data="block.data" />
-  <p v-else class="unknown" role="note">Этот фрагмент документа не может быть показан этой версией сайта.</p>
+  <p v-else class="unknown" role="note">{{ $t('doc.unknownBlock') }}</p>
 </template>
 
 <style scoped>

@@ -440,9 +440,13 @@ func docLinkSpec() kindSpec {
 			if t == nil {
 				return OutDocLink{Available: false}
 			}
+			typeName := t.TypeName
+			if typeName == "" {
+				typeName = t.Type.Name()
+			}
 			return OutDocLink{
 				Available: true, Code: t.Code, Slug: t.Slug, Title: t.Title,
-				Type: string(t.Type), TypeName: t.Type.Name(), Note: d.Note,
+				Type: string(t.Type), TypeName: typeName, Note: d.Note,
 			}
 		})
 	spec.links = func(v any) []string { return []string{v.(*docLinkData).Code} }

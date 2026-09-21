@@ -6,6 +6,7 @@ import { isApiError } from '@/api/client'
 import { teamApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
 import { formatDateTime } from '@/lib/format'
+import { t } from '@/i18n'
 import UiBadge from '@/ui/UiBadge.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiEmpty from '@/ui/UiEmpty.vue'
@@ -19,101 +20,95 @@ const query = useQuery({ queryKey: keys.teamDashboard, queryFn: ({ signal }) => 
 const desk = computed(() => query.data.value)
 const requestId = computed(() => (isApiError(query.error.value) ? query.error.value.requestId : ''))
 
-const CARDS = [
-  { status: 'draft', label: 'Черновики' },
-  { status: 'review', label: 'На проверке' },
-  { status: 'published', label: 'Опубликовано' },
-  { status: 'archived', label: 'В архиве' },
-] as const
-const count = (status: (typeof CARDS)[number]['status']) => desk.value?.counts[status] ?? 0
-const nothingMine = computed(() => CARDS.every((c) => count(c.status) === 0))
+const CARDS = ['draft', 'review', 'published', 'archived'] as const
+const count = (status: (typeof CARDS)[number]) => desk.value?.counts[status] ?? 0
+const nothingMine = computed(() => CARDS.every((c) => count(c) === 0))
 
-const label = (it: DashboardItem) => `${it.title}${it.code ? ` (${it.code})` : ''}`
+const label = (it: DashboardItem) => (it.code ? t('desk.withCode', { title: it.title, code: it.code }) : it.title)
 const to = (it: DashboardItem, tab?: string) => ({ name: 'team-document', params: { id: it.id }, query: tab ? { tab } : {} })
-const commentsWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'замечание' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'замечания' : 'замечаний')
 </script>
 
 <template>
   <ErrorView v-if="query.isError.value" :request-id="requestId" :retrying="query.isFetching.value" @retry="query.refetch()" />
-  <UiSheet v-else-if="!desk"><UiSkeleton :lines="6" label="Собираем рабочий стол…" /></UiSheet>
+  <UiSheet v-else-if="!desk"><UiSkeleton :lines="6" :label="$t('desk.loading')" /></UiSheet>
 
   <div v-else class="desk" data-testid="desk">
     <UiSheet as="section" aria-labelledby="mine-title">
       <div class="head">
-        <h2 id="mine-title">Мои документы</h2>
-        <UiButton v-if="desk.can_write" :to="{ name: 'team-document-new' }" variant="primary" icon="plus" data-testid="desk-new">Новый документ</UiButton>
+        <h2 id="mine-title">{{ $t('desk.mineTitle') }}</h2>
+        <UiButton v-if="desk.can_write" :to="{ name: 'team-document-new' }" variant="primary" icon="plus" data-testid="desk-new">{{ $t('desk.newDoc') }}</UiButton>
       </div>
-      <UiEmpty v-if="nothingMine" icon="file" title="У вас пока нет документов">
-        <template v-if="desk.can_write">Создайте первый черновик — он появится здесь.</template>
-        <template v-else>Документы вам может передать только автор: писать их вправе Автор, Редактор и Директорат.</template>
+      <UiEmpty v-if="nothingMine" icon="file" :title="$t('desk.noneTitle')">
+        <template v-if="desk.can_write">{{ $t('desk.noneWrite') }}</template>
+        <template v-else>{{ $t('desk.noneRead') }}</template>
       </UiEmpty>
-      <ul v-else class="cards" aria-label="Мои документы по состояниям">
-        <li v-for="c in CARDS" :key="c.status">
-          <RouterLink :to="{ name: 'team-documents', query: { status: c.status, mine: '1' } }" class="card" :data-status="c.status" :data-testid="`desk-count-${c.status}`">
-            <span class="card__n">{{ count(c.status) }}</span>
-            <span class="card__label">{{ c.label }}</span>
+      <ul v-else class="cards" :aria-label="$t('desk.cardsLabel')">
+        <li v-for="c in CARDS" :key="c">
+          <RouterLink :to="{ name: 'team-documents', query: { status: c, mine: '1' } }" class="card" :data-status="c" :data-testid="`desk-count-${c}`">
+            <span class="card__n">{{ count(c) }}</span>
+            <span class="card__label">{{ $t(`desk.card.${c}`) }}</span>
           </RouterLink>
         </li>
       </ul>
     </UiSheet>
 
     <UiSheet v-if="desk.returned.length" as="section" aria-labelledby="returned-title" class="returned" data-testid="desk-returned">
-      <h2 id="returned-title">Вернули на доработку <span class="n">{{ desk.returned.length }}</span></h2>
+      <h2 id="returned-title">{{ $t('desk.returnedTitle') }} <span class="n">{{ desk.returned.length }}</span></h2>
       <ul class="list">
         <li v-for="it in desk.returned" :key="it.id" :data-doc="it.id">
           <RouterLink :to="to(it)" class="title">{{ label(it) }}</RouterLink>
-          <p class="reason"><strong>{{ it.returned_by ?? 'Рецензент' }}:</strong> {{ it.return_note }}</p>
+          <p class="reason"><strong>{{ it.returned_by ?? $t('desk.reviewer') }}:</strong> {{ it.return_note }}</p>
           <p class="meta">
-            <RouterLink v-if="it.open_comments" :to="to(it, 'review')" class="comments">{{ it.open_comments }} {{ commentsWord(it.open_comments) }} к исправлению</RouterLink>
-            <span v-else>Замечаний в тексте нет — только причина возврата.</span>
+            <RouterLink v-if="it.open_comments" :to="to(it, 'review')" class="comments">{{ $t('desk.toFix', { n: it.open_comments }, it.open_comments) }}</RouterLink>
+            <span v-else>{{ $t('desk.noComments') }}</span>
           </p>
         </li>
       </ul>
     </UiSheet>
 
     <UiSheet v-if="desk.drafts.length" as="section" aria-labelledby="drafts-title" data-testid="desk-drafts">
-      <h2 id="drafts-title">Черновики</h2>
+      <h2 id="drafts-title">{{ $t('desk.draftsTitle') }}</h2>
       <ul class="list">
         <li v-for="it in desk.drafts" :key="it.id" :data-doc="it.id">
           <RouterLink :to="to(it)" class="title">{{ label(it) }}</RouterLink>
-          <p class="meta">{{ it.type_name }} · изменён {{ formatDateTime(it.updated_at) }}</p>
+          <p class="meta">{{ $t('desk.draftMeta', { type: it.type_name, when: formatDateTime(it.updated_at) }) }}</p>
         </li>
       </ul>
       <p v-if="desk.counts.draft > desk.drafts.length" class="more">
-        <RouterLink :to="{ name: 'team-documents', query: { status: 'draft', mine: '1' } }">Все черновики ({{ desk.counts.draft }})</RouterLink>
+        <RouterLink :to="{ name: 'team-documents', query: { status: 'draft', mine: '1' } }">{{ $t('desk.allDrafts', { n: desk.counts.draft }) }}</RouterLink>
       </p>
     </UiSheet>
 
     <UiSheet v-if="desk.in_review.length" as="section" aria-labelledby="waiting-title" data-testid="desk-in-review">
-      <h2 id="waiting-title">Ждут проверки</h2>
+      <h2 id="waiting-title">{{ $t('desk.waitingTitle') }}</h2>
       <ul class="list">
         <li v-for="it in desk.in_review" :key="it.id" :data-doc="it.id">
           <RouterLink :to="to(it)" class="title">{{ label(it) }}</RouterLink>
           <p class="meta">
-            Отправлен {{ it.submitted_at ? formatDateTime(it.submitted_at) : formatDateTime(it.updated_at) }}
-            <template v-if="it.open_comments"> · <RouterLink :to="to(it, 'review')">{{ it.open_comments }} {{ commentsWord(it.open_comments) }}</RouterLink></template>
+            {{ $t('desk.sentAt', { when: it.submitted_at ? formatDateTime(it.submitted_at) : formatDateTime(it.updated_at) }) }}
+            <template v-if="it.open_comments"> · <RouterLink :to="to(it, 'review')">{{ $t('desk.comments', { n: it.open_comments }, it.open_comments) }}</RouterLink></template>
           </p>
         </li>
       </ul>
     </UiSheet>
 
     <UiSheet v-if="desk.can_review" as="section" aria-labelledby="queue-title" data-testid="desk-queue">
-      <h2 id="queue-title">Очередь на проверку <span class="n" data-testid="desk-queue-total">{{ desk.queue_total }}</span></h2>
-      <UiEmpty v-if="!desk.queue.length" icon="check" title="Очередь пуста">Всё, что отправили на проверку, уже разобрано. Свои документы вы проверять не можете — их проверяет другой Редактор.</UiEmpty>
+      <h2 id="queue-title">{{ $t('desk.queueTitle') }} <span class="n" data-testid="desk-queue-total">{{ desk.queue_total }}</span></h2>
+      <UiEmpty v-if="!desk.queue.length" icon="check" :title="$t('desk.queueEmpty')">{{ $t('desk.queueEmptyText') }}</UiEmpty>
       <template v-else>
-        <p class="hint">Давно ждущие — сверху. Свои документы в очередь не попадают.</p>
+        <p class="hint">{{ $t('desk.queueHint') }}</p>
         <ul class="list">
           <li v-for="it in desk.queue" :key="it.id" :data-doc="it.id">
             <RouterLink :to="to(it)" class="title">{{ label(it) }}</RouterLink>
             <p class="meta">
-              <UiBadge tone="review">На проверке</UiBadge>
-              {{ it.type_name }} · автор {{ it.author ?? 'неизвестен' }} · отправлен {{ it.submitted_at ? formatDateTime(it.submitted_at) : '—' }}
-              <template v-if="it.open_comments"> · открытых замечаний: {{ it.open_comments }}</template>
+              <UiBadge tone="review">{{ $t('desk.inReview') }}</UiBadge>
+              {{ $t('desk.queueMeta', { type: it.type_name, author: it.author ?? $t('desk.unknownAuthor'), when: it.submitted_at ? formatDateTime(it.submitted_at) : '—' }) }}
+              <template v-if="it.open_comments">{{ $t('desk.openComments', { n: it.open_comments }) }}</template>
             </p>
           </li>
         </ul>
         <p v-if="desk.queue_total > desk.queue.length" class="more">
-          <RouterLink :to="{ name: 'team-documents', query: { status: 'review' } }">Вся очередь ({{ desk.queue_total }})</RouterLink>
+          <RouterLink :to="{ name: 'team-documents', query: { status: 'review' } }">{{ $t('desk.allQueue', { n: desk.queue_total }) }}</RouterLink>
         </p>
       </template>
     </UiSheet>

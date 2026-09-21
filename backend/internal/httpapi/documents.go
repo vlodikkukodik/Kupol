@@ -21,9 +21,9 @@ type documentHandlers struct {
 func viewerFrom(c *gin.Context) documents.Viewer {
 	a := CurrentAuth(c)
 	if a == nil {
-		return documents.Guest
+		return documents.Viewer{Lang: Lang(c)}
 	}
-	return documents.Viewer{UserID: a.User.ID, UserLevel: a.User.Level, Directorate: a.User.Directorate}
+	return documents.Viewer{UserID: a.User.ID, UserLevel: a.User.Level, Directorate: a.User.Directorate, Lang: Lang(c)}
 }
 
 // fail переводит ошибки сервиса документов в ответ API.
@@ -36,9 +36,9 @@ func (h *documentHandlers) fail(c *gin.Context, err error) {
 	case errors.Is(err, documents.ErrNotFound):
 		Fail(c, http.StatusNotFound, CodeNotFound, "Дело не найдено")
 	case errors.As(err, &ad):
-		FailAccessDenied(c, ad.RequiredLevel, documents.LevelName(ad.RequiredLevel))
+		FailAccessDenied(c, ad.RequiredLevel, documents.LevelNameIn(Lang(c), ad.RequiredLevel))
 	case errors.As(err, &qe):
-		FailFields(c, http.StatusBadRequest, CodeBadRequest, "Некорректные параметры запроса", map[string]string{qe.Field: qe.Message})
+		FailFields(c, http.StatusBadRequest, CodeBadRequest, Lang(c).T("Некорректные параметры запроса"), map[string]string{qe.Field: qe.In(Lang(c))})
 	default:
 		h.log.Error("ошибка обработчика документов", "err", err, "path", c.Request.URL.Path, "request_id", RequestID(c))
 		Fail(c, http.StatusInternalServerError, CodeInternal, "Сбой архива")

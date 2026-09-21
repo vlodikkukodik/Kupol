@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { OutClipping } from '@/api/generated/documents'
+import { t } from '@/i18n'
 import RichRuns from '../RichRuns.vue'
 
 const props = defineProps<{ data: OutClipping }>()
 
-const label = computed(() => ({ newspaper: 'Газетная вырезка', handwritten: 'Рукописная заметка', transcript: 'Расшифровка записи' })[props.data.kind] || 'Материал')
+const KINDS = ['newspaper', 'handwritten', 'transcript']
+const label = computed(() => t(`doc.block.clipping.${KINDS.includes(props.data.kind) ? props.data.kind : 'other'}`))
 </script>
 
 <template>

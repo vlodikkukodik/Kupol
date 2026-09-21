@@ -10,7 +10,7 @@ withDefaults(defineProps<{ size?: number | string; decorative?: boolean }>(), { 
     :width="size"
     :height="size"
     :role="decorative ? undefined : 'img'"
-    :aria-label="decorative ? undefined : 'Печать КУПОЛ'"
+    :aria-label="decorative ? undefined : $t('ui.seal')"
     :aria-hidden="decorative ? 'true' : undefined"
     focusable="false"
   >
@@ -22,7 +22,7 @@ withDefaults(defineProps<{ size?: number | string; decorative?: boolean }>(), { 
     <circle cx="100" cy="100" r="58" class="line" fill="none" stroke-width="2" />
     <text class="ring-text" font-size="13">
       <textPath href="#ui-seal-ring" startOffset="0" textLength="470" lengthAdjust="spacing">
-        КОМИТЕТ УПРАВЛЕНИЯ ПАРАНОРМАЛЬНЫМИ ОБЪЕКТАМИ И ЛОКАЦИЯМИ
+        {{ $t('ui.sealText') }}
       </textPath>
     </text>
     <path d="M 62,112 A 38,38 0 0 1 138,112 Z" class="fill" />

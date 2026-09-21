@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"kupol/internal/i18n"
 )
 
 // Образец из 15 видов блоков — тот же, что у сквозных тестов редактора.
@@ -216,7 +218,7 @@ func TestMarkdownCoversEveryBlockKind(t *testing.T) {
 	seen := map[string]bool{}
 	for _, b := range blocks {
 		seen[b.Type] = true
-		md := renderBlockMarkdown(b)
+		md := renderBlockMarkdown(b, i18n.RU)
 		if strings.Contains(md, "не переносится") || strings.TrimSpace(md) == "" {
 			t.Errorf("блок «%s» не отрисован в Markdown: %q", b.Type, md)
 		}
@@ -227,7 +229,7 @@ func TestMarkdownCoversEveryBlockKind(t *testing.T) {
 		}
 	}
 	// неизвестный вид не теряется молча
-	if md := renderBlockMarkdown(InputBlock{ID: "x", Type: "hologram", Data: json.RawMessage(`{}`)}); !strings.Contains(md, "hologram") {
+	if md := renderBlockMarkdown(InputBlock{ID: "x", Type: "hologram", Data: json.RawMessage(`{}`)}, i18n.RU); !strings.Contains(md, "hologram") {
 		t.Errorf("неизвестный вид: %q", md)
 	}
 }

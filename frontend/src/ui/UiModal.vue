@@ -50,7 +50,7 @@ useOverlay({ active: () => open.value, container: panel, onClose: close, initial
         >
           <header class="ui-modal__head">
             <h2 :id="titleId" class="ui-modal__title" :class="{ 'visually-hidden': !showTitle }">{{ title }}</h2>
-            <button type="button" class="ui-modal__close" :aria-label="closeLabel ?? `Закрыть: ${title}`" @click="close">
+            <button type="button" class="ui-modal__close" :aria-label="closeLabel ?? $t('ui.closeNamed', { name: title })" @click="close">
               <UiIcon name="close" size="1.4rem" />
             </button>
           </header>

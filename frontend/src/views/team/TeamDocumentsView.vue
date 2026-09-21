@@ -19,6 +19,7 @@ import { keys } from '@/api/query'
 import { useDocumentMeta } from '@/composables/useDocumentMeta'
 import { useQueryFilters } from '@/composables/useQueryFilters'
 import { formatDateTime, formatTime } from '@/lib/format'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import ErrorView from '../ErrorView.vue'
 
@@ -49,13 +50,8 @@ watch(q, (v) => (search.value = v))
 const active = computed(() => Boolean(status.value || type.value || q.value || mine.value))
 const reset = () => router.push({ query: {} })
 const statusOptions = computed(() => statuses.value.map((s) => ({ value: s.id, label: s.name })))
-const typeOptions = computed(() => types.value.map((t) => ({ value: t.id, label: t.name })))
-const note = computed(
-  () =>
-    'Здесь ваши документы в любом статусе' +
-    (auth.can('review') || auth.can('edit_published') ? ' и все документы, вышедшие из черновика' : '') +
-    '. Чужие черновики не видны никому, кроме Директората.',
-)
+const typeOptions = computed(() => types.value.map((it) => ({ value: it.id, label: it.name })))
+const note = computed(() => t('docs.noteMine') + (auth.can('review') || auth.can('edit_published') ? t('docs.noteAll') : '') + t('docs.noteEnd'))
 const requestId = computed(() => (isApiError(list.error.value) ? list.error.value.requestId : ''))
 const tone = (s: string) => (s === 'published' ? 'published' : s === 'review' ? 'review' : s === 'archived' ? 'archived' : 'draft')
 </script>
@@ -63,30 +59,30 @@ const tone = (s: string) => (s === 'published' ? 'published' : s === 'review' ? 
 <template>
   <UiSheet as="section" wide aria-labelledby="docs-title" class="wide">
     <div class="head">
-      <h2 id="docs-title">Документы</h2>
+      <h2 id="docs-title">{{ $t('docs.title') }}</h2>
       <div v-if="auth.can('write_drafts')" class="head__actions">
-        <UiButton icon="upload" data-testid="import-open" @click="importOpen = true">Загрузить из файла</UiButton>
-        <UiButton variant="primary" icon="plus" :to="{ name: 'team-document-new' }">Новый документ</UiButton>
+        <UiButton icon="upload" data-testid="import-open" @click="importOpen = true">{{ $t('docs.import') }}</UiButton>
+        <UiButton variant="primary" icon="plus" :to="{ name: 'team-document-new' }">{{ $t('docs.newDoc') }}</UiButton>
       </div>
     </div>
     <p class="note">{{ note }}</p>
 
-    <form class="filters" aria-label="Отбор документов" @submit.prevent="filters.change({ q: search.trim() })">
-      <UiField id="d-q" label="Название или шифр">
+    <form class="filters" :aria-label="$t('docs.filters')" @submit.prevent="filters.change({ q: search.trim() })">
+      <UiField id="d-q" :label="$t('docs.nameOrCode')">
         <UiInput v-model="search" type="search" :maxlength="100" @change="filters.change({ q: search.trim() })" />
       </UiField>
-      <UiField id="d-status" label="Статус">
-        <UiSelect :model-value="status" :options="statusOptions" placeholder="Любой" @update:model-value="filters.change({ status: $event })" />
+      <UiField id="d-status" :label="$t('docs.status')">
+        <UiSelect :model-value="status" :options="statusOptions" :placeholder="$t('docs.anyOne')" @update:model-value="filters.change({ status: $event })" />
       </UiField>
-      <UiField id="d-type" label="Тип">
-        <UiSelect :model-value="type" :options="typeOptions" placeholder="Любой" @update:model-value="filters.change({ type: $event })" />
+      <UiField id="d-type" :label="$t('docs.type')">
+        <UiSelect :model-value="type" :options="typeOptions" :placeholder="$t('docs.anyOne')" @update:model-value="filters.change({ type: $event })" />
       </UiField>
       <div class="check">
-        <UiCheckbox :model-value="mine" label="Только мои" @update:model-value="filters.change({ mine: $event ? '1' : '' })" />
+        <UiCheckbox :model-value="mine" :label="$t('docs.onlyMine')" @update:model-value="filters.change({ mine: $event ? '1' : '' })" />
       </div>
       <div class="actions">
-        <UiButton type="submit" variant="primary">Найти</UiButton>
-        <UiButton v-if="active" variant="link" @click="reset">Сбросить</UiButton>
+        <UiButton type="submit" variant="primary">{{ $t('docs.find') }}</UiButton>
+        <UiButton v-if="active" variant="link" @click="reset">{{ $t('docs.reset') }}</UiButton>
       </div>
     </form>
 
@@ -94,29 +90,29 @@ const tone = (s: string) => (s === 'published' ? 'published' : s === 'review' ? 
     <UiSkeleton v-else-if="list.isPending.value" :lines="6" />
 
     <template v-else-if="list.data.value">
-      <p class="total" role="status" data-testid="team-docs-total">Найдено: {{ list.data.value.total }}</p>
-      <UiTable v-if="list.data.value.items.length" label="Документы команды">
+      <p class="total" role="status" data-testid="team-docs-total">{{ $t('docs.total', { n: list.data.value.total }) }}</p>
+      <UiTable v-if="list.data.value.items.length" :label="$t('docs.tableLabel')">
         <table class="docs" data-testid="team-docs">
-          <caption class="visually-hidden">Документы команды</caption>
+          <caption class="visually-hidden">{{ $t('docs.tableLabel') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Документ</th>
-              <th scope="col">Статус</th>
-              <th scope="col">Изменён</th>
+              <th scope="col">{{ $t('docs.colDoc') }}</th>
+              <th scope="col">{{ $t('docs.colStatus') }}</th>
+              <th scope="col">{{ $t('docs.colChanged') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="it in list.data.value.items" :key="it.id" :data-id="it.id">
               <th scope="row" class="doc">
                 <RouterLink :to="{ name: 'team-document', params: { id: it.id } }" class="doc__link">
-                  <span class="doc__code">{{ it.code ?? 'без шифра' }}</span>
+                  <span class="doc__code">{{ it.code ?? $t('docs.noCode') }}</span>
                   <span class="doc__title">{{ it.title }}</span>
                 </RouterLink>
                 <span class="doc__sub">
-                  {{ it.type_name }}<template v-if="it.author"> · автор {{ it.author }}</template> · редакция {{ it.revision }}
+                  {{ it.author ? $t('docs.subAuthor', { type: it.type_name, author: it.author, rev: it.revision }) : $t('docs.sub', { type: it.type_name, rev: it.revision }) }}
                 </span>
                 <span v-if="it.lock" class="doc__lock" :data-mine="it.lock.mine ? 'true' : 'false'">
-                  {{ it.lock.mine ? 'В работе у вас' : `Редактирует: ${it.lock.holder}` }} до {{ formatTime(it.lock.expires_at) }}
+                  {{ it.lock.mine ? $t('docs.lockMine', { time: formatTime(it.lock.expires_at) }) : $t('docs.lockOther', { holder: it.lock.holder, time: formatTime(it.lock.expires_at) }) }}
                 </span>
               </th>
               <td class="status" :data-status="it.status"><UiBadge :tone="tone(it.status)">{{ statusName(it.status) }}</UiBadge></td>
@@ -126,11 +122,11 @@ const tone = (s: string) => (s === 'published' ? 'published' : s === 'review' ? 
         </table>
       </UiTable>
       <p v-else class="state" data-testid="team-docs-empty">
-        <template v-if="active">По заданным условиям ничего не найдено.</template>
-        <template v-else-if="auth.can('write_drafts')">Документов пока нет. Начните с кнопки «Новый документ».</template>
-        <template v-else>Документов, доступных вам, пока нет.</template>
+        <template v-if="active">{{ $t('docs.nothing') }}</template>
+        <template v-else-if="auth.can('write_drafts')">{{ $t('docs.emptyWrite') }}</template>
+        <template v-else>{{ $t('docs.empty') }}</template>
       </p>
-      <PaginationNav :page="list.data.value.page" :pages="list.data.value.pages" label="Страницы списка документов" />
+      <PaginationNav :page="list.data.value.page" :pages="list.data.value.pages" :label="$t('docs.pagesLabel')" />
     </template>
     <ImportDocumentDialog v-if="auth.can('write_drafts')" v-model:open="importOpen" />
   </UiSheet>

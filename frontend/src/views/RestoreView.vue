@@ -8,6 +8,7 @@ import UiInput from '@/ui/UiInput.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import { useForm } from '@/composables/useForm'
 import { validatePassword } from '@/lib/rules'
+import { t } from '@/i18n'
 import SecretCodesBox from '@/components/SecretCodesBox.vue'
 import UiCheckbox from '@/ui/UiCheckbox.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -37,11 +38,11 @@ async function focusFirstError() {
 
 async function onSubmit() {
   form.clear()
-  if (!login.value.trim()) form.errors.login = 'Введите логин'
-  if (!code.value.trim()) form.errors.backup_code = 'Введите резервный код'
+  if (!login.value.trim()) form.errors.login = t('common.enterLogin')
+  if (!code.value.trim()) form.errors.backup_code = t('restore.enterCode')
   const err = validatePassword(password.value, login.value.trim())
   if (err) form.errors.new_password = err
-  else if (password.value !== password2.value) form.errors.new_password2 = 'Пароли не совпадают'
+  else if (password.value !== password2.value) form.errors.new_password2 = t('common.passwordsDiffer')
   if (Object.keys(form.errors).length > 0) return focusFirstError()
 
   let result: { signedIn: boolean; backupCode: string } | null = null
@@ -74,51 +75,47 @@ function signIn() {
 
 <template>
   <UiSheet v-if="restored" as="article" class="restore" data-testid="restore-done">
-    <h1>Пароль изменён</h1>
+    <h1>{{ $t('restore.doneTitle') }}</h1>
     <p>
-      У вас включён код из приложения, поэтому вход по-прежнему требует и его: войдите с новым паролем и кодом из приложения
-      (или одноразовым кодом). Прежний резервный код сгорел — ниже новый. Он показывается <strong>один раз</strong>.
+      <i18n-t keypath="restore.doneText" scope="global"><template #once><strong>{{ $t('restore.once') }}</strong></template></i18n-t>
     </p>
     <SecretCodesBox
       :codes="[restored.backupCode]"
-      what="резервный код доступа"
+      :what="$t('restore.codesWhat')"
       :login="restored.login"
       filename="kupol-backup-code.txt"
-      note="Код показывается один раз. По нему можно восстановить доступ, если вы забудете пароль. Храните его отдельно от пароля."
+      :note="$t('restore.codesNote')"
     />
     <div class="confirm">
-      <UiCheckbox v-model="saved" label="Я сохранил(а) код в надёжном месте" />
+      <UiCheckbox v-model="saved" :label="$t('common.savedCodes')" />
     </div>
-    <UiButton variant="primary" :disabled="!saved" icon-end="check" data-testid="restore-sign-in" @click="signIn">Войти</UiButton>
+    <UiButton variant="primary" :disabled="!saved" icon-end="check" data-testid="restore-sign-in" @click="signIn">{{ $t('restore.signIn') }}</UiButton>
   </UiSheet>
 
   <UiSheet v-else as="article" class="restore">
-    <h1>Восстановление доступа</h1>
-    <p>
-      Введите логин, резервный код, полученный при регистрации, и новый пароль. После восстановления все прежние сеансы
-      завершатся, а резервный код будет заменён на новый.
-    </p>
+    <h1>{{ $t('restore.title') }}</h1>
+    <p>{{ $t('restore.intro') }}</p>
 
-    <form novalidate aria-label="Восстановление доступа" @submit.prevent="onSubmit">
+    <form novalidate :aria-label="$t('restore.title')" @submit.prevent="onSubmit">
       <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
-      <UiField id="restore-login" label="Логин" :error="form.errors.login">
+      <UiField id="restore-login" :label="$t('common.login')" :error="form.errors.login">
         <UiInput :ref="setFieldRef('login')" v-model="login" autocomplete="username" />
       </UiField>
-      <UiField id="restore-code" label="Резервный код" hint="Вида KUPOL-XXXX-XXXX-XXXX-XXXX; регистр и дефисы не важны." :error="form.errors.backup_code">
+      <UiField id="restore-code" :label="$t('restore.codeLabel')" :hint="$t('restore.codeHint')" :error="form.errors.backup_code">
         <UiInput :ref="setFieldRef('backup_code')" v-model="code" autocomplete="off" />
       </UiField>
-      <UiField id="restore-password" label="Новый пароль" hint="Не короче 8 символов." :error="form.errors.new_password">
+      <UiField id="restore-password" :label="$t('common.newPassword')" :hint="$t('common.passwordMin')" :error="form.errors.new_password">
         <UiInput :ref="setFieldRef('new_password')" v-model="password" type="password" autocomplete="new-password" reveal />
       </UiField>
-      <UiField id="restore-password2" label="Новый пароль ещё раз" :error="form.errors.new_password2">
+      <UiField id="restore-password2" :label="$t('common.newPasswordAgain')" :error="form.errors.new_password2">
         <UiInput :ref="setFieldRef('new_password2')" v-model="password2" type="password" autocomplete="new-password" />
       </UiField>
       <div class="actions">
-        <UiButton type="submit" variant="primary" :loading="form.submitting.value">{{ form.submitting.value ? 'Проверка…' : 'Восстановить доступ' }}</UiButton>
-        <UiButton to="/" variant="link">Назад</UiButton>
+        <UiButton type="submit" variant="primary" :loading="form.submitting.value">{{ form.submitting.value ? $t('common.checking') : $t('restore.submit') }}</UiButton>
+        <UiButton to="/" variant="link">{{ $t('common.back') }}</UiButton>
       </div>
     </form>
-    <p class="note">Потеряли и код? Обратитесь к Директорату: пароль сбросит администратор.</p>
+    <p class="note">{{ $t('restore.lostBoth') }}</p>
   </UiSheet>
 </template>
 

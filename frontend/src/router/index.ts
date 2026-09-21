@@ -1,10 +1,15 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized, type RouteLocationRaw, type RouteRecordRaw, type RouterHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
+import { locale, t } from '@/i18n'
 import { useAuthStore, type Capability } from '@/stores/auth'
+import { watch } from 'vue'
 
 declare module 'vue-router' {
   interface RouteMeta {
+    /** Ключ названия страницы в каталоге языка (title.*); заголовок вкладки — «Название — КУПОЛ» */
     title?: string
+    /** Ключ уже полного заголовка вкладки (главная и «О КУПОЛЕ»): «КУПОЛ — Центральный архив» */
+    fullTitle?: string
     /** При сбое связи с архивом вместо страницы показывается «Сбой архива» */
     needsApi?: boolean
     /** Только для вошедших */
@@ -16,49 +21,53 @@ declare module 'vue-router' {
   }
 }
 
-const BASE_TITLE = 'КУПОЛ'
-const title = (name: string) => `${name} — ${BASE_TITLE}`
+/** Заголовок вкладки для маршрута на текущем языке */
+export function pageTitle(meta: { title?: string; fullTitle?: string }): string {
+  if (meta.fullTitle) return t(meta.fullTitle)
+  if (meta.title) return t('title.withBase', { name: t(meta.title) })
+  return t('title.base')
+}
 
 export const routes: RouteRecordRaw[] = [
-  { path: '/', name: 'home', component: HomeView, meta: { title: 'КУПОЛ — Центральный архив', needsApi: false } },
-  { path: '/catalog', name: 'catalog', component: () => import('@/views/CatalogView.vue'), meta: { title: title('Каталог'), needsApi: true } },
-  { path: '/about', name: 'about', component: () => import('@/views/AboutView.vue'), meta: { title: 'О КУПОЛЕ — вымышленный архив КУПОЛ', needsApi: false } },
-  { path: '/search', name: 'search', component: () => import('@/views/SearchView.vue'), meta: { title: title('Поиск'), needsApi: true } },
-  { path: '/graph/:ref', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: title('Связи документа'), needsApi: true } },
-  { path: '/doc/:ref', name: 'document', component: () => import('@/views/DocumentView.vue'), meta: { title: title('Документ'), needsApi: true } },
-  { path: '/file', name: 'file', component: () => import('@/views/FileView.vue'), meta: { title: title('Личное дело'), needsApi: true, requiresAuth: true } },
+  { path: '/', name: 'home', component: HomeView, meta: { fullTitle: 'title.home', needsApi: false } },
+  { path: '/catalog', name: 'catalog', component: () => import('@/views/CatalogView.vue'), meta: { title: 'title.catalog', needsApi: true } },
+  { path: '/about', name: 'about', component: () => import('@/views/AboutView.vue'), meta: { fullTitle: 'title.about', needsApi: false } },
+  { path: '/search', name: 'search', component: () => import('@/views/SearchView.vue'), meta: { title: 'title.search', needsApi: true } },
+  { path: '/graph/:ref', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: 'title.graph', needsApi: true } },
+  { path: '/doc/:ref', name: 'document', component: () => import('@/views/DocumentView.vue'), meta: { title: 'title.document', needsApi: true } },
+  { path: '/file', name: 'file', component: () => import('@/views/FileView.vue'), meta: { title: 'title.file', needsApi: true, requiresAuth: true } },
   {
     // Панель команды: право проверяется охраной страниц (и, главное, сервером на каждом запросе).
     path: '/team',
     component: () => import('@/views/team/TeamView.vue'),
-    meta: { title: title('Панель команды'), needsApi: true, requiresAuth: true, capability: 'team_panel' },
+    meta: { title: 'title.team', needsApi: true, requiresAuth: true, capability: 'team_panel' },
     children: [
-      { path: '', name: 'team', component: () => import('@/views/team/TeamDeskView.vue'), meta: { title: title('Рабочий стол — Панель команды') } },
-      { path: 'templates', name: 'team-templates', component: () => import('@/views/team/TeamTemplatesView.vue'), meta: { title: title('Шаблоны — Панель команды') } },
-      { path: 'site', name: 'team-site', component: () => import('@/views/team/TeamSiteView.vue'), meta: { title: title('Сайт — Панель команды') } },
-      { path: 'timeline', name: 'team-timeline', component: () => import('@/views/team/TeamTimelineView.vue'), meta: { title: title('Хронология — Панель команды') } },
-      { path: 'glossary', name: 'team-glossary', component: () => import('@/views/team/TeamGlossaryView.vue'), meta: { title: title('Глоссарий — Панель команды') } },
-      { path: 'roles', name: 'team-roles', component: () => import('@/views/team/TeamHomeView.vue'), meta: { title: title('Роли и права — Панель команды') } },
-      { path: 'documents', name: 'team-documents', component: () => import('@/views/team/TeamDocumentsView.vue'), meta: { title: title('Документы команды') } },
+      { path: '', name: 'team', component: () => import('@/views/team/TeamDeskView.vue'), meta: { title: 'title.teamDesk' } },
+      { path: 'templates', name: 'team-templates', component: () => import('@/views/team/TeamTemplatesView.vue'), meta: { title: 'title.teamTemplates' } },
+      { path: 'site', name: 'team-site', component: () => import('@/views/team/TeamSiteView.vue'), meta: { title: 'title.teamSite' } },
+      { path: 'timeline', name: 'team-timeline', component: () => import('@/views/team/TeamTimelineView.vue'), meta: { title: 'title.teamTimeline' } },
+      { path: 'glossary', name: 'team-glossary', component: () => import('@/views/team/TeamGlossaryView.vue'), meta: { title: 'title.teamGlossary' } },
+      { path: 'roles', name: 'team-roles', component: () => import('@/views/team/TeamHomeView.vue'), meta: { title: 'title.teamRoles' } },
+      { path: 'documents', name: 'team-documents', component: () => import('@/views/team/TeamDocumentsView.vue'), meta: { title: 'title.teamDocuments' } },
       {
         path: 'documents/new',
         name: 'team-document-new',
         component: () => import('@/views/team/TeamDocumentNewView.vue'),
-        meta: { title: title('Новый документ'), capability: 'write_drafts' },
+        meta: { title: 'title.teamNew', capability: 'write_drafts' },
       },
       {
         // Номер — только цифры: иначе адрес вида /team/documents/abc показал бы «Дело не найдено» самого роутера
         path: 'documents/:id(\\d+)',
         name: 'team-document',
         component: () => import('@/views/team/TeamDocumentView.vue'),
-        meta: { title: title('Документ — Панель команды') },
+        meta: { title: 'title.teamDocument' },
       },
-      { path: 'members', name: 'team-members', component: () => import('@/views/team/TeamMembersView.vue'), meta: { title: title('Команда'), capability: 'manage_team' } },
+      { path: 'members', name: 'team-members', component: () => import('@/views/team/TeamMembersView.vue'), meta: { title: 'title.teamMembers', capability: 'manage_team' } },
     ],
   },
-  { path: '/backup-code', name: 'backup-code', component: () => import('@/views/BackupCodeView.vue'), meta: { title: title('Резервный код'), needsApi: true, requiresAuth: true } },
-  { path: '/restore', name: 'restore', component: () => import('@/views/RestoreView.vue'), meta: { title: title('Восстановление доступа'), needsApi: true, guestOnly: true } },
-  { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue'), meta: { title: title('Дело не найдено'), needsApi: false } },
+  { path: '/backup-code', name: 'backup-code', component: () => import('@/views/BackupCodeView.vue'), meta: { title: 'title.backupCode', needsApi: true, requiresAuth: true } },
+  { path: '/restore', name: 'restore', component: () => import('@/views/RestoreView.vue'), meta: { title: 'title.restore', needsApi: true, guestOnly: true } },
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue'), meta: { title: 'title.notFound', needsApi: false } },
 ]
 
 /**
@@ -115,7 +124,13 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
   })
   router.beforeEach(authGuard)
   router.afterEach((to) => {
-    document.title = to.meta.title || BASE_TITLE
+    document.title = pageTitle(to.meta)
+  })
+  // Сменили язык — заголовок вкладки пересчитывается. Страницы, которые ставят свой заголовок (документ), делают то же у себя.
+  const OWN_TITLE = ['document', 'team-document']
+  watch(locale, () => {
+    const r = router.currentRoute.value
+    if (r.matched.length > 0 && !OWN_TITLE.includes(String(r.name)) && (r.meta.title || r.meta.fullTitle)) document.title = pageTitle(r.meta)
   })
   return router
 }

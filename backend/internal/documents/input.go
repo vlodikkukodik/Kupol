@@ -72,7 +72,8 @@ func ParseInputs(raw []byte) (inputs []Input, batch bool, err error) {
 		for i, d := range docs {
 			in, err := decodeInput(d)
 			if err != nil {
-				probs.Add(fmt.Sprintf("documents[%d]", i), "%s", describeJSONError(err))
+				format, args := describeJSONError(err)
+				probs.Add(fmt.Sprintf("documents[%d]", i), format, args...)
 				continue
 			}
 			out[i] = in
@@ -85,7 +86,8 @@ func ParseInputs(raw []byte) (inputs []Input, batch bool, err error) {
 
 	in, err := decodeInput(trimmed)
 	if err != nil {
-		return nil, false, &ValidationError{Problems: []Problem{{Path: "$", Message: describeJSONError(err)}}}
+		format, args := describeJSONError(err)
+		return nil, false, oneProblem("$", format, args...)
 	}
 	return []Input{in}, false, nil
 }

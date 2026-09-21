@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { FIELDS, type FieldSpec } from '@/editor/fields'
+import { FIELDS, fieldLabel, fieldOptions, type FieldSpec } from '@/editor/fields'
 import UiField from '@/ui/UiField.vue'
 import UiInput from '@/ui/UiInput.vue'
 import UiSelect from '@/ui/UiSelect.vue'
@@ -46,8 +46,8 @@ function settle(spec: FieldSpec) {
 
 <template>
   <div v-if="specs().length" class="pm-fields" contenteditable="false">
-    <UiField v-for="spec in specs()" :key="spec.key" :label="spec.label" :hint="spec.kind === 'lines' ? spec.hint : ''" :class="{ 'pm-fields__wide': spec.wide }">
-      <UiSelect v-if="spec.kind === 'select'" :model-value="stored(spec)" :options="spec.options" :disabled="disabled" @update:model-value="commit(spec, $event)" />
+    <UiField v-for="spec in specs()" :key="spec.key" :label="fieldLabel(node.type.name, spec.key)" :hint="spec.kind === 'lines' ? $t('editor.linesHint') : ''" :class="{ 'pm-fields__wide': spec.wide }">
+      <UiSelect v-if="spec.kind === 'select'" :model-value="stored(spec)" :options="fieldOptions(node.type.name, spec)" :disabled="disabled" @update:model-value="commit(spec, $event)" />
       <LinesField
         v-else-if="spec.kind === 'lines'"
         :model-value="(node.attrs[spec.key] as string[]) ?? []"

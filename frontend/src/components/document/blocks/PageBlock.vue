@@ -5,7 +5,7 @@ defineProps<{ data: OutPage }>()
 </script>
 
 <template>
-  <p class="page">— стр.<template v-if="data.number"> {{ data.number }}</template> —</p>
+  <p class="page">{{ data.number ? $t('doc.block.page', { n: data.number }) : $t('doc.block.pageNoNumber') }}</p>
 </template>
 
 <style scoped>

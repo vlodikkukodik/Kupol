@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, watch } from 'vue'
+import { computed, nextTick, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
 import { isApiError } from '@/api/client'
@@ -8,6 +8,7 @@ import { keys } from '@/api/query'
 import DocumentPaper from '@/components/document/DocumentPaper.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import AccessDeniedView from './AccessDeniedView.vue'
 import ErrorView from './ErrorView.vue'
@@ -31,16 +32,21 @@ const error = computed(() => (isApiError(query.error.value) ? query.error.value 
 
 // Заголовок вкладки при отказе: без него остался бы общий «Документ — КУПОЛ», а для закрытого дела — тем более
 // нельзя подсказывать больше, чем показывает сама страница.
-watch(error, (e) => {
-  if (!e) return
-  if (e.code === 'access_denied') document.title = 'Доступ запрещён — КУПОЛ'
-  else if (e.status === 404) document.title = 'Дело не найдено — КУПОЛ'
+const tabTitle = computed(() => {
+  if (doc.value) return t('title.withBase', { name: `${doc.value.code} — ${doc.value.title}` })
+  const e = error.value
+  if (e?.code === 'access_denied') return t('title.withBase', { name: t('notice.denied.title') })
+  if (e?.status === 404) return t('title.withBase', { name: t('title.notFound') })
+  return ''
+})
+// пересчитывается и при смене языка интерфейса (роутер этот маршрут не трогает, см. router/index.ts)
+watchEffect(() => {
+  if (tabTitle.value) document.title = tabTitle.value
 })
 
 // Один адрес у документа: О-041, o-41 и т.п. заменяются на канонический латинский (/doc/O-041).
 watch(doc, async (d) => {
   if (!d) return
-  document.title = `${d.code} — ${d.title} — КУПОЛ`
   if (route.params.ref !== d.slug) {
     await router.replace({ name: 'document', params: { ref: d.slug }, query: route.query, hash: route.hash })
   }
@@ -67,7 +73,7 @@ watch(doc, async (d) => {
   <AccessDeniedView v-else-if="error && error.code === 'access_denied'" :level="error.requiredLevel" />
   <NotFoundView v-else-if="error && error.status === 404" />
   <ErrorView v-else-if="error" :request-id="error.requestId" :retrying="query.isFetching.value" @retry="query.refetch()" />
-  <UiSheet v-else class="paper"><UiSkeleton :lines="8" label="Загрузка дела…" /></UiSheet>
+  <UiSheet v-else class="paper"><UiSkeleton :lines="8" :label="$t('doc.loading')" /></UiSheet>
 </template>
 
 <style scoped>

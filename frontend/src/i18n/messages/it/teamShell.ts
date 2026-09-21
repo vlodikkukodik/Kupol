@@ -1,0 +1,48 @@
+// Pannello della squadra: sezioni, ruoli e diritti, impostazioni del sito (contatti dell'autore), parole comuni del pannello.
+export default {
+  team: {
+    title: 'Pannello della squadra',
+    kicker: "Postazione di lavoro del collaboratore dell'archivio",
+    sections: 'Sezioni del pannello della squadra',
+    nav: {
+      desk: 'Scrivania',
+      documents: 'Documenti',
+      templates: 'Modelli',
+      glossary: 'Glossario',
+      timeline: 'Cronologia',
+      site: 'Sito',
+      roles: 'Ruoli e diritti',
+      members: 'Squadra',
+    },
+  },
+
+  roles: {
+    mineTitle: 'I tuoi ruoli',
+    directorateAll: 'Il Direttorato comprende tutti i ruoli e tutti i diritti. Agli altri i ruoli si assegnano nella schermata «Squadra».',
+    allowedTitle: 'Che cosa ti è consentito',
+    allowed: 'Consentito:',
+    notAllowed: 'Non consentito:',
+    eachTitle: 'Che cosa dà ogni ruolo',
+    note: 'Una persona può avere più ruoli, i diritti si sommano. I ruoli li assegna il Direttorato.',
+    tableLabel: 'Tabella dei ruoli e dei diritti',
+    caption: 'Diritti per ruolo',
+    right: 'Diritto',
+    yes: 'sì',
+    no: 'no',
+  },
+
+  site: {
+    title: "Sito: contatti dell'autore",
+    lead: "Il testo di questo campo compare nella pagina {about}, nella sezione «Sull'autore e contatti». Gli indirizzi del tipo https://… e la posta elettronica diventano link. Campo vuoto — nella pagina non c'è la sezione dei contatti.",
+    aboutLink: '«SU KUPOL»',
+    loading: 'Caricamento delle impostazioni…',
+    readonly: 'I contatti può modificarli solo il Direttorato. Ora nella pagina compare ciò che vedi sotto.',
+    contacts: 'Contatti',
+    hint: 'Fino a 1000 caratteri; anche su più righe.',
+    save: 'Salva',
+    savedWith: 'Contatti salvati: sono visibili nella pagina «SU KUPOL».',
+    savedEmpty: 'Contatti rimossi: la sezione nella pagina «SU KUPOL» non viene mostrata.',
+    changed: 'Modificato {when}',
+    changedBy: 'Modificato {when} · {who}',
+  },
+}

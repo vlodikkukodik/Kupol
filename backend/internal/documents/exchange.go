@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"kupol/internal/i18n"
 )
 
 // Экспорт и импорт документа в интерфейсе команды (этап 3.6).
@@ -37,7 +39,7 @@ type ExportFile struct {
 // TeamExport выгружает документ в файл. Доступ — как к чтению документа в панели команды.
 func (s *Service) TeamExport(ctx context.Context, a Actor, id int64, format ExportFormat) (*ExportFile, error) {
 	if format != ExportJSON && format != ExportMarkdown {
-		return nil, &QueryError{Field: "format", Message: "json или md"}
+		return nil, queryError("format", "json или md")
 	}
 	d, err := s.viewable(ctx, s.db.WithContext(ctx), a, id)
 	if err != nil {
@@ -53,7 +55,7 @@ func (s *Service) TeamExport(ctx context.Context, a Actor, id int64, format Expo
 		}
 		return &ExportFile{Filename: name + ".json", ContentType: "application/json; charset=utf-8", Data: append(data, '\n')}, nil
 	default:
-		return &ExportFile{Filename: name + ".md", ContentType: "text/markdown; charset=utf-8", Data: []byte(renderMarkdown(in))}, nil
+		return &ExportFile{Filename: name + ".md", ContentType: "text/markdown; charset=utf-8", Data: []byte(renderMarkdownIn(in, a.Lang))}, nil
 	}
 }
 
@@ -93,10 +95,10 @@ func (s *Service) TeamImport(ctx context.Context, a Actor, raw []byte, dryRun bo
 		if errors.As(err, &ve) {
 			return nil, err
 		}
-		return nil, &ValidationError{Problems: []Problem{{Path: "$", Message: err.Error()}}}
+		return nil, oneProblem("$", "%s", err.Error())
 	}
 	if batch || len(inputs) != 1 {
-		return nil, &ValidationError{Problems: []Problem{{Path: "$", Message: "в файле пакет документов: загружайте по одному документу"}}}
+		return nil, oneProblem("$", "в файле пакет документов: загружайте по одному документу")
 	}
 	in := inputs[0]
 
@@ -112,7 +114,7 @@ func (s *Service) TeamImport(ctx context.Context, a Actor, raw []byte, dryRun bo
 	if probs.Any() {
 		return nil, &ValidationError{Problems: probs.List()}
 	}
-	res.TypeName = Type(pr.Doc.Type).Name()
+	res.TypeName = Type(pr.Doc.Type).NameIn(a.Lang)
 	if pr.Code != nil {
 		res.Code = pr.Code.Canonical
 	}
@@ -140,8 +142,11 @@ func (s *Service) TeamImport(ctx context.Context, a Actor, raw []byte, dryRun bo
 
 // ——— Markdown ———
 
-// renderMarkdown собирает читаемый файл: сведения о документе в заголовке, затем блоки по порядку.
-func renderMarkdown(in Input) string {
+// renderMarkdown собирает читаемый файл по-русски: сведения о документе в заголовке, затем блоки по порядку.
+func renderMarkdown(in Input) string { return renderMarkdownIn(in, i18n.RU) }
+
+// renderMarkdownIn — то же с подписями на языке l (названия видов блоков, «Дата», «От», «Кому»…).
+func renderMarkdownIn(in Input, l i18n.Lang) string {
 	var b strings.Builder
 	b.WriteString("---\n")
 	meta := func(key, val string) {
@@ -186,7 +191,7 @@ func renderMarkdown(in Input) string {
 		if blk.Level != nil && *blk.Level > 0 {
 			fmt.Fprintf(&b, "<!-- допуск блока: %d -->\n", *blk.Level)
 		}
-		b.WriteString(renderBlockMarkdown(blk))
+		b.WriteString(renderBlockMarkdown(blk, l))
 		b.WriteString("\n")
 	}
 	return b.String()
@@ -199,7 +204,7 @@ func decodeData[T any](raw json.RawMessage) T {
 	return v
 }
 
-func renderBlockMarkdown(blk InputBlock) string {
+func renderBlockMarkdown(blk InputBlock, l i18n.Lang) string {
 	switch blk.Type {
 	case "heading":
 		d := decodeData[headingData](blk.Data)
@@ -229,7 +234,7 @@ func renderBlockMarkdown(blk InputBlock) string {
 		}
 		return out
 	case "dossier_header":
-		return "<!-- шапка досье: строится из сведений в заголовке файла -->"
+		return l.T("<!-- шапка досье: строится из сведений в заголовке файла -->")
 	case "experiment_log":
 		d := decodeData[experimentLogData](blk.Data)
 		var parts []string
@@ -262,12 +267,12 @@ func renderBlockMarkdown(blk InputBlock) string {
 		return "**[" + mdEscape(d.Text) + "]**"
 	case "memo":
 		d := decodeData[memoData](blk.Data)
-		title := map[string]string{"memo": "Меморандум", "order": "Приказ", "letter": "Письмо"}[d.Kind]
+		title := l.Translate(map[string]string{"memo": "Меморандум", "order": "Приказ", "letter": "Письмо"}[d.Kind])
 		if title == "" {
-			title = "Документ"
+			title = l.T("Документ")
 		}
 		if d.Number != "" {
-			title += " № " + d.Number
+			title = l.T("%s № %s", title, d.Number)
 		}
 		lines := []string{"**" + mdEscape(title) + "**"}
 		add := func(label, val string) {
@@ -275,12 +280,12 @@ func renderBlockMarkdown(blk InputBlock) string {
 				lines = append(lines, label+": "+mdEscape(val))
 			}
 		}
-		add("Дата", d.Date)
-		add("От", d.From)
+		add(l.T("Дата"), d.Date)
+		add(l.T("От"), d.From)
 		if len(d.To) > 0 {
-			add("Кому", strings.Join(d.To, ", "))
+			add(l.T("Кому"), strings.Join(d.To, ", "))
 		}
-		add("Тема", d.Subject)
+		add(l.T("Тема"), d.Subject)
 		out := mdQuote(strings.Join(lines, "  \n"))
 		for _, p := range d.Body {
 			out += "\n>\n" + mdQuote(mdRich(p))
@@ -291,7 +296,7 @@ func renderBlockMarkdown(blk InputBlock) string {
 		return out
 	case "clipping":
 		d := decodeData[clippingData](blk.Data)
-		kind := map[string]string{"newspaper": "Газетная вырезка", "handwritten": "Рукописная запись", "transcript": "Расшифровка записи"}[d.Kind]
+		kind := l.Translate(map[string]string{"newspaper": "Газетная вырезка", "handwritten": "Рукописная запись", "transcript": "Расшифровка записи"}[d.Kind])
 		head := "**" + kind + "**"
 		if d.Title != "" {
 			head += " «" + mdEscape(d.Title) + "»"
@@ -353,22 +358,22 @@ func renderBlockMarkdown(blk InputBlock) string {
 		return "---"
 	case "page":
 		if n := decodeData[pageData](blk.Data).Number; n != "" {
-			return "*— страница " + mdEscape(n) + " —*"
+			return l.T("*— страница %s —*", mdEscape(n))
 		}
-		return "*— новая страница —*"
+		return l.T("*— новая страница —*")
 	case "footnote":
 		d := decodeData[footnoteData](blk.Data)
 		return "[^" + strings.NewReplacer("]", "", "[", "", " ", "-").Replace(d.Mark) + "]: " + mdRich(d.Text)
 	case "appendix":
 		d := decodeData[appendixData](blk.Data)
-		title := "Приложение"
+		title := l.T("Приложение")
 		if d.Number != "" {
 			title += " " + d.Number
 		}
 		return "## " + mdEscape(title+". "+d.Title)
 	default:
 		// Неизвестный тип (появится в редакторе позже) не теряется молча.
-		return "<!-- блок «" + strings.ReplaceAll(blk.Type, "-->", "") + "»: в Markdown не переносится, см. JSON -->"
+		return l.T("<!-- блок «%s»: в Markdown не переносится, см. JSON -->", strings.ReplaceAll(blk.Type, "-->", ""))
 	}
 }
 

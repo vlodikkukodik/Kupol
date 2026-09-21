@@ -9,17 +9,17 @@ const route = useRoute()
 
 <template>
   <div class="team">
-    <UiPageHeader title="Панель команды" kicker="Рабочее место сотрудника архива" />
-    <nav class="sections" aria-label="Разделы панели команды">
+    <UiPageHeader :title="$t('team.title')" :kicker="$t('team.kicker')" />
+    <nav class="sections" :aria-label="$t('team.sections')">
       <!-- Раздел помечается вручную: /team — префикс всех адресов панели, и роутер отметил бы «Роли и права» всегда -->
-      <RouterLink :to="{ name: 'team' }" active-class="" exact-active-class="" :aria-current="route.name === 'team' ? 'page' : undefined">Рабочий стол</RouterLink>
-      <RouterLink :to="{ name: 'team-documents' }" active-class="" exact-active-class="" :aria-current="String(route.name).startsWith('team-document') ? 'page' : undefined">Документы</RouterLink>
-      <RouterLink :to="{ name: 'team-templates' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-templates' ? 'page' : undefined">Шаблоны</RouterLink>
-      <RouterLink :to="{ name: 'team-glossary' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-glossary' ? 'page' : undefined">Глоссарий</RouterLink>
-      <RouterLink :to="{ name: 'team-timeline' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-timeline' ? 'page' : undefined">Хронология</RouterLink>
-      <RouterLink :to="{ name: 'team-site' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-site' ? 'page' : undefined">Сайт</RouterLink>
-      <RouterLink :to="{ name: 'team-roles' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-roles' ? 'page' : undefined">Роли и права</RouterLink>
-      <RouterLink v-if="auth.can('manage_team')" :to="{ name: 'team-members' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-members' ? 'page' : undefined">Команда</RouterLink>
+      <RouterLink :to="{ name: 'team' }" active-class="" exact-active-class="" :aria-current="route.name === 'team' ? 'page' : undefined">{{ $t('team.nav.desk') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-documents' }" active-class="" exact-active-class="" :aria-current="String(route.name).startsWith('team-document') ? 'page' : undefined">{{ $t('team.nav.documents') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-templates' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-templates' ? 'page' : undefined">{{ $t('team.nav.templates') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-glossary' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-glossary' ? 'page' : undefined">{{ $t('team.nav.glossary') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-timeline' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-timeline' ? 'page' : undefined">{{ $t('team.nav.timeline') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-site' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-site' ? 'page' : undefined">{{ $t('team.nav.site') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-roles' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-roles' ? 'page' : undefined">{{ $t('team.nav.roles') }}</RouterLink>
+      <RouterLink v-if="auth.can('manage_team')" :to="{ name: 'team-members' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-members' ? 'page' : undefined">{{ $t('team.nav.members') }}</RouterLink>
     </nav>
     <RouterView />
   </div>

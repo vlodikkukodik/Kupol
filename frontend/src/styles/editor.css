@@ -39,43 +39,43 @@
 
 /* ——— подсказки в пустых местах: пустой текст в ProseMirror содержит только <br class="ProseMirror-trailingBreak"> ——— */
 .kupol-editor .ProseMirror :is(p, [data-kupol='listItem'], [data-kupol='memoParagraph'], .pm-content, th):has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Текст…';
+  content: var(--ph-text);
   float: left;
   height: 0;
   color: var(--text-muted);
   pointer-events: none;
 }
 .kupol-editor .ProseMirror p:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Текст абзаца…';
+  content: var(--ph-paragraph);
 }
 .kupol-editor .ProseMirror [data-kupol='listItem']:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Пункт списка…';
+  content: var(--ph-item);
 }
 .kupol-editor .ProseMirror [data-kupol='memoParagraph']:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Текст бланка…';
+  content: var(--ph-memo);
 }
 .kupol-editor .ProseMirror .pm-heading .pm-content:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Заголовок…';
+  content: var(--ph-heading);
 }
 .kupol-editor .ProseMirror .pm-quote .pm-content:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Текст цитаты…';
+  content: var(--ph-quote);
 }
 .kupol-editor .ProseMirror .pm-footnote .pm-content:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Текст сноски…';
+  content: var(--ph-footnote);
 }
 .kupol-editor .ProseMirror .pm-logEntry .pm-content:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Текст записи…';
+  content: var(--ph-entry);
 }
 .kupol-editor .ProseMirror .pm-clipLine .pm-content:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Текст…';
+  content: var(--ph-text);
 }
 .kupol-editor .ProseMirror th:has(> .ProseMirror-trailingBreak:only-child)::before {
-  content: 'Столбец';
+  content: var(--ph-column);
 }
 
 /* Абзац — обычный <p> без своей шапки: допуск блока показывает пометка над ним */
 .kupol-editor .ProseMirror p[data-block-level]::before {
-  content: 'Закрыт до уровня ' attr(data-block-level);
+  content: var(--lbl-closed) attr(data-block-level);
   display: block;
   width: fit-content;
   height: auto;
@@ -232,7 +232,7 @@
   color: var(--paper-50);
 }
 .kupol-editor .pm-redact::after {
-  content: ' [до ур. ' attr(data-redact) ']';
+  content: var(--lbl-redact-open) attr(data-redact) var(--lbl-redact-close);
   font-family: var(--font-head);
   font-size: 0.7em;
   letter-spacing: 0.06em;

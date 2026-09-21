@@ -7,6 +7,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, type Pinia } from 'pinia'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
+import { pageTitle } from '@/router'
 
 let server: http.Server
 let mode: 'ok' | 'outage' | 'maintenance' = 'ok'
@@ -63,7 +64,7 @@ async function mountApp(path = '/') {
     ],
   })
   router.afterEach((to) => {
-    document.title = to.meta.title || 'КУПОЛ'
+    document.title = pageTitle(to.meta)
   })
   const pinia: Pinia = createPinia()
   useConnectionStore(pinia).attach()

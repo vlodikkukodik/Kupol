@@ -30,7 +30,7 @@ useOverlay({ active: () => open.value, container: panel, onClose: close, fallbac
         <aside :id="id" ref="panel" class="ui-drawer__panel" role="dialog" aria-modal="true" :aria-label="label" tabindex="-1">
           <div class="ui-drawer__head">
             <slot name="head" />
-            <button type="button" class="ui-drawer__close" :aria-label="closeLabel ?? `Закрыть: ${label}`" @click="close">
+            <button type="button" class="ui-drawer__close" :aria-label="closeLabel ?? $t('ui.closeNamed', { name: label })" @click="close">
               <UiIcon name="close" size="1.4rem" />
             </button>
           </div>

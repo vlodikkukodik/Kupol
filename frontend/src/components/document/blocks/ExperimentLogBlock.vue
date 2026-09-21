@@ -6,13 +6,13 @@ defineProps<{ data: OutExperimentLog }>()
 </script>
 
 <template>
-  <section class="log" :aria-label="data.title || 'Журнал эксперимента'">
+  <section class="log" :aria-label="data.title || $t('doc.block.logDefault')">
     <h3 v-if="data.title" class="log__title">{{ data.title }}</h3>
     <ol class="entries">
       <li v-for="(e, i) in data.entries" :key="i" class="entry">
         <div v-if="e.date || e.participants?.length" class="entry__meta">
           <span v-if="e.date" class="entry__date">{{ e.date }}</span>
-          <span v-if="e.participants?.length">Участники: {{ e.participants.join(', ') }}</span>
+          <span v-if="e.participants?.length">{{ $t('doc.block.logParticipants', { list: e.participants.join(', ') }) }}</span>
         </div>
         <p class="entry__text"><RichRuns :runs="e.text" /></p>
       </li>

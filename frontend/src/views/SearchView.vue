@@ -14,7 +14,8 @@ import { isApiError } from '@/api/client'
 import type { SearchHit, Snippet } from '@/api/generated/documents'
 import { keys } from '@/api/query'
 import { useQueryFilters } from '@/composables/useQueryFilters'
-import { hasFilters, toApiParams } from '@/lib/catalog'
+import { hasFilters, statusName, toApiParams } from '@/lib/catalog'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import ErrorView from './ErrorView.vue'
 
@@ -72,38 +73,35 @@ function resetFilters() {
   void router.push({ query: q.value ? { q: q.value } : {} })
 }
 
-const KIND_LABEL: Record<string, string> = { title: 'Название', meta: 'Досье', block: 'Текст' }
+const kindLabel = (kind: string): string => (['title', 'meta', 'block'].includes(kind) ? t(`search.kind.${kind}`) : kind)
 const snippetTo = (hit: SearchHit, s: Snippet) => ({
   name: 'document',
   params: { ref: hit.item.slug },
   ...(s.kind === 'block' && s.block_id ? { hash: `#b-${s.block_id}` } : {}),
 })
-const levelText = (level: number) => (level === 0 ? 'открытый' : `допуск ${level}`)
+const levelText = (level: number) => (level === 0 ? t('search.open') : t('search.access', { level }))
 </script>
 
 <template>
   <div>
-    <UiPageHeader title="Поиск" kicker="Центральный архив" />
+    <UiPageHeader :title="$t('search.title')" :kicker="$t('search.kicker')" />
 
     <UiSheet wide data-testid="search">
       <SearchBox :initial="q" :keep-filters="keptFilters" />
-      <p class="tips">
-        Слова запроса ищутся в одном месте — в названии или в одном блоке текста. Морфология учитывается («сотрудник» найдёт «сотрудников»).
-        Ищется только по тому, к чему у вас есть допуск.
-      </p>
+      <p class="tips">{{ $t('search.tips') }}</p>
 
-      <CatalogFilters :query="route.query" :summary="summary.data.value" label="Фильтры поиска" @change="(c) => filters.change(c)" @reset="resetFilters" />
+      <CatalogFilters :query="route.query" :summary="summary.data.value" :label="$t('search.filtersLabel')" @change="(c) => filters.change(c)" @reset="resetFilters" />
 
-      <p v-if="!q" class="state" data-testid="search-empty-query">Введите слово, фразу или шифр документа.</p>
-      <p v-else-if="tooShort" class="state">Запрос слишком короткий: нужно хотя бы два знака.</p>
+      <p v-if="!q" class="state" data-testid="search-empty-query">{{ $t('search.emptyQuery') }}</p>
+      <p v-else-if="tooShort" class="state">{{ $t('search.tooShort') }}</p>
       <p v-else-if="badQuery" class="state state--bad" role="alert" data-testid="search-bad">{{ badQuery }}</p>
       <ErrorView v-else-if="failure" :request-id="failure.requestId" :retrying="result.isFetching.value" @retry="result.refetch()" />
-      <UiSkeleton v-else-if="result.isPending.value" :lines="5" label="Ищем…" />
+      <UiSkeleton v-else-if="result.isPending.value" :lines="5" :label="$t('search.searching')" />
 
       <template v-else-if="result.data.value">
         <p class="total" role="status" data-testid="search-total">
-          <template v-if="result.data.value.ignored">Запрос состоит из слишком частых слов — уточните его.</template>
-          <template v-else>Найдено документов: {{ result.data.value.total }}</template>
+          <template v-if="result.data.value.ignored">{{ $t('search.ignored') }}</template>
+          <template v-else>{{ $t('search.total', { n: result.data.value.total }) }}</template>
         </p>
 
         <ol v-if="result.data.value.items.length" class="hits" :class="{ 'is-stale': result.isPlaceholderData.value }" data-testid="search-hits">
@@ -113,11 +111,11 @@ const levelText = (level: number) => (level === 0 ? 'открытый' : `доп
             </h2>
             <p class="hit__meta">
               {{ hit.item.type_name }} · {{ hit.item.composed.year }} · {{ levelText(hit.item.level) }}
-              <UiBadge v-if="auth.user?.directorate && hit.item.status" :tone="hit.item.status === 'published' ? 'published' : 'draft'">{{ hit.item.status }}</UiBadge>
+              <UiBadge v-if="auth.user?.directorate && hit.item.status" :tone="hit.item.status === 'published' ? 'published' : 'draft'">{{ statusName(hit.item.status) }}</UiBadge>
             </p>
             <ul v-if="hit.snippets.length" class="snips">
               <li v-for="(s, i) in hit.snippets" :key="i" class="snip">
-                <span class="snip__kind">{{ KIND_LABEL[s.kind] ?? s.kind }}</span>
+                <span class="snip__kind">{{ kindLabel(s.kind) }}</span>
                 <RouterLink class="snip__text" :to="snippetTo(hit, s)">
                   <template v-for="(p, j) in s.parts" :key="j"><mark v-if="p.match">{{ p.text }}</mark><template v-else>{{ p.text }}</template></template>
                 </RouterLink>
@@ -126,8 +124,8 @@ const levelText = (level: number) => (level === 0 ? 'открытый' : `доп
           </li>
         </ol>
         <p v-else-if="!result.data.value.ignored" class="state" data-testid="search-nothing">
-          По запросу «{{ result.data.value.query }}» ничего не найдено.
-          <template v-if="active">Попробуйте сбросить фильтры.</template>
+          {{ $t('search.nothing', { query: result.data.value.query }) }}
+          <template v-if="active">{{ $t('search.tryReset') }}</template>
         </p>
 
         <PaginationNav :page="result.data.value.page" :pages="result.data.value.pages" />

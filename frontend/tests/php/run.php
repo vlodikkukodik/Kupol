@@ -253,8 +253,53 @@ check('error_body: формат совпадает с Go API', function () {
     truthy(str_contains(error_body('x', 'Сбой архива', 'r'), 'Сбой архива'), 'кириллица не экранируется');
 });
 
+check('pick_lang: язык по Accept-Language и ?lang=, как у Go API', function () {
+    $cases = [
+        ['', null, 'ru'], ['ru-RU,ru;q=0.9', null, 'ru'], ['it-IT,it;q=0.9,en;q=0.8', null, 'it'], ['it', null, 'it'],
+        ['en-US,en;q=0.9,it;q=0.5', null, 'it'], ['en-US,de', null, 'ru'], ['ru;q=0.5,it;q=0.9', null, 'it'],
+        ['it;q=0.2,ru;q=0.9', null, 'ru'], ['IT-it', null, 'it'], ['*', null, 'ru'], ['it;q=oops', null, 'it'],
+        ['fr, it;q=0.8, ru;q=0.8', null, 'it'], ['ru;q=0.8, it;q=0.8, fr;q=0.9', null, 'ru'],
+        ['ru', 'it', 'it'], ['it', 'ru', 'ru'], ['ru', 'de', 'ru'], // параметр ссылки главнее заголовка; неизвестный язык в нём — не в счёт
+    ];
+    foreach ($cases as [$header, $query, $want]) {
+        eq(\Kupol\Proxy\pick_lang($header, $query), $want, json_encode([$header, $query]));
+    }
+    eq(\Kupol\Proxy\pick_lang(null), 'ru');
+});
+
+check('proxy_message: собственные сообщения прокси — по-итальянски, остальное как есть', function () {
+    eq(\Kupol\Proxy\proxy_message('Сбой архива', 'ru'), 'Сбой архива');
+    eq(\Kupol\Proxy\proxy_message('Сбой архива', 'it'), "Guasto dell'archivio");
+    eq(\Kupol\Proxy\proxy_message('Метод не поддерживается', 'it'), 'Metodo non supportato');
+    eq(\Kupol\Proxy\proxy_message('Дело не найдено', 'it'), 'Fascicolo non trovato');
+    eq(\Kupol\Proxy\proxy_message('Слишком большой запрос', 'it'), 'Richiesta troppo grande');
+    eq(\Kupol\Proxy\proxy_message('Что-то ещё', 'it'), 'Что-то ещё', 'без перевода — русский текст');
+    // каждое сообщение, с которым прокси зовёт fail(), переведено: иначе итальянец увидел бы русский текст
+    $src = file_get_contents(__DIR__ . '/../../public/api/index.php');
+    preg_match_all("/fail\\(\\d+, '[a-z_]+', '([^']+)'/u", $src, $m);
+    truthy(count($m[1]) >= 4, 'нашли вызовы fail');
+    foreach (array_unique($m[1]) as $msg) {
+        truthy(isset(\Kupol\Proxy\PROXY_MESSAGES_IT[$msg]), 'нет перевода: ' . $msg);
+    }
+});
+
 // ---------------------------------------------------------------- предпросмотр ссылок (og:-теги)
 echo "\nog:-теги\n";
+
+check('og_from_document / inject_og: итальянский предпросмотр — описание, название сайта, og:locale и <html lang>', function () {
+    $api = ['document' => ['code' => 'MEMO-5', 'slug' => 'MEMO-5', 'title' => 'Заголовок', 'type_name' => 'Memorandum', 'composed' => ['year' => 1981], 'blocks' => []]];
+    $m = \Kupol\Proxy\og_from_document($api, '', 'it');
+    eq($m['description'], 'Memorandum, 1981. Archivio centrale KUPOL.');
+    eq($m['title'], 'MEMO-5 — Заголовок — KUPOL');
+    $html = "<!doctype html><html lang=\"ru\"><head>\n    <title>КУПОЛ</title>\n  </head><body></body></html>";
+    $out = \Kupol\Proxy\inject_og($html, $m, 'it');
+    truthy(str_contains($out, '<html lang="it">'), 'lang');
+    truthy(str_contains($out, '<meta property="og:locale" content="it_IT" />'), 'og:locale');
+    truthy(str_contains($out, '<meta property="og:site_name" content="KUPOL" />'), 'og:site_name');
+    // по умолчанию — как раньше
+    $ru = \Kupol\Proxy\inject_og($html, \Kupol\Proxy\og_from_document($api, '') ?? [], 'ru');
+    truthy(str_contains($ru, '<meta property="og:locale" content="ru_RU" />') && str_contains($ru, '<html lang="ru">'), 'русский');
+});
 
 check('valid_doc_ref: шифры в любой раскладке проходят, всё остальное — нет', function () {
     foreach (['O-041', 'О-041', 'ПРИКАЗ-1978-12', 'INC-1982-07', 'о–41', 'MEMO_5'] as $ok) {

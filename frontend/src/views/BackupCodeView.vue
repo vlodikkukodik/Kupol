@@ -5,6 +5,7 @@ import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
 import UiCheckbox from '@/ui/UiCheckbox.vue'
 import UiSheet from '@/ui/UiSheet.vue'
+import { t } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -17,17 +18,16 @@ const copied = ref('')
 
 const fileText = computed(
   () =>
-    `КУПОЛ — резервный код доступа\n\nЛогин: ${auth.user?.login ?? ''}\nКод: ${code.value}\n\n` +
-    'Код показывается один раз. По нему можно восстановить доступ, если вы забудете пароль.\n' +
-    'Храните его отдельно от пароля и никому не сообщайте.\n',
+    `${t('backup.fileTitle')}\n\n${t('backup.fileLogin')}: ${auth.user?.login ?? ''}\n${t('backup.fileCode')}: ${code.value}\n\n` +
+    `${t('backup.fileNote1')}\n${t('backup.fileNote2')}\n`,
 )
 
 async function copy() {
   try {
     await navigator.clipboard.writeText(code.value)
-    copied.value = 'Код скопирован'
+    copied.value = t('backup.copied')
   } catch {
-    copied.value = 'Не удалось скопировать — выделите код и скопируйте вручную'
+    copied.value = t('backup.copyFailed')
   }
 }
 
@@ -59,25 +59,24 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeLeavi
 
 <template>
   <UiSheet as="article" class="backup">
-    <h1>Резервный код</h1>
+    <h1>{{ $t('backup.title') }}</h1>
     <p>
-      Это единственный способ вернуть доступ, если вы забудете пароль: почты в архиве нет. Код показывается
-      <strong>один раз</strong>. Сохраните его сейчас и храните отдельно от пароля.
+      <i18n-t keypath="backup.intro" scope="global"><template #once><strong>{{ $t('backup.once') }}</strong></template></i18n-t>
     </p>
 
-    <p id="backup-code-label" class="label">Ваш резервный код</p>
+    <p id="backup-code-label" class="label">{{ $t('backup.yourCode') }}</p>
     <p class="code" aria-labelledby="backup-code-label" data-testid="backup-code">{{ code }}</p>
 
     <div class="actions">
-      <UiButton icon="cards" @click="copy">Скопировать</UiButton>
-      <UiButton icon="file" @click="download">Скачать файлом</UiButton>
+      <UiButton icon="cards" @click="copy">{{ $t('common.copy') }}</UiButton>
+      <UiButton icon="file" @click="download">{{ $t('common.downloadFile') }}</UiButton>
     </div>
     <UiAlert v-if="copied" tone="info" class="copied">{{ copied }}</UiAlert>
 
     <div class="confirm">
-      <UiCheckbox v-model="saved" label="Я сохранил(а) код в надёжном месте" />
+      <UiCheckbox v-model="saved" :label="$t('common.savedCodes')" />
     </div>
-    <UiButton variant="primary" :disabled="!saved" icon-end="check" @click="proceed">Продолжить</UiButton>
+    <UiButton variant="primary" :disabled="!saved" icon-end="check" @click="proceed">{{ $t('backup.proceed') }}</UiButton>
   </UiSheet>
 </template>
 

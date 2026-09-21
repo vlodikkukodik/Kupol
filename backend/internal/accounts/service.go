@@ -19,6 +19,7 @@ import (
 
 	"kupol/internal/audit"
 	"kupol/internal/config"
+	"kupol/internal/i18n"
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
 )
@@ -290,7 +291,7 @@ func (s *Service) NewCaptcha(ctx context.Context) (*Captcha, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Captcha{ID: id, Question: q.Text}, nil
+	return &Captcha{ID: id, Question: q.text(i18n.From(ctx))}, nil
 }
 
 // consumeCaptcha проверяет ответ и в любом случае гасит вопрос: подобрать ответ повторными

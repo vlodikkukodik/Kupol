@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NODE_LABELS } from '@/editor/fields'
+import { nodeLabel } from '@/editor/fields'
 import { levelName } from '@/lib/levels'
 import UiIcon from '@/ui/UiIcon.vue'
 
 // Шапка блока в редакторе: вид блока и, если блок закрыт, — до какого уровня. Правится допуск панелью инструментов.
 const props = defineProps<{ name: string; level: number | null }>()
-const label = computed(() => NODE_LABELS[props.name] ?? props.name)
+const label = computed(() => nodeLabel(props.name))
 </script>
 
 <template>
@@ -14,7 +14,7 @@ const label = computed(() => NODE_LABELS[props.name] ?? props.name)
     <span class="pm-head__label">{{ label }}</span>
     <span v-if="level !== null && level > 0" class="pm-head__level" data-testid="block-level">
       <UiIcon name="lock" size="1em" />
-      Закрыт до уровня {{ level }} · {{ levelName(level) }}
+      {{ $t('editor.closedUntil', { level, name: levelName(level) }) }}
     </span>
   </div>
 </template>

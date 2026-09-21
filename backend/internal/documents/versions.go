@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"kupol/internal/i18n"
 )
 
 // VersionKind — вид снимка. От него зависит, хранится ли снимок всегда.
@@ -30,6 +32,9 @@ var versionKindNames = map[VersionKind]string{
 
 // Name — название вида для интерфейса.
 func (k VersionKind) Name() string { return versionKindNames[k] }
+
+// NameIn — название на языке l.
+func (k VersionKind) NameIn(l i18n.Lang) string { return l.Translate(versionKindNames[k]) }
 
 // Permanent — хранится ли снимок всегда. Скользящие (последние MaxRollingVersions на документ) — автосохранения
 // и обычные сохранения черновиков; всё остальное — история изменений документа, её не стирают.
@@ -106,9 +111,9 @@ type versionRow struct {
 	AuthorLogin *string
 }
 
-func (r versionRow) item() VersionItem {
+func (r versionRow) item(l i18n.Lang) VersionItem {
 	return VersionItem{
-		ID: r.ID, Revision: r.Revision, Kind: r.Kind, KindName: VersionKind(r.Kind).Name(), Status: r.Status,
+		ID: r.ID, Revision: r.Revision, Kind: r.Kind, KindName: VersionKind(r.Kind).NameIn(l), Status: r.Status,
 		Permanent: r.Permanent, Author: r.AuthorLogin, Note: r.Note, CreatedAt: r.CreatedAt.UTC(),
 	}
 }
@@ -119,7 +124,7 @@ func (s *Service) Versions(ctx context.Context, a Actor, docID int64, page, perP
 		return nil, err
 	}
 	if page < 0 || perPage < 0 || perPage > 100 {
-		return nil, &QueryError{Field: "per_page", Message: "размер страницы — от 1 до 100, страница — не меньше 1"}
+		return nil, queryError("per_page", "размер страницы — от 1 до 100, страница — не меньше 1")
 	}
 	if page == 0 {
 		page = 1
@@ -144,7 +149,7 @@ func (s *Service) Versions(ctx context.Context, a Actor, docID int64, page, perP
 	}
 	out := &VersionsPage{Items: make([]VersionItem, len(rows)), Total: total, Page: page, PerPage: perPage}
 	for i, r := range rows {
-		out.Items[i] = r.item()
+		out.Items[i] = r.item(a.Lang)
 	}
 	out.Pages = int((total + int64(perPage) - 1) / int64(perPage))
 	return out, nil
@@ -182,7 +187,7 @@ func (s *Service) GetVersion(ctx context.Context, a Actor, docID, versionID int6
 	if err != nil {
 		return nil, fmt.Errorf("снимок %d повреждён: %w", versionID, err)
 	}
-	return &VersionFull{VersionItem: r.item(), Content: c}, nil
+	return &VersionFull{VersionItem: r.item(a.Lang), Content: c}, nil
 }
 
 // ---------------------------------------------------------------- разница
@@ -388,6 +393,9 @@ func (s *Service) DiffVersions(ctx context.Context, a Actor, docID, versionID, a
 		}
 	}
 	d := DiffContent(fromC, toC)
+	for i := range d.Fields {
+		d.Fields[i].Label = a.Lang.Translate(d.Fields[i].Label)
+	}
 	return &d, nil
 }
 

@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"kupol/internal/i18n"
 )
 
 // Type — тип документа (спецификация §6).
@@ -39,6 +41,9 @@ var typeNames = map[Type]string{
 
 // Name — название типа для интерфейса.
 func (t Type) Name() string { return typeNames[t] }
+
+// NameIn — название на языке l.
+func (t Type) NameIn(l i18n.Lang) string { return l.Translate(typeNames[t]) }
 
 // Valid — известный тип.
 func (t Type) Valid() bool { _, ok := typeNames[t]; return ok }

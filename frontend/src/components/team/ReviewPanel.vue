@@ -7,6 +7,7 @@ import { describeApiError } from '@/composables/useForm'
 import { useReview } from '@/composables/useReview'
 import { formatDateTime } from '@/lib/format'
 import { blockPreview } from '@/lib/teamdoc'
+import { t } from '@/i18n'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiBadge from '@/ui/UiBadge.vue'
 import UiButton from '@/ui/UiButton.vue'
@@ -41,14 +42,18 @@ const blockLabels = computed(() => {
 })
 const target = ref('')
 const targetOptions = computed(() => [
-  { value: '', label: 'К документу в целом' },
-  ...props.blocks.map((b, i) => ({ value: b.id, label: `Блок ${i + 1} — ${props.kindName(b.type)}${blockPreview(b, 40) ? `: ${blockPreview(b, 40)}` : ''}` })),
+  { value: '', label: t('review.wholeDoc') },
+  ...props.blocks.map((b, i) => {
+    const preview = blockPreview(b, 40)
+    const kind = props.kindName(b.type)
+    return { value: b.id, label: preview ? t('review.blockOptionPreview', { n: i + 1, kind, preview }) : t('review.blockOption', { n: i + 1, kind }) }
+  }),
 ])
 
 function placeOf(c: CommentOut): string {
-  if (!c.block_id) return 'Документ в целом'
+  if (!c.block_id) return t('review.placeDoc')
   const l = blockLabels.value.get(c.block_id)
-  return l ? `Блок ${l.number} — ${l.kind}` : 'Блок удалён'
+  return l ? t('review.placeBlock', { n: l.number, kind: l.kind }) : t('review.placeGone')
 }
 
 // ———— новый комментарий ————
@@ -61,14 +66,14 @@ async function addComment() {
   failure.value = ''
   const text = body.value.trim()
   if (!text) {
-    bodyError.value = 'Напишите комментарий.'
+    bodyError.value = t('review.writeComment')
     return
   }
   adding.value = true
   try {
     await teamApi.addComment(props.doc.id, { body: text, ...(target.value ? { block_id: target.value } : {}) })
     body.value = ''
-    notice.value = 'Комментарий добавлен.'
+    notice.value = t('review.added')
     await review.refetch()
   } catch (err) {
     fail(err)
@@ -86,7 +91,7 @@ async function toggle(c: CommentOut) {
   failure.value = ''
   try {
     await teamApi.resolveComment(props.doc.id, c.id, !c.resolved)
-    notice.value = c.resolved ? 'Комментарий снова открыт.' : 'Комментарий отмечен исправленным.'
+    notice.value = c.resolved ? t('review.reopened') : t('review.marked')
     await review.refetch()
   } catch (err) {
     fail(err)
@@ -97,7 +102,7 @@ async function remove(c: CommentOut) {
   failure.value = ''
   try {
     await teamApi.deleteComment(props.doc.id, c.id)
-    notice.value = 'Комментарий удалён.'
+    notice.value = t('review.removed')
     await review.refetch()
   } catch (err) {
     fail(err)
@@ -112,36 +117,36 @@ const lintTone = computed(() => (report.value?.errors ? 'danger' : report.value?
 const lintSummary = computed(() => {
   const r = report.value
   if (!r) return ''
-  if (r.errors) return `Ошибок: ${r.errors}${r.warnings ? `, предупреждений: ${r.warnings}` : ''}. Пока они не исправлены, документ нельзя отправить на проверку и опубликовать.`
-  if (r.warnings) return `Предупреждений: ${r.warnings}. Они не мешают отправить документ, но стоит их просмотреть.`
-  return 'Замечаний нет: документ готов к отправке.'
+  if (r.errors) return r.warnings ? t('review.lintErrorsWarnings', { n: r.errors, w: r.warnings }) : t('review.lintErrors', { n: r.errors })
+  if (r.warnings) return t('review.lintWarnings', { n: r.warnings })
+  return t('review.lintOk')
 })
 const eventTone = (kind: string) => (kind === 'approve' ? 'published' : kind === 'reject' ? 'archived' : kind === 'return' ? 'review' : 'draft')
 </script>
 
 <template>
   <section class="review" aria-labelledby="review-title" data-testid="review-panel">
-    <h3 id="review-title" class="visually-hidden">Рецензия</h3>
+    <h3 id="review-title" class="visually-hidden">{{ $t('review.title') }}</h3>
     <p class="visually-hidden" role="status">{{ notice }}</p>
     <UiAlert v-if="failure" tone="danger">{{ failure }}</UiAlert>
 
     <!-- проверка канона -->
     <section class="block" aria-labelledby="lint-title" data-testid="lint">
       <div class="block__head">
-        <h4 id="lint-title">Проверка канона</h4>
-        <UiButton size="sm" icon="refresh" :loading="lint.isFetching.value" data-testid="lint-refresh" @click="lint.refetch()">Проверить снова</UiButton>
+        <h4 id="lint-title">{{ $t('review.lintTitle') }}</h4>
+        <UiButton size="sm" icon="refresh" :loading="lint.isFetching.value" data-testid="lint-refresh" @click="lint.refetch()">{{ $t('review.lintAgain') }}</UiButton>
       </div>
-      <p v-if="dirty" class="muted">Проверяется сохранённая редакция {{ doc.revision }}: несохранённые правки в проверку не входят.</p>
-      <UiSkeleton v-if="!report && lint.isPending.value" :lines="2" label="Проверяем документ…" />
-      <UiAlert v-else-if="lint.isError.value" tone="danger">Не удалось проверить документ. Повторите попытку.</UiAlert>
+      <p v-if="dirty" class="muted">{{ $t('review.lintDirty', { rev: doc.revision }) }}</p>
+      <UiSkeleton v-if="!report && lint.isPending.value" :lines="2" :label="$t('review.lintChecking')" />
+      <UiAlert v-else-if="lint.isError.value" tone="danger">{{ $t('review.lintFailed') }}</UiAlert>
       <template v-else-if="report">
         <UiAlert :tone="lintTone" :live="false" data-testid="lint-summary">{{ lintSummary }}</UiAlert>
         <ul v-if="report.issues.length" class="issues" data-testid="lint-issues">
           <li v-for="i in report.issues" :key="`${i.code}|${i.block_id ?? ''}|${i.message}`" :data-severity="i.severity">
-            <UiBadge :tone="i.severity === 'error' ? 'danger' : 'review'">{{ i.severity === 'error' ? 'Ошибка' : 'Предупреждение' }}</UiBadge>
+            <UiBadge :tone="i.severity === 'error' ? 'danger' : 'review'">{{ i.severity === 'error' ? $t('review.error') : $t('review.warning') }}</UiBadge>
             <span class="issues__text">{{ i.message }}</span>
             <button v-if="i.block_id && blockLabels.has(i.block_id)" type="button" class="link" @click="emit('go-to-block', i.block_id)">
-              К блоку {{ blockLabels.get(i.block_id)?.number }}
+              {{ $t('review.toBlock', { n: blockLabels.get(i.block_id)?.number }) }}
             </button>
           </li>
         </ul>
@@ -151,22 +156,22 @@ const eventTone = (kind: string) => (kind === 'approve' ? 'published' : kind ===
     <!-- комментарии -->
     <section class="block" aria-labelledby="comments-title" data-testid="comments">
       <div class="block__head">
-        <h4 id="comments-title">Комментарии рецензента <span v-if="info" class="count">{{ info.comments.length }}</span></h4>
-        <p v-if="info?.open" class="muted" data-testid="comments-open">Не исправлено: {{ info.open }}</p>
+        <h4 id="comments-title">{{ $t('review.commentsTitle') }} <span v-if="info" class="count">{{ info.comments.length }}</span></h4>
+        <p v-if="info?.open" class="muted" data-testid="comments-open">{{ $t('review.openCount', { n: info.open }) }}</p>
       </div>
-      <UiSkeleton v-if="!info && review.isPending.value" :lines="3" label="Загружаем рецензию…" />
-      <UiAlert v-else-if="review.isError.value" tone="danger">Не удалось загрузить рецензию. Повторите попытку.</UiAlert>
+      <UiSkeleton v-if="!info && review.isPending.value" :lines="3" :label="$t('review.loading')" />
+      <UiAlert v-else-if="review.isError.value" tone="danger">{{ $t('review.loadFailed') }}</UiAlert>
       <template v-else>
         <p v-if="!openFirst.length" class="muted" data-testid="comments-empty">
-          Комментариев пока нет. {{ canComment ? '' : 'Рецензент оставляет их, пока документ на проверке.' }}
+          {{ $t('review.noComments') }}{{ canComment ? '' : $t('review.noCommentsWait') }}
         </p>
         <ul v-else class="comments">
           <li v-for="c in openFirst" :key="c.id" class="comment" :class="{ 'is-resolved': c.resolved }" :data-comment="c.id">
             <div class="comment__meta">
-              <strong>{{ c.author ?? 'Аккаунт удалён' }}</strong>
+              <strong>{{ c.author ?? $t('review.deletedAccount') }}</strong>
               <span>{{ formatDateTime(c.created_at) }}</span>
-              <span>к редакции {{ c.revision }}</span>
-              <UiBadge v-if="c.resolved" tone="published">Исправлено</UiBadge>
+              <span>{{ $t('review.forRevision', { rev: c.revision }) }}</span>
+              <UiBadge v-if="c.resolved" tone="published">{{ $t('review.fixed') }}</UiBadge>
             </div>
             <p class="comment__place">
               <button v-if="c.block_id && blockLabels.has(c.block_id)" type="button" class="link" @click="emit('go-to-block', c.block_id)">{{ placeOf(c) }}</button>
@@ -175,35 +180,35 @@ const eventTone = (kind: string) => (kind === 'approve' ? 'published' : kind ===
             <p class="comment__body">{{ c.body }}</p>
             <div v-if="c.can_resolve || c.can_delete" class="comment__actions">
               <UiButton v-if="c.can_resolve" size="sm" :data-testid="c.resolved ? 'comment-reopen' : 'comment-resolve'" @click="toggle(c)">
-                {{ c.resolved ? 'Открыть снова' : 'Отметить исправленным' }}
+                {{ c.resolved ? $t('review.reopen') : $t('review.resolve') }}
               </UiButton>
-              <UiButton v-if="c.can_delete" size="sm" variant="ghost" icon="trash" data-testid="comment-delete" @click="remove(c)">Удалить</UiButton>
+              <UiButton v-if="c.can_delete" size="sm" variant="ghost" icon="trash" data-testid="comment-delete" @click="remove(c)">{{ $t('review.remove') }}</UiButton>
             </div>
           </li>
         </ul>
 
-        <form v-if="canComment" class="new-comment" novalidate aria-label="Новый комментарий" @submit.prevent="addComment">
-          <UiField label="К чему комментарий">
+        <form v-if="canComment" class="new-comment" novalidate :aria-label="$t('review.newComment')" @submit.prevent="addComment">
+          <UiField :label="$t('review.target')">
             <UiSelect v-model="target" :options="targetOptions" name="block" />
           </UiField>
-          <UiField label="Комментарий" :error="bodyError">
+          <UiField :label="$t('review.comment')" :error="bodyError">
             <UiTextarea v-model="body" :rows="3" :maxlength="2000" name="body" />
           </UiField>
-          <UiButton type="submit" variant="primary" icon="plus" :loading="adding" data-testid="comment-add">Добавить комментарий</UiButton>
+          <UiButton type="submit" variant="primary" icon="plus" :loading="adding" data-testid="comment-add">{{ $t('review.addComment') }}</UiButton>
         </form>
       </template>
     </section>
 
     <!-- ход рецензии -->
     <section class="block" aria-labelledby="events-title" data-testid="events">
-      <h4 id="events-title">Ход рецензии</h4>
-      <p v-if="info && !events.length" class="muted">Документ ещё не отправляли на проверку.</p>
+      <h4 id="events-title">{{ $t('review.flowTitle') }}</h4>
+      <p v-if="info && !events.length" class="muted">{{ $t('review.noFlow') }}</p>
       <ol v-else class="events">
         <li v-for="e in events" :key="e.id" :data-kind="e.kind">
           <div class="events__head">
             <UiBadge :tone="eventTone(e.kind)">{{ e.kind_name }}</UiBadge>
-            <span>{{ e.actor ?? 'Аккаунт удалён' }}</span>
-            <span class="muted">{{ formatDateTime(e.created_at) }} · редакция {{ e.revision }}</span>
+            <span>{{ e.actor ?? $t('review.deletedAccount') }}</span>
+            <span class="muted">{{ $t('review.flowMeta', { when: formatDateTime(e.created_at), rev: e.revision }) }}</span>
           </div>
           <p v-if="e.comment" class="events__comment">{{ e.comment }}</p>
         </li>

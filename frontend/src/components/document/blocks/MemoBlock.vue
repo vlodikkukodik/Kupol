@@ -1,24 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { OutMemo } from '@/api/generated/documents'
+import { t } from '@/i18n'
 import RichRuns from '../RichRuns.vue'
 
 const props = defineProps<{ data: OutMemo }>()
 
-const heading = computed(() => ({ memo: 'Служебная записка', order: 'Приказ', letter: 'Письмо' })[props.data.kind] || 'Документ')
+const KINDS = ['memo', 'order', 'letter']
+const heading = computed(() => t(`doc.block.memo.${KINDS.includes(props.data.kind) ? props.data.kind : 'other'}`))
 </script>
 
 <template>
   <section class="blank" :class="`blank--${data.kind}`" :aria-label="heading">
     <header class="blank__top">
       <span class="blank__kind">{{ heading }}</span>
-      <span v-if="data.number">№ {{ data.number }}</span>
+      <span v-if="data.number">{{ $t('doc.block.memoNumber', { n: data.number }) }}</span>
       <span v-if="data.date" class="blank__date">{{ data.date }}</span>
     </header>
     <dl v-if="data.from || data.to?.length || data.subject" class="route">
-      <div v-if="data.from"><dt>От</dt><dd>{{ data.from }}</dd></div>
-      <div v-if="data.to?.length"><dt>Кому</dt><dd>{{ data.to.join('; ') }}</dd></div>
-      <div v-if="data.subject"><dt>Тема</dt><dd>{{ data.subject }}</dd></div>
+      <div v-if="data.from"><dt>{{ $t('doc.block.memoFrom') }}</dt><dd>{{ data.from }}</dd></div>
+      <div v-if="data.to?.length"><dt>{{ $t('doc.block.memoTo') }}</dt><dd>{{ data.to.join('; ') }}</dd></div>
+      <div v-if="data.subject"><dt>{{ $t('doc.block.memoSubject') }}</dt><dd>{{ data.subject }}</dd></div>
     </dl>
     <p v-for="(para, i) in data.body" :key="i" class="para"><RichRuns :runs="para" /></p>
     <p v-if="data.signature" class="signature">{{ data.signature }}</p>

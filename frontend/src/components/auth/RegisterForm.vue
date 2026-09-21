@@ -8,6 +8,7 @@ import UiInput from '@/ui/UiInput.vue'
 import { ApiError } from '@/api/client'
 import { authApi } from '@/api/endpoints'
 import { describeApiError, useForm } from '@/composables/useForm'
+import { t } from '@/i18n'
 import { validateLogin, validatePassword } from '@/lib/rules'
 import { useAuthStore } from '@/stores/auth'
 
@@ -57,9 +58,9 @@ async function onSubmit() {
   if (loginErr) form.errors.login = loginErr
   const passErr = validatePassword(password.value, login.value)
   if (passErr) form.errors.password = passErr
-  else if (password2.value !== password.value) form.errors.password2 = 'Пароли не совпадают'
-  if (!captcha.value.id) form.formError.value = 'Вопрос анкеты не загружен. Обновите его и повторите.'
-  else if (!answer.value.trim()) form.errors.captcha_answer = 'Ответьте на вопрос анкеты'
+  else if (password2.value !== password.value) form.errors.password2 = t('common.passwordsDiffer')
+  if (!captcha.value.id) form.formError.value = t('register.captchaMissing')
+  else if (!answer.value.trim()) form.errors.captcha_answer = t('register.captchaAnswerNeeded')
   if (Object.keys(form.errors).length > 0 || form.formError.value) return focusFirstError()
 
   const ok = await form.submit(() =>
@@ -81,37 +82,32 @@ async function onSubmit() {
 </script>
 
 <template>
-  <form novalidate aria-label="Регистрация" @submit.prevent="onSubmit">
+  <form novalidate :aria-label="$t('register.form')" @submit.prevent="onSubmit">
     <UiAlert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</UiAlert>
-    <UiField
-      id="reg-login"
-      label="Логин"
-      hint="3–24 символа: буквы (латиница или кириллица, не вперемешку), цифры, «_» и «-». Без почты."
-      :error="form.errors.login"
-    >
+    <UiField id="reg-login" :label="$t('common.login')" :hint="$t('register.loginHint')" :error="form.errors.login">
       <UiInput :ref="setFieldRef('login')" v-model="login" autocomplete="username" :maxlength="24" />
     </UiField>
-    <UiField id="reg-password" label="Пароль" hint="Не короче 8 символов." :error="form.errors.password">
+    <UiField id="reg-password" :label="$t('common.password')" :hint="$t('common.passwordMin')" :error="form.errors.password">
       <UiInput :ref="setFieldRef('password')" v-model="password" type="password" autocomplete="new-password" reveal />
     </UiField>
-    <UiField id="reg-password2" label="Пароль ещё раз" :error="form.errors.password2">
+    <UiField id="reg-password2" :label="$t('common.passwordAgain')" :error="form.errors.password2">
       <UiInput :ref="setFieldRef('password2')" v-model="password2" type="password" autocomplete="new-password" />
     </UiField>
 
     <fieldset class="captcha">
-      <legend>Анкета</legend>
+      <legend>{{ $t('register.questionnaire') }}</legend>
       <p class="captcha__question" :aria-busy="captchaLoading ? 'true' : 'false'">
-        {{ captchaLoading ? 'Загрузка вопроса…' : captcha.question || 'Вопрос недоступен' }}
+        {{ captchaLoading ? $t('register.loadingQuestion') : captcha.question || $t('register.questionUnavailable') }}
       </p>
-      <UiField id="reg-captcha" label="Ваш ответ" :error="form.errors.captcha_answer">
+      <UiField id="reg-captcha" :label="$t('register.yourAnswer')" :error="form.errors.captcha_answer">
         <UiInput :ref="setFieldRef('captcha_answer')" v-model="answer" autocomplete="off" />
       </UiField>
-      <UiButton variant="link" size="sm" :disabled="captchaLoading" @click="loadCaptcha">Другой вопрос</UiButton>
+      <UiButton variant="link" size="sm" :disabled="captchaLoading" @click="loadCaptcha">{{ $t('register.anotherQuestion') }}</UiButton>
     </fieldset>
 
     <div class="actions">
       <UiButton type="submit" variant="primary" :loading="form.submitting.value || captchaLoading">
-        {{ form.submitting.value ? 'Оформление…' : 'Оформить допуск' }}
+        {{ form.submitting.value ? $t('register.submitting') : $t('register.submit') }}
       </UiButton>
     </div>
   </form>

@@ -20,16 +20,16 @@ const contact = computed(() => site.data.value?.contact ?? '')
 
 <template>
   <div>
-    <UiPageHeader title="О КУПОЛЕ" kicker="Справка и правила архива" />
+    <UiPageHeader :title="$t('about.title')" :kicker="$t('about.kicker')" />
     <UiSheet as="article" data-testid="about">
       <AboutContent :contact="contact">
         <template #timeline>
           <section id="timeline" aria-labelledby="timeline-title" class="timeline" data-testid="timeline">
-            <h2 id="timeline-title">Хронология</h2>
-            <p class="timeline__lead">События 1974 года — наших дней. Показаны те, что доступны вашему допуску; часть событий может быть закрыта.</p>
-            <UiSkeleton v-if="timeline.isPending.value" :lines="4" label="Загружаем хронологию…" />
+            <h2 id="timeline-title">{{ $t('about.timeline.title') }}</h2>
+            <p class="timeline__lead">{{ $t('about.timeline.lead') }}</p>
+            <UiSkeleton v-if="timeline.isPending.value" :lines="4" :label="$t('about.timeline.loading')" />
             <ErrorView v-else-if="timeline.isError.value" :request-id="isApiError(timeline.error.value) ? timeline.error.value.requestId : ''" :retrying="timeline.isFetching.value" @retry="timeline.refetch()" />
-            <p v-else-if="!timeline.data.value?.length" class="timeline__empty">В хронологии пока нет событий, доступных вам.</p>
+            <p v-else-if="!timeline.data.value?.length" class="timeline__empty">{{ $t('about.timeline.empty') }}</p>
             <ol v-else class="timeline__list" data-testid="timeline-list">
               <li v-for="e in timeline.data.value" :key="e.id" class="event">
                 <p class="event__date">{{ formatComposed(e.date) }}</p>
@@ -37,7 +37,7 @@ const contact = computed(() => site.data.value?.contact ?? '')
                   <h3 class="event__title">{{ e.title }}</h3>
                   <p v-if="e.body" class="event__body">{{ e.body }}</p>
                   <p v-if="e.level > 0 || e.document" class="event__meta">
-                    <template v-if="e.level > 0">допуск {{ e.level }}</template>
+                    <template v-if="e.level > 0">{{ $t('about.timeline.access', { level: e.level }) }}</template>
                     <template v-if="e.level > 0 && e.document"> · </template>
                     <RouterLink v-if="e.document" :to="{ name: 'document', params: { ref: e.document.slug } }">{{ e.document.code }} — {{ e.document.title }}</RouterLink>
                   </p>

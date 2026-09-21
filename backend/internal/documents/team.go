@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"kupol/internal/audit"
+	"kupol/internal/i18n"
 )
 
 // Actor — кто работает с документами в team panel. Права приходят готовыми (их считает сервис аккаунтов),
@@ -28,6 +29,8 @@ type Actor struct {
 	CanManageGlossary bool
 	// CanManageTimeline — вести хронологию «О КУПОЛЕ»
 	CanManageTimeline bool
+	// Lang — язык ответа: русский, если не задан
+	Lang i18n.Lang `tstype:"string"`
 }
 
 func (a Actor) owns(d *Document) bool { return d.AuthorID != nil && *d.AuthorID == a.UserID }
@@ -172,23 +175,23 @@ type teamRow struct {
 // TeamList возвращает документы, которые человек вправе видеть, — новые правки сверху.
 func (s *Service) TeamList(ctx context.Context, a Actor, q TeamListQuery) (*TeamListResult, error) {
 	if q.Status != "" && !Status(q.Status).Valid() {
-		return nil, &QueryError{Field: "status", Message: fmt.Sprintf("неизвестный статус %q", q.Status)}
+		return nil, queryError("status", "неизвестный статус %q", q.Status)
 	}
 	if q.Type != "" && !Type(q.Type).Valid() {
-		return nil, &QueryError{Field: "type", Message: fmt.Sprintf("неизвестный тип %q", q.Type)}
+		return nil, queryError("type", "неизвестный тип %q", q.Type)
 	}
 	q.Query = strings.TrimSpace(q.Query)
 	if len([]rune(q.Query)) > 100 {
-		return nil, &QueryError{Field: "q", Message: "слишком длинный запрос"}
+		return nil, queryError("q", "слишком длинный запрос")
 	}
 	if q.Page < 0 {
-		return nil, &QueryError{Field: "page", Message: "номер страницы не может быть отрицательным"}
+		return nil, queryError("page", "номер страницы не может быть отрицательным")
 	}
 	if q.Page == 0 {
 		q.Page = 1
 	}
 	if q.PerPage < 0 || q.PerPage > maxPerPage {
-		return nil, &QueryError{Field: "per_page", Message: fmt.Sprintf("размер страницы — от 1 до %d", maxPerPage)}
+		return nil, queryError("per_page", "размер страницы — от 1 до %d", maxPerPage)
 	}
 	if q.PerPage == 0 {
 		q.PerPage = defaultPerPage
@@ -235,7 +238,7 @@ func (s *Service) TeamList(ctx context.Context, a Actor, q TeamListQuery) (*Team
 	for i := range rows {
 		r := &rows[i]
 		out.Items[i] = TeamItem{
-			ID: r.ID, Code: r.Code, Type: r.Type, TypeName: Type(r.Type).Name(), Title: r.Title, Status: r.Status, Level: r.Level,
+			ID: r.ID, Code: r.Code, Type: r.Type, TypeName: Type(r.Type).NameIn(a.Lang), Title: r.Title, Status: r.Status, Level: r.Level,
 			Revision: r.Revision, Author: r.AuthorLogin, UpdatedAt: r.UpdatedAt.UTC(), CanEdit: a.CanEdit(&r.Document), Lock: locks[r.ID],
 		}
 	}
@@ -298,7 +301,7 @@ type TeamDocument struct {
 
 func (s *Service) teamDocument(db *gorm.DB, a Actor, d *Document) (*TeamDocument, error) {
 	out := &TeamDocument{
-		ID: d.ID, Code: d.Code, Slug: d.Slug, Type: d.Type, TypeName: Type(d.Type).Name(), Status: d.Status, Revision: d.Revision,
+		ID: d.ID, Code: d.Code, Slug: d.Slug, Type: d.Type, TypeName: Type(d.Type).NameIn(a.Lang), Status: d.Status, Revision: d.Revision,
 		CreatedAt: d.CreatedAt.UTC(), UpdatedAt: d.UpdatedAt.UTC(), Content: contentFromDocument(d), CanEdit: a.CanEdit(d),
 		CanBreakLock: a.CanEdit(d) && a.CanBreakLocks(), Workflow: a.Workflow(d),
 	}
@@ -503,11 +506,12 @@ type AutosaveResult struct {
 // Содержимое не проверяется на полноту (человек ещё пишет) — только на разбор; строгая проверка — при сохранении.
 func (s *Service) TeamAutosave(ctx context.Context, a Actor, id int64, raw []byte) (*AutosaveResult, error) {
 	if len(raw) > MaxInputBytes {
-		return nil, &ValidationError{Problems: []Problem{{Path: "$", Message: fmt.Sprintf("содержимое слишком большое (%d байт, не больше %d)", len(raw), MaxInputBytes)}}}
+		return nil, oneProblem("$", "содержимое слишком большое (%d байт, не больше %d)", len(raw), MaxInputBytes)
 	}
 	c, err := decodeContent(raw, false)
 	if err != nil {
-		return nil, &ValidationError{Problems: []Problem{{Path: "$", Message: describeJSONError(err)}}}
+		format, args := describeJSONError(err)
+		return nil, oneProblem("$", format, args...)
 	}
 	var res *AutosaveResult
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

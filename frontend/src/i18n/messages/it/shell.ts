@@ -1,0 +1,133 @@
+// Guscio del sito: intestazione, menu, piè di pagina, avvisi, titoli delle pagine, nomi dei livelli di accesso, errori delle richieste.
+export default {
+  app: {
+    skipLink: 'Vai al contenuto',
+    brandName: 'Kupol',
+    brandHome: 'KUPOL — vai alla pagina iniziale',
+    menu: 'Menu',
+    closeMenu: 'Chiudi il menu',
+    sections: 'Sezioni',
+    mainNav: 'Navigazione principale',
+    footerLine: 'Modulo KUPOL-1 · Archivio centrale ·',
+    privacy: 'Riservatezza',
+    disclaimer:
+      "Nota dell'autore: KUPOL, i suoi oggetti, i suoi dipendenti e gli eventi sono opera di fantasia. Ogni somiglianza con organizzazioni, documenti e persone reali è casuale. Questo è un archivio letterario e ludico, non una fonte di fatti.",
+    status: {
+      unknown: "Collegamento con l'archivio: verifica in corso…",
+      online: "Collegamento con l'archivio: stabilito",
+      outage: "Collegamento con l'archivio: interrotto",
+      maintenance: "L'archivio è chiuso per inventario",
+    },
+    nav: {
+      home: 'Pagina iniziale',
+      catalog: 'Catalogo',
+      search: 'Ricerca',
+      about: 'SU KUPOL',
+      file: 'Fascicolo personale',
+      team: 'Pannello della squadra',
+    },
+    access: {
+      title: 'Accesso',
+      signedInAs: 'Hai effettuato l’accesso come {login}',
+      guest: 'Non hai effettuato l’accesso: livello 0, Cittadino.',
+      signIn: 'Accedi o registrati',
+    },
+    pass: 'Tesserino: {login}, {level}. Apri il fascicolo personale',
+  },
+
+  lang: {
+    label: 'Lingua',
+    ru: 'Russo',
+    it: 'Italiano',
+    switchTo: "Cambia la lingua dell'interfaccia",
+    short: { ru: 'RU', it: 'IT' },
+    native: { ru: 'Русский', it: 'Italiano' },
+  },
+
+  cookie: {
+    text: 'Il sito usa solo un cookie tecnico di sessione, dopo l’accesso, per mantenerti nell’archivio. Nessuna pubblicità e nessuna analisi.',
+    more: 'Dettagli',
+    ok: 'Ho capito',
+  },
+
+  notice: {
+    closed: { stamp: 'Chiuso', title: "L'archivio è chiuso per inventario", text: "L'accesso è temporaneamente sospeso. Torna più tardi.", retry: 'Controlla di nuovo' },
+    failure: { stamp: 'Guasto', title: "Guasto dell'archivio", text: "L'archivio è temporaneamente non disponibile. Riprova più tardi.", ref: 'Numero della segnalazione:', retry: 'Riprova' },
+    checking: 'Verifica in corso…',
+    notFound: {
+      stamp: 'Sequestrato',
+      title: 'Fascicolo non trovato',
+      text: "Il documento richiesto non è presente nell'archivio o è stato sequestrato. Controlla l'indirizzo.",
+      home: 'Alla pagina iniziale',
+      catalog: 'Al catalogo',
+    },
+    denied: {
+      stamp: 'Accesso negato',
+      title: 'Accesso negato',
+      need: 'Per questo fascicolo occorre {access}.',
+      guest: "Non hai effettuato l'accesso all'archivio (livello 0, {name}). Forse dopo l'accesso il fascicolo si aprirà.",
+      mine: 'Il tuo accesso: livello {level} ({name}).',
+      signIn: 'Accedi o registrati',
+      catalog: 'Al catalogo',
+    },
+  },
+
+  title: {
+    base: 'KUPOL',
+    withBase: '{name} — KUPOL',
+    home: 'KUPOL — Archivio centrale',
+    about: 'SU KUPOL — l’archivio immaginario KUPOL',
+    catalog: 'Catalogo',
+    search: 'Ricerca',
+    graph: 'Collegamenti del documento',
+    document: 'Documento',
+    file: 'Fascicolo personale',
+    team: 'Pannello della squadra',
+    teamDesk: 'Scrivania — Pannello della squadra',
+    teamTemplates: 'Modelli — Pannello della squadra',
+    teamSite: 'Sito — Pannello della squadra',
+    teamTimeline: 'Cronologia — Pannello della squadra',
+    teamGlossary: 'Glossario — Pannello della squadra',
+    teamRoles: 'Ruoli e diritti — Pannello della squadra',
+    teamDocuments: 'Documenti della squadra',
+    teamNew: 'Nuovo documento',
+    teamDocument: 'Documento — Pannello della squadra',
+    teamMembers: 'Squadra',
+    backupCode: 'Codice di riserva',
+    restore: "Ripristino dell'accesso",
+    notFound: 'Fascicolo non trovato',
+  },
+
+  levels: {
+    name: { 0: 'Cittadino', 1: 'Visitatore', 2: 'Tirocinante', 3: 'Dipendente', 4: 'Sorvegliante', 5: 'Curatore', 6: 'Consiglio Speciale', 7: 'Direttorato' },
+    directorateOnly: 'solo il Direttorato',
+    atLeast: 'accesso non inferiore al livello {level} ({name})',
+    level: 'Livello {level}',
+  },
+
+  time: {
+    seconds: '{n} s',
+    minutes: '{n} min',
+    hours: '{n} h',
+    // solo l'anno: «1979» (mese e giorno li scrive Intl: «marzo 1979», «14 marzo 1979»)
+    year: '{year}',
+  },
+
+  errors: {
+    rateLimited: 'Troppi tentativi. Riprova tra {wait}.',
+    network: "Nessun collegamento con l'archivio. Controlla la connessione e riprova.",
+    forbiddenOrigin: "Richiesta respinta. Apri il sito dall'indirizzo consueto e riprova.",
+    forbidden: 'Diritti insufficienti per questa azione.',
+    lockedBy: 'Il documento è in modifica da parte di {holder}.',
+    locked: 'Il documento è in modifica da parte di un altro collaboratore.',
+    conflict: 'Il documento è stato modificato dopo che lo hai aperto.',
+    selfReview: 'Il proprio documento lo verifica un altro Redattore.',
+    invalidState: 'Questa azione non è adatta allo stato attuale del documento. Aggiorna la pagina: forse è già stato spostato.',
+    lintFailed: 'Il documento non ha superato il controllo del canone.',
+    internal: 'Guasto dell’archivio. Riprova più tardi.',
+    generic: 'Impossibile eseguire la richiesta.',
+    clientNetwork: "Nessun collegamento con l'archivio",
+    clientTimeout: "L'archivio non ha risposto in tempo",
+    clientBadResponse: 'Risposta inattesa del server',
+  },
+}

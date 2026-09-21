@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"kupol/internal/i18n"
 	"kupol/internal/proxyauth"
 )
 
@@ -35,6 +36,21 @@ var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]{8,64}$`)
 func RequestID(c *gin.Context) string { return c.GetString(ctxRequestID) }
 func ClientIP(c *gin.Context) string  { return c.GetString(ctxClientIP) }
 func IPSource(c *gin.Context) string  { return c.GetString(ctxIPSource) }
+
+// Lang — язык ответа: определяется по Accept-Language (его шлёт интерфейс сайта); нет заголовка — русский.
+func Lang(c *gin.Context) i18n.Lang { return i18n.From(c.Request.Context()) }
+
+// languageMiddleware кладёт язык запроса в контекст запроса — им пользуются и обработчики, и сервисы (i18n.From) — и в ответе
+// сообщает Content-Language. Ответы зависят от языка, поэтому кэшам сообщается Vary.
+func languageMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		lang := i18n.Parse(c.GetHeader("Accept-Language"))
+		c.Request = c.Request.WithContext(i18n.WithLang(c.Request.Context(), lang))
+		c.Header("Content-Language", lang.Tag())
+		c.Writer.Header().Add("Vary", "Accept-Language")
+		c.Next()
+	}
+}
 
 func requestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

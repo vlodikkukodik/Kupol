@@ -65,6 +65,11 @@ grep -q 'property="og:title" content="О КУПОЛЕ' "$TMP/about.body" && ok "
 grep -q 'Политика конфиденциальности' "$TMP/about.body" && ok "/about: политика конфиденциальности в HTML без JavaScript" || fail "/about: нет текста политики в HTML"
 grep -q 'data-prerendered' "$TMP/root.body" && ok "главная с готовым текстом (пререндер)" \
   || warn "главная без пререндера — вероятно, «/» отдаёт статикой nginx хостинга (index.html) в обход .htaccess; сайт работает, но поисковик не видит текста главной без JavaScript"
+fetch about_it "$BASE/about?lang=it"
+check "GET /about?lang=it -> 200" "$(code about_it)" 200
+grep -q '<html lang="it"' "$TMP/about_it.body" && grep -q 'Informativa sulla riservatezza' "$TMP/about_it.body" \
+  && ok "/about?lang=it: итальянская версия с готовым текстом" || fail "/about?lang=it не отдаёт about.it.html: проверьте .htaccess и что пререндер собрал about.it.html"
+grep -q 'hreflang="ru"' "$TMP/about_it.body" && grep -q 'hreflang="it"' "$TMP/about_it.body" && ok "/about?lang=it: hreflang на обе версии" || fail "/about?lang=it: нет hreflang"
 fetch og -A 'TelegramBot (like TwitterBot)' "$BASE/doc/O-0"
 check "бот: GET /doc/O-0 -> 200" "$(code og)" 200
 grep -q '<div id="app">' "$TMP/og.body" && ok "бот получает страницу приложения (og.php отвечает)" || fail "бот не получил страницу приложения — не работает og.php или rewrite для ботов"

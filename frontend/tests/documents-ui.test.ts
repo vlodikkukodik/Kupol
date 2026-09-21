@@ -6,11 +6,11 @@ import type { OutRun } from '@/api/generated/documents'
 import BlockRenderer from '@/components/document/BlockRenderer.vue'
 import RichRuns from '@/components/document/RichRuns.vue'
 import { formatComposed } from '@/lib/format'
-import { LEVEL_NAMES, MAX_LEVEL, levelName, requiredAccess } from '@/lib/levels'
+import { MAX_LEVEL, levelName, levelNames, requiredAccess } from '@/lib/levels'
 
 describe('уровни допуска', () => {
   it('восемь уровней от Гражданина до Директората', () => {
-    expect(LEVEL_NAMES).toHaveLength(8)
+    expect(levelNames()).toHaveLength(8)
     expect(MAX_LEVEL).toBe(7)
     expect(levelName(0)).toBe('Гражданин')
     expect(levelName(4)).toBe('Надзиратель')

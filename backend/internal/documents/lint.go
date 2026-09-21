@@ -7,6 +7,8 @@ import (
 	"sort"
 
 	"gorm.io/gorm"
+
+	"kupol/internal/i18n"
 )
 
 // Линтер канона (team panel, шаг 3.5): проверяет сохранённый документ перед отправкой на проверку и перед публикацией.
@@ -39,6 +41,18 @@ type LintIssue struct {
 	Code     string `json:"code"`
 	Message  string `json:"message"`
 	BlockID  string `json:"block_id,omitempty"`
+
+	// формат и значения сообщения: по ним замечание пересказывается на языке читателя (In)
+	format string
+	args   []any
+}
+
+// In — замечание на языке l.
+func (i LintIssue) In(l i18n.Lang) LintIssue {
+	if i.format != "" {
+		i.Message = l.T(i.format, i.args...)
+	}
+	return i
 }
 
 // LintReport — итог проверки. Замечания упорядочены: сначала ошибки, затем предупреждения, внутри — по порядку блоков.
@@ -51,12 +65,28 @@ type LintReport struct {
 // HasErrors — есть ли замечания, которые не дают двигать документ дальше.
 func (r *LintReport) HasErrors() bool { return r.Errors > 0 }
 
-// Summary — коротко о замечаниях-ошибках (для сообщения об отказе).
-func (r *LintReport) Summary() string {
+// In — отчёт на языке l (копия: сам отчёт не меняется).
+func (r *LintReport) In(l i18n.Lang) *LintReport {
+	if r == nil {
+		return nil
+	}
+	out := *r
+	out.Issues = make([]LintIssue, len(r.Issues))
+	for n, i := range r.Issues {
+		out.Issues[n] = i.In(l)
+	}
+	return &out
+}
+
+// Summary — коротко о замечаниях-ошибках (для сообщения об отказе) по-русски.
+func (r *LintReport) Summary() string { return r.SummaryIn(i18n.RU) }
+
+// SummaryIn — то же на языке l.
+func (r *LintReport) SummaryIn(l i18n.Lang) string {
 	msgs := []string{}
 	for _, i := range r.Issues {
 		if i.Severity == LintError {
-			msgs = append(msgs, i.Message)
+			msgs = append(msgs, i.In(l).Message)
 		}
 	}
 	switch len(msgs) {
@@ -65,7 +95,7 @@ func (r *LintReport) Summary() string {
 	case 1:
 		return msgs[0]
 	default:
-		return fmt.Sprintf("%s (и ещё %d)", msgs[0], len(msgs)-1)
+		return l.T("%s (и ещё %d)", msgs[0], len(msgs)-1)
 	}
 }
 
@@ -80,7 +110,7 @@ func (e *LintFailedError) Error() string {
 func lintDocument(db *gorm.DB, d *Document) (*LintReport, error) {
 	rep := &LintReport{Issues: []LintIssue{}}
 	add := func(sev, code, blockID, format string, args ...any) {
-		rep.Issues = append(rep.Issues, LintIssue{Severity: sev, Code: code, BlockID: blockID, Message: fmt.Sprintf(format, args...)})
+		rep.Issues = append(rep.Issues, LintIssue{Severity: sev, Code: code, BlockID: blockID, Message: i18n.RU.T(format, args...), format: format, args: args})
 	}
 
 	if len(d.Blocks) == 0 {
