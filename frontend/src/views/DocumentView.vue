@@ -6,6 +6,7 @@ import { isApiError } from '@/api/client'
 import { documentsApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
 import DocumentPaper from '@/components/document/DocumentPaper.vue'
+import DocumentRatings from '@/components/document/DocumentRatings.vue'
 import DocumentRemarks from '@/components/document/DocumentRemarks.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
@@ -71,6 +72,7 @@ watch(doc, async (d) => {
 <template>
   <template v-if="doc">
     <DocumentPaper :doc="doc" />
+    <DocumentRatings :code="doc.code" />
     <DocumentRemarks :code="doc.code" />
   </template>
 

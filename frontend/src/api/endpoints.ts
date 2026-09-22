@@ -4,11 +4,13 @@ import { api } from './index'
 import type { RequestOptions } from './client'
 import type {
   Content,
+  DocumentRatings,
   GraphResult,
   ImportResult,
   ListResult,
   Meta,
   PreviewResult,
+  Rating,
   RemarkOut,
   SearchResult,
   TemplateContent,
@@ -40,6 +42,7 @@ import type {
   LoginResponse,
   MemberRoleResponse,
   PreviewRequest,
+  RatingsResponse,
   RecentResponse,
   RegisterRequest,
   RegisterResponse,
@@ -52,6 +55,7 @@ import type {
   SaveDocumentRequest,
   SessionResponse,
   SetEmailRequest,
+  SetRatingRequest,
   SiteResponse,
   SiteSettingsResponse,
   SubmitRequest,
@@ -137,6 +141,13 @@ export const remarksApi = {
   remove: (id: number) => api.delete<null>(`/remarks/${id}`),
   /** Очередь жалоб модератору (право moderate_comments) */
   reported: (o?: RequestOptions) => api.get<RemarksResponse>('/team/remarks/reported', o).then((r) => r.items as RemarkOut[]),
+}
+
+/** «Оценки» (шаг 5.3): «ознакомлен / одобряю / сомнительно» — канцелярские отметки читателей. */
+export const ratingsApi = {
+  get: (ref: string, o?: RequestOptions) => api.get<RatingsResponse>(`/documents/${encodeURIComponent(ref)}/ratings`, o).then((r) => r.ratings as DocumentRatings),
+  set: (ref: string, rating: Rating) => api.post<RatingsResponse>(`/documents/${encodeURIComponent(ref)}/ratings`, { rating } satisfies SetRatingRequest).then((r) => r.ratings as DocumentRatings),
+  remove: (ref: string) => api.delete<RatingsResponse>(`/documents/${encodeURIComponent(ref)}/ratings`).then((r) => r.ratings as DocumentRatings),
 }
 
 export interface TeamListParams {

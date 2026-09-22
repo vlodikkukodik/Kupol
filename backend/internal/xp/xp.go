@@ -19,6 +19,7 @@ type Source string
 const (
 	SourceLogin   Source = "login"
 	SourceComment Source = "comment" // пометка на полях (шаг 5.2)
+	SourceRating  Source = "rating"  // оценка документа (шаг 5.3)
 )
 
 // Значения по умолчанию (спецификация §5).
@@ -32,6 +33,9 @@ const (
 
 	CommentXP       = 15 // за пометку на полях
 	CommentDailyCap = 3  // не больше стольких пометок в день приносят XP; сами пометки сверх лимита публикуются как обычно
+
+	RatingXP       = 5  // за оценку документа
+	RatingDailyCap = 10 // не больше стольких оценок в день приносят XP (спецификация §5: «оценка +5, до 10/день»)
 )
 
 type userRow struct {

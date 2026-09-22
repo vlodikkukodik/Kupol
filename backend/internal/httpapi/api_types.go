@@ -221,6 +221,16 @@ type RemarkResponse struct {
 	Remark *documents.RemarkOut `json:"remark" tstype:",required"`
 }
 
+// RatingsResponse — оценки документа (GET/POST/DELETE /api/documents/:ref/ratings).
+type RatingsResponse struct {
+	Ratings *documents.DocumentRatings `json:"ratings" tstype:",required"`
+}
+
+// SetRatingRequest — POST /api/documents/:ref/ratings.
+type SetRatingRequest struct {
+	Rating documents.Rating `json:"rating"`
+}
+
 // UpdateTemplateRequest — PUT /api/team/templates/:id. Без content меняются только название и описание.
 type UpdateTemplateRequest struct {
 	Name        string                     `json:"name"`

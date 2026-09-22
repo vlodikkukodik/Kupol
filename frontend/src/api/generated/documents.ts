@@ -758,6 +758,45 @@ export interface ValidationError {
 }
 
 //////////
+// source: ratings.go
+
+/**
+ * Rating — тип оценки.
+ */
+export type Rating = string;
+export const RatingAcknowledged: Rating = "acknowledged"; // ознакомлен
+export const RatingApproved: Rating = "approved"; // одобряю
+export const RatingDoubtful: Rating = "doubtful"; // сомнительно
+/**
+ * RatingOut — оценка в ответе читателю.
+ */
+export interface RatingOut {
+  rating: Rating;
+  username: string;
+}
+/**
+ * RatingCounts — публичные счётчики оценок под документом (штампы с числами).
+ */
+export interface RatingCounts {
+  acknowledged: number /* int */;
+  approved: number /* int */;
+  doubtful: number /* int */;
+}
+/**
+ * MyRating — оценка текущего пользователя (для кнопок).
+ */
+export interface MyRating {
+  rating?: Rating | null;
+}
+/**
+ * DocumentRatings — полный ответ по оценкам документа.
+ */
+export interface DocumentRatings {
+  counts: RatingCounts;
+  my: MyRating;
+}
+
+//////////
 // source: read.go
 
 /**

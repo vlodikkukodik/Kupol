@@ -81,6 +81,14 @@ export default {
       remove: 'Rimuovi',
       removeConfirm: 'Rimuovere questa nota e tutte le risposte?',
     },
+    ratings: {
+      title: 'Valutazioni',
+      needLogin: 'Per valutare devi accedere.',
+      signIn: 'Accedi',
+      acknowledged: 'Preso visione',
+      approved: 'Approvato',
+      doubtful: 'Dubbio',
+    },
   },
 
   graph: {

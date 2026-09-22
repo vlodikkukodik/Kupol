@@ -81,6 +81,14 @@ export default {
       remove: 'Удалить',
       removeConfirm: 'Удалить эту пометку и все ответы на неё?',
     },
+    ratings: {
+      title: 'Оценки',
+      needLogin: 'Чтобы оценить, нужно войти.',
+      signIn: 'Войти',
+      acknowledged: 'Ознакомлен',
+      approved: 'Одобряю',
+      doubtful: 'Сомнительно',
+    },
   },
 
   graph: {

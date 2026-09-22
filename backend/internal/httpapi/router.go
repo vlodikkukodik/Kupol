@@ -163,5 +163,10 @@ func New(d Deps) (*gin.Engine, error) {
 	api.DELETE("/remarks/:id", requireAuth(), docs.deleteRemark)
 	api.GET("/team/remarks/reported", requireCapability(accounts.CapModerateComments), docs.reportedRemarks)
 
+	// «Оценки» (шаг 5.3): читает кто угодно, ставит и убирает только вошедший.
+	api.GET("/documents/:ref/ratings", docs.getRatings)
+	api.POST("/documents/:ref/ratings", requireAuth(), docs.setRating)
+	api.DELETE("/documents/:ref/ratings", requireAuth(), docs.deleteRating)
+
 	return r, nil
 }

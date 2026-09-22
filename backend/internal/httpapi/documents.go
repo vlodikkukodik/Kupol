@@ -42,6 +42,8 @@ func (h *documentHandlers) fail(c *gin.Context, err error) {
 		Fail(c, http.StatusNotFound, CodeNotFound, "Дело не найдено")
 	case errors.Is(err, documents.ErrRemarkNotFound):
 		Fail(c, http.StatusNotFound, CodeNotFound, "Пометка не найдена")
+	case errors.Is(err, documents.ErrRatingNotFound):
+		Fail(c, http.StatusNotFound, CodeNotFound, "Оценка не найдена")
 	case errors.Is(err, documents.ErrForbidden):
 		Fail(c, http.StatusForbidden, CodeForbidden, "Недостаточно прав")
 	case errors.As(err, &ad):

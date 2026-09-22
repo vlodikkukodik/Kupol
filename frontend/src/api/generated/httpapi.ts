@@ -260,6 +260,18 @@ export interface RemarkResponse {
   remark: any /* documents.RemarkOut */;
 }
 /**
+ * RatingsResponse — оценки документа (GET/POST/DELETE /api/documents/:ref/ratings).
+ */
+export interface RatingsResponse {
+  ratings: any /* documents.DocumentRatings */;
+}
+/**
+ * SetRatingRequest — POST /api/documents/:ref/ratings.
+ */
+export interface SetRatingRequest {
+  rating: any /* documents.Rating */;
+}
+/**
  * UpdateTemplateRequest — PUT /api/team/templates/:id. Без content меняются только название и описание.
  */
 export interface UpdateTemplateRequest {

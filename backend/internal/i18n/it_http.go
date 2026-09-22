@@ -84,5 +84,7 @@ func init() {
 		"Выдавать и снимать роли":                     "Assegnare e togliere i ruoli",
 		"Разбирать жалобы на пометки на полях":        "Esaminare i reclami sulle note a margine",
 		"Пометка не найдена":                          "Nota non trovata",
+		"Неизвестная оценка":                          "Valutazione sconosciuta",
+		"Оценка не найдена":                           "Valutazione non trovata",
 	})
 }

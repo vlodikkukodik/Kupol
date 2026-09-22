@@ -27,6 +27,7 @@ export const keys = {
   search: (query: string) => ['documents', 'search', query] as const,
   graph: (ref: string, depth: number) => ['documents', 'graph', ref, depth] as const,
   document: (ref: string) => ['documents', 'item', ref] as const,
+  ratings: (ref: string) => ['documents', 'ratings', ref] as const,
   remarks: (ref: string) => ['documents', 'remarks', ref] as const,
   reportedRemarks: ['team', 'remarks', 'reported'] as const,
   teamMeta: ['team', 'meta'] as const,
