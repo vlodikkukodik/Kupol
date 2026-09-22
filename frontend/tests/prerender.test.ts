@@ -81,6 +81,30 @@ describe('buildPage', () => {
       ['it', '.it', '?lang=it'],
     ])
   })
+
+  it('картинка превью (og:image/twitter:image) — с размерами; без неё twitter:card остаётся summary', () => {
+    const out = buildPage(TEMPLATE, { ...meta, image: { url: 'https://x.example/og-image.png', width: 1200, height: 630 } })
+    expect(out).toContain('<meta property="og:image" content="https://x.example/og-image.png" />')
+    expect(out).toContain('<meta property="og:image:width" content="1200" />')
+    expect(out).toContain('<meta property="og:image:height" content="630" />')
+    expect(out).toContain('<meta name="twitter:image" content="https://x.example/og-image.png" />')
+    expect(out).toContain('<meta name="twitter:card" content="summary_large_image" />')
+    expect(out).not.toContain('content="summary" />')
+
+    const noImage = buildPage(TEMPLATE, meta)
+    expect(noImage).toContain('<meta name="twitter:card" content="summary" />')
+    expect(noImage).not.toContain('og:image')
+  })
+
+  it('структурированные данные (JSON-LD) — валидный JSON перед </head>', () => {
+    const jsonLd = { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Страница' }
+    const out = buildPage(TEMPLATE, { ...meta, jsonLd })
+    const m = /<script type="application\/ld\+json">(.*?)<\/script>/s.exec(out)
+    expect(m).not.toBeNull()
+    expect(JSON.parse(m![1]!)).toEqual(jsonLd)
+    expect(out.indexOf('ld+json')).toBeLessThan(out.indexOf('</head>'))
+    expect(buildPage(TEMPLATE, meta)).not.toContain('ld+json')
+  })
 })
 
 describe('AboutContent на сервере', () => {

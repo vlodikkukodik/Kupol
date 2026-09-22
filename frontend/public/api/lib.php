@@ -371,6 +371,8 @@ function og_from_document(array $api, string $origin, string $lang = 'ru'): ?arr
         'title'       => $d['code'] . ' — ' . $d['title'] . ' — ' . ($lang === 'it' ? 'KUPOL' : 'КУПОЛ'),
         'description' => truncate_text($description, OG_DESCRIPTION_MAX),
         'url'         => rtrim($origin, '/') . '/doc/' . rawurlencode($d['slug']),
+        // документы пока без своих картинок (загрузка файлов — этап 6): бренд-картинка лучше, чем пустое превью
+        'image'       => ['url' => rtrim($origin, '/') . '/' . ($lang === 'it' ? 'og-image-it.png' : 'og-image.png'), 'width' => 1200, 'height' => 630],
     ];
 }
 
@@ -400,7 +402,7 @@ function h(string $s): string
  * Подставляет в index.html заголовок, описание и og:-теги. Заголовок и описание заменяются на месте, остальное добавляется
  * перед </head>. Не нашлось <title> или </head> — страница возвращается как есть: предпросмотр лишь украшение, ломать SPA нельзя.
  *
- * @param array{title:string,description:string,url:string} $meta
+ * @param array{title:string,description:string,url:string,image?:array{url:string,width:int,height:int}} $meta
  */
 function inject_og(string $html, array $meta, string $lang = 'ru'): string
 {
@@ -419,7 +421,8 @@ function inject_og(string $html, array $meta, string $lang = 'ru'): string
     $html = preg_replace('#<meta\s+(?:property="og:|name="twitter:)[^>]*>\s*#i', '', $html) ?? $html;
     $html = preg_replace('#<link\s+rel="canonical"[^>]*>\s*#i', '', $html) ?? $html;
     $html = preg_replace('#<!--prerender-->.*?<!--/prerender-->#s', '', $html) ?? $html;
-    $tags = implode("\n    ", [
+    $image = $meta['image'] ?? null;
+    $tags = implode("\n    ", array_merge([
         '<meta name="description" content="' . $desc . '" />',
         '<link rel="canonical" href="' . $url . '" />',
         '<meta property="og:type" content="article" />',
@@ -428,10 +431,16 @@ function inject_og(string $html, array $meta, string $lang = 'ru'): string
         '<meta property="og:title" content="' . $title . '" />',
         '<meta property="og:description" content="' . $desc . '" />',
         '<meta property="og:url" content="' . $url . '" />',
-        '<meta name="twitter:card" content="summary" />',
+    ], $image === null ? ['<meta name="twitter:card" content="summary" />'] : [
+        '<meta property="og:image" content="' . h((string)$image['url']) . '" />',
+        '<meta property="og:image:width" content="' . (int)$image['width'] . '" />',
+        '<meta property="og:image:height" content="' . (int)$image['height'] . '" />',
+        '<meta name="twitter:card" content="summary_large_image" />',
+        '<meta name="twitter:image" content="' . h((string)$image['url']) . '" />',
+    ], [
         '<meta name="twitter:title" content="' . $title . '" />',
         '<meta name="twitter:description" content="' . $desc . '" />',
-    ]);
+    ]));
     $html = preg_replace('#<html\s+lang="[^"]*"#i', '<html lang="' . $lang . '"', $html, 1) ?? $html;
     return preg_replace_callback('#</head>#i', static fn(): string => "    $tags\n  </head>", $html, 1) ?? $html;
 }

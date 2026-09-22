@@ -22,7 +22,9 @@ test('бот получает og:-теги открытого документа
   expect(meta(html, 'og:url')).toBe(`${new URL(baseURL).origin}/doc/O-9001`)
   expect(meta(html, 'og:description')).toBeTruthy()
   expect(meta(html, 'description')).toBe(meta(html, 'og:description'))
-  expect(meta(html, 'twitter:card')).toBe('summary')
+  // у документов пока нет своих картинок (этап 6) — превью получает фирменную заглушку с печатью КУПОЛ
+  expect(meta(html, 'og:image')).toBe(`${new URL(baseURL).origin}/og-image.png`)
+  expect(meta(html, 'twitter:card')).toBe('summary_large_image')
   expect(html).toContain(`<link rel="canonical" href="${new URL(baseURL).origin}/doc/O-9001" />`)
   expect(html).toContain('<title>О-9001 — [e2e] Открытый объект со всеми блоками — КУПОЛ</title>')
   // страница остаётся страницей приложения: скрипт и корень на месте

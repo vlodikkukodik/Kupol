@@ -291,14 +291,20 @@ check('og_from_document / inject_og: итальянский предпросмо
     $m = \Kupol\Proxy\og_from_document($api, '', 'it');
     eq($m['description'], 'Memorandum, 1981. Archivio centrale KUPOL.');
     eq($m['title'], 'MEMO-5 — Заголовок — KUPOL');
+    eq($m['image']['url'], '/og-image-it.png', 'итальянская картинка предпросмотра');
     $html = "<!doctype html><html lang=\"ru\"><head>\n    <title>КУПОЛ</title>\n  </head><body></body></html>";
     $out = \Kupol\Proxy\inject_og($html, $m, 'it');
     truthy(str_contains($out, '<html lang="it">'), 'lang');
     truthy(str_contains($out, '<meta property="og:locale" content="it_IT" />'), 'og:locale');
     truthy(str_contains($out, '<meta property="og:site_name" content="KUPOL" />'), 'og:site_name');
-    // по умолчанию — как раньше
-    $ru = \Kupol\Proxy\inject_og($html, \Kupol\Proxy\og_from_document($api, '') ?? [], 'ru');
+    truthy(str_contains($out, '<meta property="og:image" content="/og-image-it.png" />'), 'og:image');
+    truthy(str_contains($out, '<meta name="twitter:card" content="summary_large_image" />'), 'twitter:card: ' . $out);
+    // по умолчанию — как раньше, картинка русская
+    $ruMeta = \Kupol\Proxy\og_from_document($api, '') ?? [];
+    eq($ruMeta['image']['url'], '/og-image.png');
+    $ru = \Kupol\Proxy\inject_og($html, $ruMeta, 'ru');
     truthy(str_contains($ru, '<meta property="og:locale" content="ru_RU" />') && str_contains($ru, '<html lang="ru">'), 'русский');
+    truthy(str_contains($ru, '<meta property="og:image" content="/og-image.png" />'), 'og:image (ru)');
 });
 
 check('valid_doc_ref: шифры в любой раскладке проходят, всё остальное — нет', function () {

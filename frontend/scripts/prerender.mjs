@@ -7,6 +7,7 @@
 // Приложение при запуске заменяет содержимое #app, так что живая страница не зависит от пререндера; пререндер только для тех, кто
 // не выполняет скрипты. Текст берётся из каталогов языков (src/i18n/messages), поэтому расхождения быть не может.
 // Компонент AboutContent специально не зависит от роутера и хранилищ — иначе его нельзя было бы отрендерить здесь.
+// og:image/apple-touch-icon — не отсюда: это готовые картинки бренда в public/, см. scripts/gen-og-image.mjs.
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -15,20 +16,22 @@ import { resolve } from 'node:path'
 const ROOT = resolve(import.meta.dirname, '..')
 const DIST = resolve(ROOT, 'dist')
 
-/** Языки пререндера: тег для <html lang> и og:locale; суффикс имени файла и параметр адреса у неосновных языков */
+/** Языки пререндера: тег для <html lang> и og:locale, суффикс имени файла и параметр адреса у неосновных языков, картинка превью. */
 export const PRERENDER_LANGS = [
-  { code: 'ru', ogLocale: 'ru_RU', suffix: '', query: '' },
-  { code: 'it', ogLocale: 'it_IT', suffix: '.it', query: '?lang=it' },
+  { code: 'ru', ogLocale: 'ru_RU', suffix: '', query: '', ogImage: 'og-image.png' },
+  { code: 'it', ogLocale: 'it_IT', suffix: '.it', query: '?lang=it', ogImage: 'og-image-it.png' },
 ]
 
 export const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 
 /**
- * Подставляет в HTML страницы заголовок, описание, og:-теги и содержимое #app. Отсутствие любого из ожидаемых мест — ошибка сборки:
- * молча выкатить страницу без пререндера хуже, чем остановить сборку.
- * lang — язык страницы (<html lang>, og:locale); alternates — те же страницы на других языках [{ lang, url }] (hreflang).
+ * Подставляет в HTML страницы заголовок, описание, og:-теги (в т.ч. картинку превью), структурированные данные (JSON-LD) и
+ * содержимое #app. Отсутствие любого из ожидаемых мест — ошибка сборки: молча выкатить страницу без пререндера хуже, чем
+ * остановить сборку.
+ * lang — язык страницы (<html lang>, og:locale); alternates — те же страницы на других языках [{ lang, url }] (hreflang);
+ * image — картинка превью {url, width, height}; jsonLd — объект(ы) для <script type="application/ld+json">.
  */
-export function buildPage(html, { title, description, url, body, ogType = 'website', lang = 'ru', ogLocale = 'ru_RU', siteName = 'КУПОЛ', alternates = [] }) {
+export function buildPage(html, { title, description, url, body, ogType = 'website', lang = 'ru', ogLocale = 'ru_RU', siteName = 'КУПОЛ', alternates = [], image, jsonLd }) {
   const need = (re, what) => {
     if (!re.test(html)) throw new Error(`prerender: в index.html нет ${what}`)
   }
@@ -48,9 +51,18 @@ export function buildPage(html, { title, description, url, body, ogType = 'websi
     `<meta property="og:title" content="${t}" />`,
     `<meta property="og:description" content="${d}" />`,
     `<meta property="og:url" content="${u}" />`,
-    '<meta name="twitter:card" content="summary" />',
+    ...(image
+      ? [
+          `<meta property="og:image" content="${escapeHtml(image.url)}" />`,
+          `<meta property="og:image:width" content="${image.width}" />`,
+          `<meta property="og:image:height" content="${image.height}" />`,
+          '<meta name="twitter:card" content="summary_large_image" />',
+          `<meta name="twitter:image" content="${escapeHtml(image.url)}" />`,
+        ]
+      : ['<meta name="twitter:card" content="summary" />']),
     `<meta name="twitter:title" content="${t}" />`,
     `<meta name="twitter:description" content="${d}" />`,
+    ...(jsonLd ? [`<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`] : []),
   ].join('\n    ')
   // функции-замены, а не строки: в тексте могут встретиться «$1» и «$&»
   return html
@@ -81,20 +93,23 @@ async function main() {
     for (const lang of PRERENDER_LANGS) {
       i18n.global.locale.value = lang.code
       const alternatesFor = (path) => PRERENDER_LANGS.map((l) => ({ lang: l.code, url: `${origin}${path}${l.query}` }))
-      const common = { lang: lang.code, ogLocale: lang.ogLocale, siteName: t('title.base') }
+      const image = { url: `${origin}/${lang.ogImage}`, width: 1200, height: 630 }
+      const common = { lang: lang.code, ogLocale: lang.ogLocale, siteName: t('title.base'), image }
 
       // «О КУПОЛЕ»: контакты автора живые (правит Директорат) — в пререндер не попадают, страница подставит их после загрузки
       const aboutBody = await renderToString(createSSRApp(AboutContent).use(i18n))
+      const aboutUrl = `${origin}/about${lang.query}`
       writeFileSync(
         resolve(DIST, `about${lang.suffix}.html`),
         buildPage(template, {
           ...common,
           title: t('about.pageTitle'),
           description: t('about.intro'),
-          url: `${origin}/about${lang.query}`,
+          url: aboutUrl,
           ogType: 'article',
           alternates: alternatesFor('/about'),
           body: `<div data-prerendered class="prerender"><h1>${escapeHtml(t('about.title'))}</h1>${aboutBody}</div>`,
+          jsonLd: { '@context': 'https://schema.org', '@type': 'Article', headline: t('about.title'), description: t('about.intro'), url: aboutUrl, inLanguage: lang.code, isPartOf: { '@type': 'WebSite', name: t('title.base'), url: `${origin}/` } },
         }),
       )
 
@@ -103,19 +118,39 @@ async function main() {
         `<div data-prerendered class="prerender"><h1>${escapeHtml(t('home.name'))}</h1><p>${escapeHtml(t('home.fullName'))}</p>` +
         `<p>${escapeHtml(t('home.lead'))}</p><p>${escapeHtml(t('home.description'))}</p>` +
         `<nav><a href="/catalog">${escapeHtml(t('home.navCatalog'))}</a> <a href="/search">${escapeHtml(t('home.navSearch'))}</a> <a href="/about${lang.query}">${escapeHtml(t('home.navAbout'))}</a></nav></div>`
+      const homeUrl = `${origin}/${lang.query}`
       writeFileSync(
         resolve(DIST, `home${lang.suffix}.html`),
         buildPage(template, {
           ...common,
           title: t('title.home'),
           description: t('home.description'),
-          url: `${origin}/${lang.query}`,
+          url: homeUrl,
           alternates: alternatesFor('/'),
           body: homeBody,
+          jsonLd: { '@context': 'https://schema.org', '@type': 'WebSite', name: t('home.name'), alternateName: t('title.base'), description: t('home.description'), url: `${origin}/`, inLanguage: PRERENDER_LANGS.map((l) => l.code) },
         }),
       )
       written.push(`home${lang.suffix}.html`, `about${lang.suffix}.html`)
     }
+
+    // sitemap.xml собирается здесь же (не статикой в public/), чтобы <lastmod> был датой самой сборки, а не забытой
+    // рукописной датой; на каждый адрес — сам он и ссылки hreflang на языковые варианты (см. PRERENDER_LANGS).
+    const today = new Date().toISOString().slice(0, 10)
+    const urlBlock = (path) =>
+      PRERENDER_LANGS.map(
+        (l) =>
+          `  <url>\n    <loc>${escapeHtml(`${origin}${path}${l.query}`)}</loc>\n    <lastmod>${today}</lastmod>\n` +
+          PRERENDER_LANGS.map((a) => `    <xhtml:link rel="alternate" hreflang="${a.code}" href="${escapeHtml(`${origin}${path}${a.query}`)}" />`).join('\n') +
+          `\n  </url>`,
+      ).join('\n')
+    writeFileSync(
+      resolve(DIST, 'sitemap.xml'),
+      `<?xml version="1.0" encoding="UTF-8"?>\n<!-- Индексируются только главная и «О КУПОЛЕ» (обе версии языка); остальное закрыто заголовком X-Robots-Tag (public/.htaccess). -->\n` +
+        `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urlBlock('/')}\n${urlBlock('/about')}\n</urlset>\n`,
+    )
+    written.push('sitemap.xml')
+
     console.log(`prerender: ${written.join(', ')} (${origin})`)
   } finally {
     await vite.close()

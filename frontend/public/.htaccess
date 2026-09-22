@@ -21,6 +21,13 @@ Options -Indexes -MultiViews
   RewriteRule ^$ /home.html [L]
   RewriteRule ^about/?$ /about.html [L]
 
+  # Несуществующий файл сборки (/assets/что-то.js, /og.png, /manifest.webmanifest…) — настоящий 404, а не оболочка SPA:
+  # такие адреса не бывают маршрутами приложения, заворачивать их в index.html только вводит в заблуждение (soft 404).
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_URI} ^/assets/. [OR]
+  RewriteCond %{REQUEST_URI} \.[a-zA-Z0-9]{2,5}$
+  RewriteRule ^ - [R=404,L]
+
   # history-режим Vue Router: всё, что не файл и не /api/, отдаёт index.html
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_URI} !^/api(/|$)
@@ -41,13 +48,16 @@ Options -Indexes -MultiViews
   Header always set X-Frame-Options "DENY"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+  # HSTS: сайт всегда за https (редирект http->https уже есть на хостинге); max-age умеренный и без preload —
+  # заголовок новый, сначала стоит понаблюдать, что он доходит до браузера (см. deploy/check-site.sh).
+  Header always set Strict-Transport-Security "max-age=15768000"
   # Скрипты и стили только свои. Картинки/аудио/WebSocket — ещё и с api-поддомена (загрузки, чат).
   Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://api.kupol.vladinc.ru; media-src 'self' https://api.kupol.vladinc.ru; font-src 'self'; connect-src 'self' https://api.kupol.vladinc.ru wss://api.kupol.vladinc.ru; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
-  # Индексируются только главная и «О КУПОЛЕ» — остальное noindex (в т.ч. любые пути, отдающие SPA).
-  # Смотрим на THE_REQUEST (исходная строка запроса): REQUEST_URI при DirectoryIndex и rewrite
-  # становится /index.html, и «/» перестаёт узнаваться. Query-строка (?utm=...) допустима.
-  <If "%{THE_REQUEST} !~ m#^[A-Z]+ /(about/?)?(\?[^ ]*)? HTTP/#">
+  # Индексируются только главная, «О КУПОЛЕ» и служебные файлы для поисковиков (robots.txt, sitemap.xml) — остальное
+  # noindex (в т.ч. любые пути, отдающие SPA). Смотрим на THE_REQUEST (исходная строка запроса): REQUEST_URI при
+  # DirectoryIndex и rewrite становится /index.html, и «/» перестаёт узнаваться. Query-строка (?utm=...) допустима.
+  <If "%{THE_REQUEST} !~ m#^[A-Z]+ /(about/?|robots\.txt|sitemap\.xml)?(\?[^ ]*)? HTTP/#">
     Header always set X-Robots-Tag "noindex, nofollow"
   </If>
 

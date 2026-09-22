@@ -52,6 +52,10 @@ echo "== заголовки"
 check "X-Content-Type-Options" "$(hdr root x-content-type-options)" nosniff
 check "X-Frame-Options" "$(hdr root x-frame-options)" DENY
 check "index.html: Cache-Control" "$(hdr root cache-control)" no-cache
+case "$(hdr root strict-transport-security)" in
+  max-age=*) ok "Strict-Transport-Security есть" ;;
+  *) warn "нет Strict-Transport-Security — если заголовок только что добавлен, возможно, ещё не разошёлся по хостингу" ;;
+esac
 [ -z "$(hdr root x-robots-tag)" ] && ok "главная индексируется (нет X-Robots-Tag)" || fail "главная закрыта от индексации: '$(hdr root x-robots-tag)'"
 case "$(hdr spa x-robots-tag)" in noindex*) ok "прочие страницы: noindex";; *) fail "прочие страницы должны быть noindex, получено '$(hdr spa x-robots-tag)'";; esac
 fetch rootq "$BASE/?utm_source=test"
@@ -62,6 +66,9 @@ echo "== пререндер и предпросмотр ссылок"
 check "GET /about -> 200" "$(code about)" 200
 grep -q 'data-prerendered' "$TMP/about.body" && ok "/about отдаётся с готовым текстом (пререндер)" || fail "/about без пререндера: нет about.html или не работает rewrite"
 grep -q 'property="og:title" content="О КУПОЛЕ' "$TMP/about.body" && ok "/about: og:-теги" || fail "/about без og:-тегов"
+grep -q 'property="og:image" content="[^"]*og-image.png"' "$TMP/about.body" && ok "/about: og:image" || fail "/about без og:image"
+grep -q 'name="twitter:card" content="summary_large_image"' "$TMP/about.body" && ok "/about: twitter:card=summary_large_image" || fail "/about: twitter:card не summary_large_image"
+grep -qo '<script type="application/ld+json">[^<]*</script>' "$TMP/about.body" && ok "/about: структурированные данные (JSON-LD)" || fail "/about без JSON-LD"
 grep -q 'Политика конфиденциальности' "$TMP/about.body" && ok "/about: политика конфиденциальности в HTML без JavaScript" || fail "/about: нет текста политики в HTML"
 grep -q 'data-prerendered' "$TMP/root.body" && ok "главная с готовым текстом (пререндер)" \
   || warn "главная без пререндера — вероятно, «/» отдаёт статикой nginx хостинга (index.html) в обход .htaccess; сайт работает, но поисковик не видит текста главной без JavaScript"
@@ -73,9 +80,22 @@ grep -q 'hreflang="ru"' "$TMP/about_it.body" && grep -q 'hreflang="it"' "$TMP/ab
 fetch og -A 'TelegramBot (like TwitterBot)' "$BASE/doc/O-0"
 check "бот: GET /doc/O-0 -> 200" "$(code og)" 200
 grep -q '<div id="app">' "$TMP/og.body" && ok "бот получает страницу приложения (og.php отвечает)" || fail "бот не получил страницу приложения — не работает og.php или rewrite для ботов"
+if grep -q 'property="og:title"' "$TMP/og.body"; then
+  grep -q 'property="og:image" content="[^"]*og-image' "$TMP/og.body" && ok "предпросмотр документа: og:image" || fail "предпросмотр документа без og:image"
+fi
 fetch sitemap "$BASE/sitemap.xml"
 check "sitemap.xml -> 200" "$(code sitemap)" 200
 grep -q '<loc>' "$TMP/sitemap.body" && ok "sitemap.xml: адреса есть" || fail "sitemap.xml пуст"
+grep -q '<lastmod>' "$TMP/sitemap.body" && ok "sitemap.xml: <lastmod> есть" || fail "sitemap.xml без <lastmod>"
+[ -z "$(hdr sitemap x-robots-tag)" ] && ok "sitemap.xml индексируется" || fail "sitemap.xml закрыт от индексации: '$(hdr sitemap x-robots-tag)'"
+fetch robots "$BASE/robots.txt"
+check "robots.txt -> 200" "$(code robots)" 200
+[ -z "$(hdr robots x-robots-tag)" ] && ok "robots.txt индексируется" || fail "robots.txt закрыт от индексации: '$(hdr robots x-robots-tag)'"
+fetch soft404 "$BASE/assets/net-takogo-fajla-$$.js"
+check "несуществующий файл сборки -> 404 (не soft 404)" "$(code soft404)" 404
+fetch touchicon "$BASE/apple-touch-icon.png"
+check "apple-touch-icon.png -> 200" "$(code touchicon)" 200
+case "$(hdr touchicon content-type)" in image/png*) ok "apple-touch-icon.png: content-type";; *) fail "apple-touch-icon.png content-type: '$(hdr touchicon content-type)'";; esac
 fetch idx "$BASE/index.html"
 case "$(hdr idx x-robots-tag)" in
   noindex*) ok "/index.html (дубликат главной): noindex" ;;
