@@ -11,11 +11,14 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"mime"
 	"mime/quotedprintable"
 	"net"
 	"net/smtp"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -38,6 +41,13 @@ type SMTPSender struct {
 	Host, Port         string
 	Username, Password string
 	From, FromName     string
+	// insecureSkipVerify — только для тестов (свой сертификат фальшивого сервера): наружу не выставлено,
+	// NewSMTPSender его не задаёт, поэтому боевой код сертификат всегда проверяет.
+	insecureSkipVerify bool
+}
+
+func (s *SMTPSender) tlsConfig() *tls.Config {
+	return &tls.Config{ServerName: s.Host, InsecureSkipVerify: s.insecureSkipVerify} //nolint:gosec // см. поле выше
 }
 
 // NewSMTPSender собирает отправителя из настроек (config.SMTP).
@@ -57,7 +67,7 @@ func (s *SMTPSender) dial(ctx context.Context) (*smtp.Client, error) {
 	}
 	// Порт 465 — TLS сразу; остальные (587, 25) — STARTTLS после EHLO, если сервер его предлагает.
 	if s.Port == "465" {
-		conn = tls.Client(conn, &tls.Config{ServerName: s.Host})
+		conn = tls.Client(conn, s.tlsConfig())
 	}
 	client, err := smtp.NewClient(conn, s.Host)
 	if err != nil {
@@ -65,20 +75,77 @@ func (s *SMTPSender) dial(ctx context.Context) (*smtp.Client, error) {
 		return nil, fmt.Errorf("mail: SMTP-приветствие: %w", err)
 	}
 	if s.Port != "465" {
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			if err := client.StartTLS(&tls.Config{ServerName: s.Host}); err != nil {
-				_ = client.Close()
-				return nil, fmt.Errorf("mail: STARTTLS: %w", err)
-			}
+		ok, _ := client.Extension("STARTTLS")
+		if !ok {
+			_ = client.Close()
+			return nil, fmt.Errorf("mail: сервер %s не предлагает STARTTLS — почту нельзя отправить без шифрования, проверьте KUPOL_SMTP_PORT", s.Host)
+		}
+		if err := client.StartTLS(s.tlsConfig()); err != nil {
+			_ = client.Close()
+			return nil, fmt.Errorf("mail: STARTTLS: %w", err)
 		}
 	}
 	if s.Username != "" {
-		if err := client.Auth(smtp.PlainAuth("", s.Username, s.Password, s.Host)); err != nil {
+		auth, err := s.chooseAuth(client)
+		if err != nil {
+			_ = client.Close()
+			return nil, err
+		}
+		if err := client.Auth(auth); err != nil {
 			_ = client.Close()
 			return nil, fmt.Errorf("mail: авторизация: %w", err)
 		}
 	}
 	return client, nil
+}
+
+// chooseAuth строит smtp.Auth по тому, что сервер объявил в EHLO (см. chooseMechanism).
+func (s *SMTPSender) chooseAuth(client *smtp.Client) (smtp.Auth, error) {
+	_, mechanisms := client.Extension("AUTH")
+	switch chooseMechanism(mechanisms) {
+	case "PLAIN":
+		return smtp.PlainAuth("", s.Username, s.Password, s.Host), nil
+	case "LOGIN":
+		return loginAuth{username: s.Username, password: s.Password}, nil
+	default:
+		return nil, fmt.Errorf("mail: сервер %s поддерживает только %s — ни PLAIN, ни LOGIN не в списке", s.Host, mechanisms)
+	}
+}
+
+// chooseMechanism решает, каким способом авторизоваться, по строке AUTH из EHLO ("PLAIN LOGIN", "LOGIN XOAUTH2"…):
+// PLAIN, если он в списке, иначе LOGIN (net/smtp своей реализации LOGIN не даёт — некоторые серверы вроде Gmail на
+// части путей объявляют только его; PLAIN на них отвечает «504 … not supported», как в тикете, вызвавшем эту правку).
+// Пустой список (сервер не объявил AUTH явно, что иногда бывает до STARTTLS у почтовых релеев) — тоже PLAIN: так было
+// раньше и большинство серверов его принимают.
+func chooseMechanism(advertised string) string {
+	list := strings.Fields(strings.ToUpper(advertised))
+	switch {
+	case len(list) == 0, slices.Contains(list, "PLAIN"):
+		return "PLAIN"
+	case slices.Contains(list, "LOGIN"):
+		return "LOGIN"
+	default:
+		return ""
+	}
+}
+
+// loginAuth — AUTH LOGIN (RFC 4954), которого нет в net/smtp: некоторые серверы предлагают только его, не PLAIN.
+type loginAuth struct{ username, password string }
+
+func (a loginAuth) Start(*smtp.ServerInfo) (string, []byte, error) { return "LOGIN", nil, nil }
+
+func (a loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if !more {
+		return nil, nil
+	}
+	switch strings.TrimSuffix(string(fromServer), ":") {
+	case "Username":
+		return []byte(a.username), nil
+	case "Password":
+		return []byte(a.password), nil
+	default:
+		return nil, errors.New("mail: неожиданный запрос сервера при AUTH LOGIN: " + string(fromServer))
+	}
 }
 
 // Send отправляет письмо; ctx задаёт таймаут всей операции (соединение, TLS, авторизация, передача).
