@@ -13,6 +13,7 @@ export default {
       site: 'Sito',
       roles: 'Ruoli e diritti',
       members: 'Squadra',
+      reports: 'Reclami',
     },
   },
 
@@ -44,5 +45,18 @@ export default {
     savedEmpty: 'Contatti rimossi: la sezione nella pagina «SU KUPOL» non viene mostrata.',
     changed: 'Modificato {when}',
     changedBy: 'Modificato {when} · {who}',
+  },
+
+  reports: {
+    title: 'Reclami',
+    kicker: 'Note a margine segnalate dai lettori',
+    loading: 'Caricamento dei reclami…',
+    empty: 'Nessun reclamo.',
+    by: 'autore: {author}',
+    count: '{n} reclamo | {n} reclami',
+    remove: 'Rimuovi',
+    removeTitle: 'Rimuovi la nota',
+    removeText: 'La nota e tutte le risposte verranno rimosse definitivamente.',
+    cancel: 'Annulla',
   },
 }

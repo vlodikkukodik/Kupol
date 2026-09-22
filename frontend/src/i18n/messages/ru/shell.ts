@@ -94,6 +94,7 @@ export default {
     teamNew: 'Новый документ',
     teamDocument: 'Документ — Панель команды',
     teamMembers: 'Команда',
+    teamReports: 'Жалобы — Панель команды',
     backupCode: 'Резервный код',
     restore: 'Восстановление доступа',
     emailConfirm: 'Подтверждение почты',

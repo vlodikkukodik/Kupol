@@ -6,6 +6,7 @@ import { isApiError } from '@/api/client'
 import { documentsApi } from '@/api/endpoints'
 import { keys } from '@/api/query'
 import DocumentPaper from '@/components/document/DocumentPaper.vue'
+import DocumentRemarks from '@/components/document/DocumentRemarks.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
 import { t } from '@/i18n'
@@ -68,7 +69,10 @@ watch(doc, async (d) => {
 </script>
 
 <template>
-  <DocumentPaper v-if="doc" :doc="doc" />
+  <template v-if="doc">
+    <DocumentPaper :doc="doc" />
+    <DocumentRemarks :code="doc.code" />
+  </template>
 
   <AccessDeniedView v-else-if="error && error.code === 'access_denied'" :level="error.requiredLevel" />
   <NotFoundView v-else-if="error && error.status === 404" />

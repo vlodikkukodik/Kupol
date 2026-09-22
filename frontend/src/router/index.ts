@@ -63,6 +63,7 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: 'title.teamDocument' },
       },
       { path: 'members', name: 'team-members', component: () => import('@/views/team/TeamMembersView.vue'), meta: { title: 'title.teamMembers', capability: 'manage_team' } },
+      { path: 'reports', name: 'team-reports', component: () => import('@/views/team/TeamReportsView.vue'), meta: { title: 'title.teamReports', capability: 'moderate_comments' } },
     ],
   },
   { path: '/backup-code', name: 'backup-code', component: () => import('@/views/BackupCodeView.vue'), meta: { title: 'title.backupCode', needsApi: true, requiresAuth: true } },

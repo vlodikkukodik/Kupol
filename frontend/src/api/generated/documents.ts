@@ -876,6 +876,38 @@ export interface OutDocument {
 }
 
 //////////
+// source: remarks.go
+
+/**
+ * RemarkOut — пометка в ответе читателю.
+ */
+export interface RemarkOut {
+  id: number /* int64 */;
+  parent_id?: number /* int64 */;
+  author: string;
+  text: string;
+  created_at: string /* RFC 3339 */;
+  /**
+   * CanDelete — вправе ли читатель удалить эту пометку (автор или модератор).
+   */
+  can_delete: boolean;
+  /**
+   * ReportCount, DocumentCode, DocumentSlug — только в списке жалоб модератору (ReportedRemarks); в обычном
+   * треде под документом были бы лишними (документ и так один, число жалоб читателю знать незачем).
+   */
+  report_count?: number /* int */;
+  document_code?: string;
+  document_slug?: string;
+}
+/**
+ * RemarkInput — новая пометка или ответ (ParentID — id пометки, на которую отвечают).
+ */
+export interface RemarkInput {
+  ParentID?: number /* int64 */;
+  Text: string;
+}
+
+//////////
 // source: rich.go
 
 /**
@@ -1439,6 +1471,11 @@ export interface Viewer {
   UserID: number /* int64 */; // 0 — Гражданин (без входа)
   UserLevel: number /* int */; // уровень зарегистрированного пользователя, 1–6
   Directorate: boolean;
+  /**
+   * ModerateComments — вправе разбирать жалобы на пометки на полях и удалять чужие (роль Модератор или Директорат;
+   * шаг 5.2). Отдельное поле, а не проверка роли внутри пакета documents: роли — предмет accounts, documents их не знает.
+   */
+  ModerateComments: boolean;
   /**
    * Lang — язык ответа читателю (названия типов, статусов и уровней): русский, если не задан
    */

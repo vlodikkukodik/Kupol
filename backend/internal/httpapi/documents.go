@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"kupol/internal/accounts"
 	"kupol/internal/documents"
 )
 
@@ -23,7 +24,10 @@ func viewerFrom(c *gin.Context) documents.Viewer {
 	if a == nil {
 		return documents.Viewer{Lang: Lang(c)}
 	}
-	return documents.Viewer{UserID: a.User.ID, UserLevel: a.User.Level, Directorate: a.User.Directorate, Lang: Lang(c)}
+	return documents.Viewer{
+		UserID: a.User.ID, UserLevel: a.User.Level, Directorate: a.User.Directorate,
+		ModerateComments: a.User.Can(accounts.CapModerateComments), Lang: Lang(c),
+	}
 }
 
 // fail переводит ошибки сервиса документов в ответ API.
@@ -31,12 +35,24 @@ func (h *documentHandlers) fail(c *gin.Context, err error) {
 	var (
 		qe *documents.QueryError
 		ad *documents.AccessDeniedError
+		ve *documents.ValidationError
 	)
 	switch {
 	case errors.Is(err, documents.ErrNotFound):
 		Fail(c, http.StatusNotFound, CodeNotFound, "Дело не найдено")
+	case errors.Is(err, documents.ErrRemarkNotFound):
+		Fail(c, http.StatusNotFound, CodeNotFound, "Пометка не найдена")
+	case errors.Is(err, documents.ErrForbidden):
+		Fail(c, http.StatusForbidden, CodeForbidden, "Недостаточно прав")
 	case errors.As(err, &ad):
 		FailAccessDenied(c, ad.RequiredLevel, documents.LevelNameIn(Lang(c), ad.RequiredLevel))
+	case errors.As(err, &ve):
+		lang := Lang(c)
+		fields := make(map[string]string, len(ve.Problems))
+		for _, p := range ve.Problems {
+			fields[p.Path] = p.In(lang).Message
+		}
+		FailFields(c, http.StatusUnprocessableEntity, CodeValidation, lang.T("Проверьте поля формы"), fields)
 	case errors.As(err, &qe):
 		FailFields(c, http.StatusBadRequest, CodeBadRequest, Lang(c).T("Некорректные параметры запроса"), map[string]string{qe.Field: qe.In(Lang(c))})
 	default:

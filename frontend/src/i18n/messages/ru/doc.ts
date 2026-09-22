@@ -64,6 +64,23 @@ export default {
       and: ' и ',
       none: 'ничего не закрыто',
     },
+    remarks: {
+      title: 'Пометки на полях',
+      empty: 'Пометок пока нет.',
+      loading: 'Загрузка пометок…',
+      needLogin: 'Чтобы оставить пометку, нужно войти.',
+      signIn: 'Войти',
+      placeholder: 'Ваша пометка…',
+      submit: 'Оставить пометку',
+      reply: 'Ответить',
+      replyPlaceholder: 'Ваш ответ…',
+      replySubmit: 'Отправить ответ',
+      cancel: 'Отмена',
+      report: 'Жалоба',
+      reported: 'Жалоба отправлена',
+      remove: 'Удалить',
+      removeConfirm: 'Удалить эту пометку и все ответы на неё?',
+    },
   },
 
   graph: {

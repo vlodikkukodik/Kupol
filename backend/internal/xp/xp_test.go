@@ -98,6 +98,89 @@ func TestAwardLoginPromotesLevel(t *testing.T) {
 	}
 }
 
+func TestAwardCapsByCountPerDay(t *testing.T) {
+	db := testutil.NewMigratedDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	var userID int64
+	if err := db.Exec(
+		`INSERT INTO users (login, password_hash, backup_code_hash, level, created_at, password_changed_at) VALUES (?,?,?,?,?,?)`,
+		"commenter", "x", "y", 1, now, now,
+	).Error; err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if err := db.Raw(`SELECT id FROM users WHERE login = 'commenter'`).Scan(&userID).Error; err != nil {
+		t.Fatalf("find user: %v", err)
+	}
+
+	var xpTotal int
+	for i := 0; i < xp.CommentDailyCap; i++ {
+		res, err := xp.Award(ctx, db, userID, xp.SourceComment, xp.CommentXP, xp.CommentDailyCap, now.Add(time.Duration(i)*time.Minute))
+		if err != nil {
+			t.Fatalf("award %d: %v", i, err)
+		}
+		if res.Awarded != xp.CommentXP {
+			t.Fatalf("событие %d: awarded=%d, хотели %d", i, res.Awarded, xp.CommentXP)
+		}
+		xpTotal += xp.CommentXP
+		if res.XP != xpTotal {
+			t.Fatalf("событие %d: XP=%d, хотели %d", i, res.XP, xpTotal)
+		}
+	}
+
+	// событие сверх лимита случается (запись в xp_events есть), но XP не приносит
+	res, err := xp.Award(ctx, db, userID, xp.SourceComment, xp.CommentXP, xp.CommentDailyCap, now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("award сверх лимита: %v", err)
+	}
+	if res.Awarded != 0 || res.XP != xpTotal {
+		t.Fatalf("сверх лимита начислило XP: %+v", res)
+	}
+
+	var events int64
+	if err := db.Raw("SELECT count(*) FROM xp_events WHERE user_id = ? AND source = ?", userID, string(xp.SourceComment)).Scan(&events).Error; err != nil {
+		t.Fatal(err)
+	}
+	if events != int64(xp.CommentDailyCap+1) {
+		t.Fatalf("событий в xp_events: %d, хотели %d", events, xp.CommentDailyCap+1)
+	}
+
+	// на следующий день лимит считается заново
+	res, err = xp.Award(ctx, db, userID, xp.SourceComment, xp.CommentXP, xp.CommentDailyCap, now.AddDate(0, 0, 1))
+	if err != nil {
+		t.Fatalf("award день 2: %v", err)
+	}
+	if res.Awarded != xp.CommentXP {
+		t.Fatalf("день 2: лимит не сбросился: %+v", res)
+	}
+}
+
+func TestAwardPromotesLevel(t *testing.T) {
+	db := testutil.NewMigratedDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	var userID int64
+	if err := db.Exec(
+		`INSERT INTO users (login, password_hash, backup_code_hash, level, xp, created_at, password_changed_at) VALUES (?,?,?,?,?,?,?)`,
+		"commenter2", "x", "y", 1, xp.Level2Threshold-xp.CommentXP, now, now,
+	).Error; err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if err := db.Raw(`SELECT id FROM users WHERE login = 'commenter2'`).Scan(&userID).Error; err != nil {
+		t.Fatalf("find user: %v", err)
+	}
+
+	res, err := xp.Award(ctx, db, userID, xp.SourceComment, xp.CommentXP, xp.CommentDailyCap, now)
+	if err != nil {
+		t.Fatalf("award: %v", err)
+	}
+	if !res.Promoted || res.Level != 2 {
+		t.Fatalf("ожидалось повышение до 2: %+v", res)
+	}
+}
+
 func TestNextLevelThreshold(t *testing.T) {
 	if got := xp.NextLevelThreshold(1); got != xp.Level2Threshold {
 		t.Fatalf("уровень 1: %d, хотели %d", got, xp.Level2Threshold)

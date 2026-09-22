@@ -13,7 +13,7 @@ type Role string
 const (
 	RoleAuthor    Role = "author"    // пишет документы, отправляет их на проверку
 	RoleEditor    Role = "editor"    // проверяет, публикует, правит опубликованное
-	RoleModerator Role = "moderator" // комментарии и жалобы (с этапа 4)
+	RoleModerator Role = "moderator" // комментарии и жалобы (с шага 5.2)
 	RoleArchivist Role = "archivist" // глоссарий, шаблоны, теги и хронология (с этапа 5)
 )
 
@@ -47,33 +47,35 @@ func ParseRole(s string) (Role, bool) {
 type Capability string
 
 const (
-	CapTeamPanel       Capability = "team_panel"       // войти в team panel
-	CapWriteDrafts     Capability = "write_drafts"     // создавать документы и править черновики
-	CapReview          Capability = "review"           // проверять документы, писать замечания, выносить вердикт
-	CapPublish         Capability = "publish"          // публиковать (кроме собственных документов)
-	CapEditPublished   Capability = "edit_published"   // править опубликованное «на месте»
-	CapManageGlossary  Capability = "manage_glossary"  // вести глоссарий канона
-	CapManageTemplates Capability = "manage_templates" // вести шаблоны документов и наборы блоков
-	CapManageTimeline  Capability = "manage_timeline"  // вести хронологию «О КУПОЛЕ»
-	CapManageTeam      Capability = "manage_team"      // выдавать и снимать роли
+	CapTeamPanel        Capability = "team_panel"        // войти в team panel
+	CapWriteDrafts      Capability = "write_drafts"      // создавать документы и править черновики
+	CapReview           Capability = "review"            // проверять документы, писать замечания, выносить вердикт
+	CapPublish          Capability = "publish"           // публиковать (кроме собственных документов)
+	CapEditPublished    Capability = "edit_published"    // править опубликованное «на месте»
+	CapManageGlossary   Capability = "manage_glossary"   // вести глоссарий канона
+	CapManageTemplates  Capability = "manage_templates"  // вести шаблоны документов и наборы блоков
+	CapManageTimeline   Capability = "manage_timeline"   // вести хронологию «О КУПОЛЕ»
+	CapManageTeam       Capability = "manage_team"       // выдавать и снимать роли
+	CapModerateComments Capability = "moderate_comments" // разбирать жалобы на пометки на полях, удалять чужие
 )
 
 // AllCapabilities — права в порядке показа.
 var AllCapabilities = []Capability{
 	CapTeamPanel, CapWriteDrafts, CapReview, CapPublish, CapEditPublished,
-	CapManageGlossary, CapManageTemplates, CapManageTimeline, CapManageTeam,
+	CapManageGlossary, CapManageTemplates, CapManageTimeline, CapManageTeam, CapModerateComments,
 }
 
 var capabilityNames = map[Capability]string{
-	CapTeamPanel:       "Входить в панель команды",
-	CapWriteDrafts:     "Создавать документы и править черновики",
-	CapReview:          "Проверять документы и выносить вердикт",
-	CapPublish:         "Публиковать проверенные документы (не свои)",
-	CapEditPublished:   "Править опубликованное на месте",
-	CapManageGlossary:  "Вести глоссарий канона",
-	CapManageTemplates: "Вести шаблоны и наборы блоков",
-	CapManageTimeline:  "Вести хронологию «О КУПОЛЕ»",
-	CapManageTeam:      "Выдавать и снимать роли",
+	CapTeamPanel:        "Входить в панель команды",
+	CapWriteDrafts:      "Создавать документы и править черновики",
+	CapReview:           "Проверять документы и выносить вердикт",
+	CapPublish:          "Публиковать проверенные документы (не свои)",
+	CapEditPublished:    "Править опубликованное на месте",
+	CapManageGlossary:   "Вести глоссарий канона",
+	CapManageTemplates:  "Вести шаблоны и наборы блоков",
+	CapManageTimeline:   "Вести хронологию «О КУПОЛЕ»",
+	CapManageTeam:       "Выдавать и снимать роли",
+	CapModerateComments: "Разбирать жалобы на пометки на полях",
 }
 
 // Name — описание права для интерфейса.
@@ -86,7 +88,7 @@ func (c Capability) NameIn(l i18n.Lang) string { return l.Translate(capabilityNa
 var roleCapabilities = map[Role][]Capability{
 	RoleAuthor:    {CapTeamPanel, CapWriteDrafts},
 	RoleEditor:    {CapTeamPanel, CapWriteDrafts, CapReview, CapPublish, CapEditPublished, CapManageGlossary, CapManageTemplates, CapManageTimeline},
-	RoleModerator: {CapTeamPanel},
+	RoleModerator: {CapTeamPanel, CapModerateComments},
 	RoleArchivist: {CapTeamPanel, CapManageGlossary, CapManageTemplates, CapManageTimeline},
 }
 

@@ -9,6 +9,7 @@ import type {
   ListResult,
   Meta,
   PreviewResult,
+  RemarkOut,
   SearchResult,
   TemplateContent,
   TemplateInput,
@@ -26,6 +27,7 @@ import type {
   ChangePasswordRequest,
   CommentResponse,
   ConfirmEmailRequest,
+  CreateRemarkRequest,
   CreateDocumentRequest,
   DashboardResponse,
   DiffResponse,
@@ -41,6 +43,8 @@ import type {
   RecentResponse,
   RegisterRequest,
   RegisterResponse,
+  RemarkResponse,
+  RemarksResponse,
   RestoreRequest,
   RestoreResponse,
   ResolveCommentRequest,
@@ -123,6 +127,16 @@ export const documentsApi = {
   timeline: (o?: RequestOptions) => api.get<TimelineResponse>('/timeline', o).then((r) => r.items),
   /** Поиск по названиям, шифрам и тексту блоков: в выдаче только то, что читатель вправе видеть */
   search: (params: URLSearchParams, o?: RequestOptions) => api.get<SearchResult>(`/search${qs(params)}`, o),
+}
+
+/** «Пометки на полях» под документом (шаг 5.2): читает кто угодно, пишет и жалуется только вошедший. */
+export const remarksApi = {
+  list: (ref: string, o?: RequestOptions) => api.get<RemarksResponse>(`/documents/${encodeURIComponent(ref)}/remarks`, o).then((r) => r.items as RemarkOut[]),
+  create: (ref: string, body: CreateRemarkRequest) => api.post<RemarkResponse>(`/documents/${encodeURIComponent(ref)}/remarks`, body).then((r) => r.remark as RemarkOut),
+  report: (id: number) => api.post<null>(`/remarks/${id}/report`),
+  remove: (id: number) => api.delete<null>(`/remarks/${id}`),
+  /** Очередь жалоб модератору (право moderate_comments) */
+  reported: (o?: RequestOptions) => api.get<RemarksResponse>('/team/remarks/reported', o).then((r) => r.items as RemarkOut[]),
 }
 
 export interface TeamListParams {

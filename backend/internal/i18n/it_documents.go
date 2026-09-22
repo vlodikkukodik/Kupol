@@ -211,5 +211,9 @@ func init() {
 		"*— новая страница —*": "*— nuova pagina —*",
 		"%s № %s":              "%s n. %s",
 		"<!-- блок «%s»: в Markdown не переносится, см. JSON -->": "<!-- blocco «%s»: non viene trasferito in Markdown, vedi JSON -->",
+
+		// ——— пометки на полях (шаг 5.2) ———
+		"Пометка: от %d до %d знаков":           "Nota: da %d a %d caratteri",
+		"В тексте есть запрещённое слово: «%s»": "Il testo contiene una parola vietata: «%s»",
 	})
 }

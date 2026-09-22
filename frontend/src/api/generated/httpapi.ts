@@ -248,6 +248,18 @@ export interface TermResponse {
   term: any /* documents.TermOut */;
 }
 /**
+ * RemarksResponse — «пометки на полях» (GET /api/documents/:ref/remarks, GET /api/team/remarks/reported).
+ */
+export interface RemarksResponse {
+  items: any /* documents.RemarkOut */[];
+}
+/**
+ * RemarkResponse — одна пометка (POST /api/documents/:ref/remarks).
+ */
+export interface RemarkResponse {
+  remark: any /* documents.RemarkOut */;
+}
+/**
  * UpdateTemplateRequest — PUT /api/team/templates/:id. Без content меняются только название и описание.
  */
 export interface UpdateTemplateRequest {
@@ -521,6 +533,14 @@ export const HeaderRequestID = "X-Request-Id";
 export const MaxBodyBytes = 1 << 20;
 export const IPSourceProxy = "proxy"; // IP подтверждён подписью PHP-прокси
 export const IPSourceDirect = "direct"; // IP из TCP-соединения / доверенного обратного прокси
+
+//////////
+// source: remarks.go
+
+export interface CreateRemarkRequest {
+  parent_id?: number /* int64 */;
+  text: string;
+}
 
 //////////
 // source: router.go

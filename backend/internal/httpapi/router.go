@@ -156,5 +156,12 @@ func New(d Deps) (*gin.Engine, error) {
 	api.GET("/documents/recent", docs.recent)
 	api.GET("/documents/:ref", docs.get)
 
+	// «Пометки на полях» (шаг 5.2): читает кто угодно, пишет и жалуется только вошедший.
+	api.GET("/documents/:ref/remarks", docs.listRemarks)
+	api.POST("/documents/:ref/remarks", requireAuth(), docs.createRemark)
+	api.POST("/remarks/:id/report", requireAuth(), docs.reportRemark)
+	api.DELETE("/remarks/:id", requireAuth(), docs.deleteRemark)
+	api.GET("/team/remarks/reported", requireCapability(accounts.CapModerateComments), docs.reportedRemarks)
+
 	return r, nil
 }

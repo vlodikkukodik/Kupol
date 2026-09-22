@@ -13,7 +13,7 @@ import (
 var wantCapabilities = map[Role][]Capability{
 	RoleAuthor:    {CapTeamPanel, CapWriteDrafts},
 	RoleEditor:    {CapTeamPanel, CapWriteDrafts, CapReview, CapPublish, CapEditPublished, CapManageGlossary, CapManageTemplates, CapManageTimeline},
-	RoleModerator: {CapTeamPanel},
+	RoleModerator: {CapTeamPanel, CapModerateComments},
 	RoleArchivist: {CapTeamPanel, CapManageGlossary, CapManageTemplates, CapManageTimeline},
 }
 

@@ -94,6 +94,7 @@ export default {
     teamNew: 'Nuovo documento',
     teamDocument: 'Documento — Pannello della squadra',
     teamMembers: 'Squadra',
+    teamReports: 'Reclami — Pannello della squadra',
     backupCode: 'Codice di riserva',
     restore: "Ripristino dell'accesso",
     emailConfirm: 'Conferma della posta',

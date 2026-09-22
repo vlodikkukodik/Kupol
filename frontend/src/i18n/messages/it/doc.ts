@@ -64,6 +64,23 @@ export default {
       and: ' e ',
       none: 'niente è oscurato',
     },
+    remarks: {
+      title: 'Note a margine',
+      empty: 'Ancora nessuna nota.',
+      loading: 'Caricamento delle note…',
+      needLogin: 'Per lasciare una nota devi accedere.',
+      signIn: 'Accedi',
+      placeholder: 'La tua nota…',
+      submit: 'Lascia una nota',
+      reply: 'Rispondi',
+      replyPlaceholder: 'La tua risposta…',
+      replySubmit: 'Invia la risposta',
+      cancel: 'Annulla',
+      report: 'Reclamo',
+      reported: 'Reclamo inviato',
+      remove: 'Rimuovi',
+      removeConfirm: 'Rimuovere questa nota e tutte le risposte?',
+    },
   },
 
   graph: {

@@ -16,7 +16,10 @@ import (
 // Source — источник начисления, пишется в xp_events.source.
 type Source string
 
-const SourceLogin Source = "login"
+const (
+	SourceLogin   Source = "login"
+	SourceComment Source = "comment" // пометка на полях (шаг 5.2)
+)
 
 // Значения по умолчанию (спецификация §5).
 const (
@@ -26,6 +29,9 @@ const (
 
 	Level2Threshold = 100 // Стажёр (~неделя активности)
 	Level3Threshold = 500 // Сотрудник (~месяц активности)
+
+	CommentXP       = 15 // за пометку на полях
+	CommentDailyCap = 3  // не больше стольких пометок в день приносят XP; сами пометки сверх лимита публикуются как обычно
 )
 
 type userRow struct {
@@ -98,6 +104,58 @@ func AwardLogin(ctx context.Context, tx *gorm.DB, userID int64, now time.Time) (
 		return LoginResult{}, err
 	}
 	return LoginResult{Awarded: amount, Streak: streak, XP: newXP, Level: newLevel, Promoted: newLevel != row.Level}, nil
+}
+
+// Result — итог начисления XP по дневному лимиту количества событий (Award).
+type Result struct {
+	// Awarded — сколько начислено сейчас; 0, если дневной лимит источника уже исчерпан (событие всё равно случилось,
+	// просто без XP — комментарий сверх лимита публикуется как обычно, его не отклоняют).
+	Awarded  int
+	XP       int
+	Level    int
+	Promoted bool
+}
+
+// Award начисляет amount XP за источник source, но не больше maxPerDay раз за календарный день (UTC) —
+// «оценка +5 (до 10/день)», «комментарий +15 (до 3/день)» и т.п. (спецификация §5). В отличие от AwardLogin
+// лимит — по числу событий, а не «раз в день»: 3-е начисление в лимите 3/день ещё проходит, 4-е — уже нет.
+// Вызывать внутри той же транзакции, что создаёт само событие (комментарий, оценку…).
+func Award(ctx context.Context, tx *gorm.DB, userID int64, source Source, amount, maxPerDay int, now time.Time) (Result, error) {
+	var row userRow
+	if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).Take(&row).Error; err != nil {
+		return Result{}, err
+	}
+	res := Result{XP: row.XP, Level: row.Level}
+
+	dayStart := now.UTC().Truncate(24 * time.Hour)
+	var todayCount int64
+	if err := tx.WithContext(ctx).Model(&eventRow{}).
+		Where("user_id = ? AND source = ? AND created_at >= ?", userID, string(source), dayStart).
+		Count(&todayCount).Error; err != nil {
+		return Result{}, err
+	}
+
+	awarded := 0
+	if todayCount < int64(maxPerDay) {
+		awarded = amount
+	}
+	if awarded > 0 {
+		newXP := row.XP + awarded
+		newLevel := promote(row.Level, newXP)
+		updates := map[string]any{"xp": newXP}
+		if newLevel != row.Level {
+			updates["level"] = newLevel
+		}
+		if err := tx.WithContext(ctx).Model(&userRow{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+			return Result{}, err
+		}
+		res.XP, res.Level, res.Promoted = newXP, newLevel, newLevel != row.Level
+	}
+	if err := tx.WithContext(ctx).Create(&eventRow{UserID: userID, Source: string(source), Amount: awarded, CreatedAt: now}).Error; err != nil {
+		return Result{}, err
+	}
+	res.Awarded = awarded
+	return res, nil
 }
 
 // promote поднимает уровень 1→2 и 2→3 по порогам; на более высокие уровни (выдаёт Особый Совет) не влияет.

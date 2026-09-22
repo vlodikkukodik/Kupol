@@ -15,6 +15,9 @@ type Viewer struct {
 	UserID      int64 // 0 — Гражданин (без входа)
 	UserLevel   int   // уровень зарегистрированного пользователя, 1–6
 	Directorate bool
+	// ModerateComments — вправе разбирать жалобы на пометки на полях и удалять чужие (роль Модератор или Директорат;
+	// шаг 5.2). Отдельное поле, а не проверка роли внутри пакета documents: роли — предмет accounts, documents их не знает.
+	ModerateComments bool
 	// Lang — язык ответа читателю (названия типов, статусов и уровней): русский, если не задан
 	Lang i18n.Lang `tstype:"string"`
 }

@@ -82,5 +82,7 @@ func init() {
 		"Вести шаблоны и наборы блоков":               "Tenere i modelli e gli insiemi di blocchi",
 		"Вести хронологию «О КУПОЛЕ»":                 "Tenere la cronologia «SU KUPOL»",
 		"Выдавать и снимать роли":                     "Assegnare e togliere i ruoli",
+		"Разбирать жалобы на пометки на полях":        "Esaminare i reclami sulle note a margine",
+		"Пометка не найдена":                          "Nota non trovata",
 	})
 }

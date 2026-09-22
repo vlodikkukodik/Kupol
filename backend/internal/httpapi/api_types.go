@@ -211,6 +211,16 @@ type TermResponse struct {
 	Term *documents.TermOut `json:"term" tstype:",required"`
 }
 
+// RemarksResponse — «пометки на полях» (GET /api/documents/:ref/remarks, GET /api/team/remarks/reported).
+type RemarksResponse struct {
+	Items []documents.RemarkOut `json:"items" tstype:",required"`
+}
+
+// RemarkResponse — одна пометка (POST /api/documents/:ref/remarks).
+type RemarkResponse struct {
+	Remark *documents.RemarkOut `json:"remark" tstype:",required"`
+}
+
 // UpdateTemplateRequest — PUT /api/team/templates/:id. Без content меняются только название и описание.
 type UpdateTemplateRequest struct {
 	Name        string                     `json:"name"`

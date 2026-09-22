@@ -20,6 +20,7 @@ const route = useRoute()
       <RouterLink :to="{ name: 'team-site' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-site' ? 'page' : undefined">{{ $t('team.nav.site') }}</RouterLink>
       <RouterLink :to="{ name: 'team-roles' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-roles' ? 'page' : undefined">{{ $t('team.nav.roles') }}</RouterLink>
       <RouterLink v-if="auth.can('manage_team')" :to="{ name: 'team-members' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-members' ? 'page' : undefined">{{ $t('team.nav.members') }}</RouterLink>
+      <RouterLink v-if="auth.can('moderate_comments')" :to="{ name: 'team-reports' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-reports' ? 'page' : undefined">{{ $t('team.nav.reports') }}</RouterLink>
     </nav>
     <RouterView />
   </div>
