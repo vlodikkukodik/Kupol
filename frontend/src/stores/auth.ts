@@ -23,6 +23,8 @@ export const useAuthStore = defineStore('auth', () => {
   const pendingBackupCode = ref('')
   /** Разовое сообщение для главной (например, «дело сдано в архив»). */
   const flash = ref('')
+  /** Этот вход только что поднял уровень по XP — повод показать штамп «ДОПУСК ПОВЫШЕН» (глобально, см. LevelUpNotice.vue). */
+  const levelUp = ref(false)
 
   const isAuthenticated = computed(() => user.value !== null)
   const can = (capability: Capability): boolean => Boolean(user.value?.capabilities.includes(capability))
@@ -53,6 +55,11 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await authApi.login({ login: loginName, password, ...(totp ? { totp } : {}) })
     user.value = res.user
     status.value = 'ready'
+    if (res.level_up) levelUp.value = true
+  }
+
+  function dismissLevelUp() {
+    levelUp.value = false
   }
 
   async function register(p: { login: string; password: string; captchaId: string; captchaAnswer: string }) {
@@ -110,5 +117,5 @@ export const useAuthStore = defineStore('auth', () => {
     })
   }
 
-  return { user, status, pendingBackupCode, flash, isAuthenticated, can, load, login, register, restore, logout, changePassword, deleteAccount, acknowledgeBackupCode, takeFlash, attach }
+  return { user, status, pendingBackupCode, flash, levelUp, isAuthenticated, can, load, login, register, restore, logout, changePassword, deleteAccount, acknowledgeBackupCode, takeFlash, dismissLevelUp, attach }
 })

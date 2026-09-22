@@ -144,6 +144,14 @@ func TestLoginAndLogout(t *testing.T) {
 	if r.sessionSetCookie() == nil || c.cookie == nil {
 		t.Fatal("кука не выставлена")
 	}
+	body := r.json()
+	if body["level_up"] != false {
+		t.Errorf("первый вход не должен сразу поднимать уровень: %v", body["level_up"])
+	}
+	userBody, _ := body["user"].(map[string]any)
+	if userBody["xp"] == nil || userBody["xp"].(float64) <= 0 || userBody["login_streak"].(float64) != 1 || userBody["next_level_xp"] == nil {
+		t.Errorf("XP за вход не начислен: %v", userBody)
+	}
 	if u := c.do("GET", "/api/auth/session", nil).json()["user"]; u == nil {
 		t.Fatal("после входа сессия должна быть")
 	}

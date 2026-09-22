@@ -139,6 +139,16 @@ test('регистрация: код показывается один раз, �
   await expect(page.getByRole('dialog', { name: 'Меню' }).getByRole('link', { name: 'Личное дело' })).toBeVisible()
 })
 
+test('XP и серия входов: начисляются при регистрации, видны в личном деле', async ({ page }) => {
+  const name = uniq()
+  await register(page, name)
+  await acknowledgeCode(page)
+
+  await expect(page.getByTestId('file-xp')).toContainText('10')
+  await expect(page.getByTestId('file-streak')).toContainText('1')
+  await expect(page.getByText(/До уровня 2/)).toBeVisible()
+})
+
 test('клиентская проверка формы регистрации: подсказки и фокус на первом поле с ошибкой', async ({ page }) => {
   await page.goto('/')
   await openAuth(page, 'Регистрация')

@@ -24,6 +24,10 @@ export interface CaptchaResponse {
  */
 export interface LoginResponse {
   user: UserDTO;
+  /**
+   * LevelUp — этот вход поднял уровень (XP перешёл порог) — повод показать штамп «ДОПУСК ПОВЫШЕН».
+   */
+  level_up: boolean;
 }
 /**
  * RegisterResponse — POST /api/auth/register: пользователь и резервный код, который показывается ОДИН раз.
@@ -275,6 +279,15 @@ export interface UserDTO {
    * TOTPEnabled — включён ли вход с кодом из приложения.
    */
   totp_enabled: boolean;
+  /**
+   * XP, LoginStreak — очки опыта и серия ежедневных входов подряд (шаг 5.1).
+   */
+  xp: number /* int */;
+  login_streak: number /* int */;
+  /**
+   * NextLevelXP — сколько XP нужно для следующего уровня; 0 — дальше только решением Особого Совета.
+   */
+  next_level_xp: number /* int */;
 }
 export interface RegisterRequest {
   login: string;

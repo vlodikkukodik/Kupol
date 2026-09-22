@@ -55,6 +55,8 @@ const (
 	TOTPReset        Action = "account.totp_reset"         // код из приложения снят автором командой на сервере
 	TOTPCodesRenewed Action = "account.totp_codes_renewed" // выданы новые коды на случай потери телефона
 	TOTPRecoveryUsed Action = "account.totp_recovery_used" // вход по одноразовому коду вместо кода из приложения
+
+	LevelPromoted Action = "account.level_promoted" // уровень поднялся автоматически по XP (1→2 или 2→3)
 )
 
 var titles = map[Action]string{
@@ -94,6 +96,8 @@ var titles = map[Action]string{
 	TOTPReset:        "Код из приложения снят администратором",
 	TOTPCodesRenewed: "Выданы новые одноразовые коды",
 	TOTPRecoveryUsed: "Вход по одноразовому коду",
+
+	LevelPromoted: "Уровень повышен по XP",
 }
 
 // Title — название события для людей; для неизвестного — само машинное имя.

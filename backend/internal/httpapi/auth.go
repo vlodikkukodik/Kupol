@@ -37,6 +37,11 @@ type UserDTO struct {
 	Capabilities []string  `json:"capabilities"`
 	// TOTPEnabled — включён ли вход с кодом из приложения.
 	TOTPEnabled bool `json:"totp_enabled"`
+	// XP, LoginStreak — очки опыта и серия ежедневных входов подряд (шаг 5.1).
+	XP          int `json:"xp"`
+	LoginStreak int `json:"login_streak"`
+	// NextLevelXP — сколько XP нужно для следующего уровня; 0 — дальше только решением Особого Совета.
+	NextLevelXP int `json:"next_level_xp"`
 }
 
 func toUserDTO(u accounts.User, lang i18n.Lang) UserDTO {
@@ -53,6 +58,9 @@ func toUserDTO(u accounts.User, lang i18n.Lang) UserDTO {
 		Roles:        toRoleDTOs(u.Roles, lang),
 		Capabilities: caps,
 		TOTPEnabled:  u.TOTPEnabled(),
+		XP:           u.XP,
+		LoginStreak:  u.LoginStreak,
+		NextLevelXP:  u.NextLevelXP(),
 	}
 }
 
@@ -168,7 +176,7 @@ func (h *authHandlers) login(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusOK, LoginResponse{User: toUserDTO(res.User, Lang(c))})
+	c.JSON(http.StatusOK, LoginResponse{User: toUserDTO(res.User, Lang(c)), LevelUp: res.LevelUp})
 }
 
 // POST /api/auth/logout — завершает текущую сессию. Без сессии тоже успешно: выход идемпотентен.

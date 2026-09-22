@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"kupol/internal/i18n"
+	"kupol/internal/xp"
 )
 
 // User — запись пользователя (таблица users).
@@ -17,6 +18,11 @@ type User struct {
 	CreatedAt         time.Time
 	LastLoginAt       *time.Time
 	PasswordChangedAt time.Time
+
+	// XP, LoginStreak, LastXPDay — очки опыта и серия ежедневных входов (internal/xp, шаг 5.1).
+	XP          int        `gorm:"column:xp"`
+	LoginStreak int        `gorm:"column:login_streak"`
+	LastXPDay   *time.Time `gorm:"column:last_xp_day"`
 
 	// Код из приложения (TOTP): секреты хранятся зашифрованными, наружу не выходят (см. totp.go).
 	TOTPPending   []byte     `gorm:"column:totp_pending"`
@@ -38,6 +44,9 @@ func (u User) LevelName() string { return LevelName(u.Level, u.Directorate) }
 
 // LevelNameIn — звание пользователя на языке l.
 func (u User) LevelNameIn(l i18n.Lang) string { return LevelNameIn(l, u.Level, u.Directorate) }
+
+// NextLevelXP — сколько XP нужно для следующего уровня; 0, если дальше только по решению Особого Совета.
+func (u User) NextLevelXP() int { return xp.NextLevelThreshold(u.Level) }
 
 // Session — серверная сессия (таблица sessions). В БД хранится только SHA-256 токена.
 type Session struct {

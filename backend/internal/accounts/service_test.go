@@ -15,6 +15,7 @@ import (
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
 	"kupol/internal/testutil"
+	"kupol/internal/xp"
 )
 
 // Все тесты работают с настоящим PostgreSQL и настоящим argon2id (с облегчёнными параметрами,
@@ -406,6 +407,47 @@ func TestLoginSuccessAndCaseInsensitivity(t *testing.T) {
 	// у одного пользователя может быть несколько сессий (разные устройства)
 	if n := e.count("SELECT count(*) FROM sessions WHERE user_id = ?", reg.User.ID); n != 5 {
 		t.Errorf("сессий %d, ожидалось 5", n)
+	}
+}
+
+func TestLoginAwardsXPOncePerDayAndPromotes(t *testing.T) {
+	e := newEnv(t)
+	reg := e.register("stazher", "верный пароль")
+	if reg.User.Level != 1 || reg.User.XP != xp.LoginXP || reg.User.LoginStreak != 1 {
+		t.Fatalf("свежий аккаунт: level=%d xp=%d streak=%d, хотели 1/%d/1", reg.User.Level, reg.User.XP, reg.User.LoginStreak, xp.LoginXP)
+	}
+	xpAfterFirst := reg.User.XP
+
+	// вход в день регистрации XP не добавляет: уже начислено при регистрации
+	e.clock.Advance(time.Hour)
+	res, err := e.svc.Login(ctx, "stazher", "верный пароль", e.freshIP())
+	if err != nil {
+		t.Fatalf("вход: %v", err)
+	}
+	if res.User.XP != xpAfterFirst || res.User.LoginStreak != 1 || res.LevelUp {
+		t.Fatalf("вход в день регистрации: %+v", res)
+	}
+
+	// повторный вход в тот же день XP не добавляет
+	res, err = e.svc.Login(ctx, "stazher", "верный пароль", e.freshIP())
+	if err != nil {
+		t.Fatalf("вход 2: %v", err)
+	}
+	if res.User.XP != xpAfterFirst {
+		t.Fatalf("вход в тот же день начислил XP снова: было %d, стало %d", xpAfterFirst, res.User.XP)
+	}
+
+	// доводим вручную XP до порога уровня 2 и проверяем сигнал повышения при следующем входе
+	if err := e.db.Exec("UPDATE users SET xp = ? WHERE id = ?", xp.Level2Threshold-xp.LoginXP-1, res.User.ID).Error; err != nil {
+		t.Fatalf("подготовка XP: %v", err)
+	}
+	e.clock.Advance(24 * time.Hour)
+	res, err = e.svc.Login(ctx, "stazher", "верный пароль", e.freshIP())
+	if err != nil {
+		t.Fatalf("вход 3: %v", err)
+	}
+	if !res.LevelUp || res.User.Level != 2 {
+		t.Fatalf("ожидалось повышение до уровня 2: %+v", res)
 	}
 }
 

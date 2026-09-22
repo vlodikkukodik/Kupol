@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ChangePasswordForm from '@/components/ChangePasswordForm.vue'
 import DeleteAccountForm from '@/components/DeleteAccountForm.vue'
@@ -12,6 +12,7 @@ import UiStamp from '@/ui/UiStamp.vue'
 import { ApiError } from '@/api/client'
 import { describeApiError } from '@/composables/useForm'
 import { formatDate } from '@/lib/format'
+import { t, tc } from '@/i18n'
 import { levelName } from '@/lib/levels'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -21,6 +22,20 @@ const ui = useUiStore()
 const router = useRouter()
 const logoutError = ref('')
 const loggingOut = ref(false)
+
+// Полоса опыта: доля пути до следующего уровня (next_level_xp = 0, когда дальше только решением Особого Совета).
+const xpProgress = computed(() => {
+  const u = auth.user
+  if (!u || u.next_level_xp <= 0) return 100
+  return Math.min(100, Math.round((u.xp / u.next_level_xp) * 100))
+})
+const nextLevelText = computed(() => {
+  const u = auth.user
+  if (!u) return ''
+  if (u.next_level_xp <= 0) return t('file.maxAutoLevel')
+  return t('file.nextLevel', { level: u.level + 1, name: levelName(u.level + 1), left: Math.max(0, u.next_level_xp - u.xp) })
+})
+const streakText = computed(() => (auth.user ? tc('file.streakDays', auth.user.login_streak) : ''))
 
 async function logout() {
   logoutError.value = ''
@@ -59,6 +74,20 @@ async function logout() {
           <div v-if="!auth.user.directorate">
             <dt>{{ $t('file.level') }}</dt>
             <dd>{{ auth.user.level }}</dd>
+          </div>
+          <div v-if="!auth.user.directorate">
+            <dt>{{ $t('file.xp') }}</dt>
+            <dd data-testid="file-xp">
+              {{ $t('file.xpValue', { xp: auth.user.xp }) }}
+              <div class="xp-bar" role="progressbar" :aria-valuenow="xpProgress" aria-valuemin="0" aria-valuemax="100" :aria-label="$t('file.xp')">
+                <div class="xp-bar__fill" :style="{ width: `${xpProgress}%` }" />
+              </div>
+              <p class="xp-next">{{ nextLevelText }}</p>
+            </dd>
+          </div>
+          <div v-if="auth.user.login_streak > 0">
+            <dt>{{ $t('file.streak') }}</dt>
+            <dd data-testid="file-streak">{{ streakText }}</dd>
           </div>
           <div v-if="auth.user.roles.length">
             <dt>{{ $t('file.roles') }}</dt>
@@ -159,6 +188,27 @@ async function logout() {
   font-size: var(--text-lg);
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+.xp-bar {
+  margin-top: var(--space-2);
+  height: 0.5rem;
+  border: 1px solid var(--ink-900);
+  border-radius: var(--radius-1);
+  overflow: hidden;
+  background: var(--paper-100);
+}
+.xp-bar__fill {
+  height: 100%;
+  background: var(--red-700);
+}
+.xp-next {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-head);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-muted);
 }
 @media (max-width: 56rem) {
   .file__grid {

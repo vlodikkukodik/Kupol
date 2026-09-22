@@ -24,6 +24,8 @@ type CaptchaResponse struct {
 // LoginResponse — POST /api/auth/login.
 type LoginResponse struct {
 	User UserDTO `json:"user"`
+	// LevelUp — этот вход поднял уровень (XP перешёл порог) — повод показать штамп «ДОПУСК ПОВЫШЕН».
+	LevelUp bool `json:"level_up"`
 }
 
 // RegisterResponse — POST /api/auth/register: пользователь и резервный код, который показывается ОДИН раз.

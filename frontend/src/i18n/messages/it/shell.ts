@@ -33,6 +33,7 @@ export default {
       signIn: 'Accedi o registrati',
     },
     pass: 'Tesserino: {login}, {level}. Apri il fascicolo personale',
+    levelUp: 'ACCESSO ELEVATO',
   },
 
   lang: {

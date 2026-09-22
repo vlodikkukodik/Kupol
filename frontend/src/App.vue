@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, type RouteLocationNormalized } from 'vue-router'
 import AppMenu from '@/components/AppMenu.vue'
 import CookieNotice from '@/components/CookieNotice.vue'
+import LevelUpNotice from '@/components/LevelUpNotice.vue'
 import PassCard from '@/components/PassCard.vue'
 import AuthModal from '@/components/auth/AuthModal.vue'
 import UiIcon from '@/ui/UiIcon.vue'
@@ -98,6 +99,7 @@ const statusText = computed(() => t(`app.status.${connection.state}`))
 
   <AppMenu />
   <AuthModal />
+  <LevelUpNotice />
 </template>
 
 <style scoped>

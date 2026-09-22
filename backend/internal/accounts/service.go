@@ -22,6 +22,7 @@ import (
 	"kupol/internal/i18n"
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
+	"kupol/internal/xp"
 )
 
 const (
@@ -51,6 +52,8 @@ type AuthResult struct {
 	User      User
 	Token     string // значение куки; в БД хранится только его хеш
 	ExpiresAt time.Time
+	// LevelUp — этот вход поднял уровень (XP перешёл порог 2 или 3); повод показать штамп «ДОПУСК ПОВЫШЕН».
+	LevelUp bool
 }
 
 // RegisterResult дополнительно содержит резервный код — он показывается только один раз.
@@ -375,9 +378,15 @@ func (s *Service) Register(ctx context.Context, in RegisterInput, ci ClientInfo)
 	}
 	var token string
 	var expires time.Time
+	var xpRes xp.LoginResult
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&user).Error; err != nil {
 			return err
+		}
+		var xerr error
+		xpRes, xerr = xp.AwardLogin(ctx, tx, user.ID, now)
+		if xerr != nil {
+			return xerr
 		}
 		var serr error
 		token, expires, serr = s.createSession(tx, user.ID, ci)
@@ -389,6 +398,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput, ci ClientInfo)
 	if err != nil {
 		return nil, err
 	}
+	user.XP, user.LoginStreak = xpRes.XP, xpRes.Streak
 	s.log.Info("зарегистрирован пользователь", "user_id", user.ID, "ip", ci.IP)
 	return &RegisterResult{AuthResult: AuthResult{User: user, Token: token, ExpiresAt: expires}, BackupCode: code}, nil
 }
@@ -492,9 +502,22 @@ func (s *Service) LoginWithCode(ctx context.Context, login, password, code strin
 	}
 	var token string
 	var expires time.Time
+	var xpRes xp.LoginResult
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
 			return err
+		}
+		var xerr error
+		xpRes, xerr = xp.AwardLogin(ctx, tx, user.ID, now)
+		if xerr != nil {
+			return xerr
+		}
+		if xpRes.Promoted {
+			if err := audit.Record(tx, now, audit.LevelPromoted, audit.Event{
+				TargetUserID: &user.ID, Details: audit.Details("level", xpRes.Level, "xp", xpRes.XP),
+			}); err != nil {
+				return err
+			}
 		}
 		var serr error
 		token, expires, serr = s.createSession(tx, user.ID, ci)
@@ -504,11 +527,15 @@ func (s *Service) LoginWithCode(ctx context.Context, login, password, code strin
 		return nil, err
 	}
 	user.LastLoginAt = &now
+	user.XP, user.LoginStreak, user.Level = xpRes.XP, xpRes.Streak, xpRes.Level
 	if err := s.loadRoles(s.db.WithContext(ctx), user); err != nil {
 		return nil, err
 	}
+	if xpRes.Promoted {
+		s.log.Info("уровень повышен по XP", "user_id", user.ID, "level", xpRes.Level, "xp", xpRes.XP)
+	}
 	s.log.Info("вход выполнен", "user_id", user.ID, "ip", ci.IP)
-	return &AuthResult{User: *user, Token: token, ExpiresAt: expires}, nil
+	return &AuthResult{User: *user, Token: token, ExpiresAt: expires, LevelUp: xpRes.Promoted}, nil
 }
 
 // ---------------------------------------------------------------- действия вошедшего
