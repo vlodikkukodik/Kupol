@@ -42,6 +42,8 @@ func init() {
 		"Код из приложения не включён":                         "Il codice dell'app non è attivo",
 		"Неверный пароль":                                      "Password errata",
 		"Неверный логин или пароль":                            "Login o password errati",
+		"Эта почта уже подтверждена другим аккаунтом":          "Questa posta è già confermata da un altro account",
+		"Ссылка подтверждения недействительна или устарела":    "Il link di conferma non è valido o è scaduto",
 		"Неверный логин или резервный код":                     "Login o codice di riserva errati",
 		"Ответьте на вопрос анкеты":                            "Rispondi alla domanda del questionario",
 		"Введите логин":                                        "Inserisci il login",

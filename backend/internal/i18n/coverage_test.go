@@ -36,7 +36,7 @@ var internalPrefix = regexp.MustCompile(`^(documents|accounts|proxyauth|password
 // dataKeys — русские строки, которые не показываются читателю как текст: ключи (приставки шифров, ответы анкеты,
 // зарезервированные логины), название приложения-аутентификатора, примеры шифров. Переводить их нельзя.
 var dataKeys = map[string]bool{
-	"ё": true, "е": true, "О": true, "ПРИКАЗ": true, "ИНЦ": true, "ЛД": true, "ОТД": true, "ОБ": true, "ПРОТ": true, "ПОК": true, "МЕМО": true, "О-": true,
+	"ё": true, "е": true, "О": true, "К": true, "ПРИКАЗ": true, "ИНЦ": true, "ЛД": true, "ОТД": true, "ОБ": true, "ПРОТ": true, "ПОК": true, "МЕМО": true, "О-": true,
 	"КУПОЛ": true, "Форма КУПОЛ-1": true,
 	"О-041": true, "ПРИКАЗ-1978-12": true, "ИНЦ-1982-07": true, "ЛД-0157": true, "ОТД-2 или ОБ-14": true, "ПРОТ-1979-03": true, "ПОК-1980-22": true, "МЕМО-5": true,
 	// зарезервированные логины и сокращения (accounts/rules.go)

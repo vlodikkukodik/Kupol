@@ -79,10 +79,13 @@ func New(d Deps) (*gin.Engine, error) {
 	api.POST("/auth/login", auth.login)
 	api.POST("/auth/logout", auth.logout)
 	api.POST("/auth/restore", auth.restore)
+	api.POST("/auth/email/confirm", auth.confirmEmail)
 
 	me := api.Group("/me", requireAuth())
 	me.POST("/password", auth.changePassword)
 	me.DELETE("", auth.deleteAccount)
+	me.PUT("/email", auth.setEmail)
+	me.DELETE("/email", auth.removeEmail)
 	me.GET("/totp", auth.totpStatus)
 	me.POST("/totp/setup", auth.totpSetup)
 	me.POST("/totp/enable", auth.totpEnable)

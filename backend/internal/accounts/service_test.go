@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"kupol/internal/config"
+	"kupol/internal/mail"
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
 	"kupol/internal/testutil"
@@ -51,7 +52,46 @@ type env struct {
 
 func newEnv(t *testing.T) *env { return newEnvWith(t, config.DefaultLimits()) }
 
-func newEnvWith(t *testing.T, limits config.Limits) *env {
+func newEnvWith(t *testing.T, limits config.Limits) *env { return newEnvOpts(t, limits, nil) }
+
+// fakeMailer — записывает письма вместо настоящей отправки; sendMail шлёт их в горутине, поэтому тест ждёт через wait.
+type fakeMailer struct {
+	ch chan mail.Message
+}
+
+func newFakeMailer() *fakeMailer { return &fakeMailer{ch: make(chan mail.Message, 10)} }
+
+func (f *fakeMailer) Send(_ context.Context, msg mail.Message) error {
+	f.ch <- msg
+	return nil
+}
+
+func (f *fakeMailer) wait(t *testing.T) mail.Message {
+	t.Helper()
+	select {
+	case m := <-f.ch:
+		return m
+	case <-time.After(2 * time.Second):
+		t.Fatal("письмо не отправлено")
+		return mail.Message{}
+	}
+}
+
+func (f *fakeMailer) none(t *testing.T) {
+	t.Helper()
+	select {
+	case m := <-f.ch:
+		t.Fatalf("письмо отправлено, хотя не должно было: %+v", m)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func newEnvWithMailer(t *testing.T) (*env, *fakeMailer) {
+	m := newFakeMailer()
+	return newEnvOpts(t, config.DefaultLimits(), m), m
+}
+
+func newEnvOpts(t *testing.T, limits config.Limits, mailer mail.Sender) *env {
 	t.Helper()
 	clock := &testClock{t: time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)}
 	db := testutil.NewMigratedDB(t)
@@ -60,7 +100,10 @@ func newEnvWith(t *testing.T, limits config.Limits) *env {
 		t.Fatal(err)
 	}
 	limiter := ratelimit.New(clock.Now)
-	svc, err := NewService(Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: limits, Log: testutil.Logger(), SecretKey: testSecretKey, Now: clock.Now})
+	svc, err := NewService(Options{
+		DB: db, Hasher: hasher, Limiter: limiter, Limits: limits, Log: testutil.Logger(), SecretKey: testSecretKey, Now: clock.Now,
+		Mailer: mailer, SiteOrigin: "https://kupol.example",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -838,6 +881,153 @@ func TestChangePasswordCannotBeUsedToBruteForce(t *testing.T) {
 	}
 	err := e.svc.ChangePassword(ctx, reg.User.ID, cur.Session.ID, "правильный пароль", "новый пароль 2", ci)
 	mustRateLimited(t, err) // украденная сессия не даёт перебирать пароль без ограничений
+}
+
+// ---------------------------------------------------------------- почта
+
+func TestSetEmailAndConfirm(t *testing.T) {
+	e, mailer := newEnvWithMailer(t)
+	reg := e.register("mailer1", "правильный пароль")
+
+	if err := e.svc.SetEmail(ctx, reg.User.ID, "неверный", "reader@example.org", e.freshIP()); !errors.Is(err, ErrWrongPassword) {
+		t.Fatalf("неверный пароль: %v", err)
+	}
+	if err := e.svc.SetEmail(ctx, reg.User.ID, "правильный пароль", "не почта", e.freshIP()); mustValidation(t, err)["email"] == "" {
+		t.Fatal("неверный формат почты должен вернуть ошибку поля email")
+	}
+
+	if err := e.svc.SetEmail(ctx, reg.User.ID, "правильный пароль", "Reader@Example.org", e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+	msg := mailer.wait(t)
+	if msg.To != "reader@example.org" {
+		t.Errorf("почта не приведена к нижнему регистру: %q", msg.To)
+	}
+	if !strings.Contains(msg.HTML, "/email-confirm?token=") {
+		t.Errorf("нет ссылки подтверждения: %s", msg.HTML)
+	}
+	token := strings.SplitN(msg.HTML, "/email-confirm?token=", 2)[1]
+	token = strings.SplitN(token, "\"", 2)[0]
+
+	var pending *string
+	_ = e.db.Raw("SELECT pending_email FROM users WHERE id = ?", reg.User.ID).Scan(&pending).Error
+	if pending == nil || *pending != "reader@example.org" {
+		t.Errorf("pending_email = %v", pending)
+	}
+
+	if err := e.svc.ConfirmEmail(ctx, "неверный-токен", e.freshIP()); !errors.Is(err, ErrEmailTokenInvalid) {
+		t.Fatalf("неверный токен: %v", err)
+	}
+	if err := e.svc.ConfirmEmail(ctx, token, e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+	var email *string
+	_ = e.db.Raw("SELECT email FROM users WHERE id = ?", reg.User.ID).Scan(&email).Error
+	if email == nil || *email != "reader@example.org" {
+		t.Errorf("email = %v", email)
+	}
+	_ = e.db.Raw("SELECT pending_email FROM users WHERE id = ?", reg.User.ID).Scan(&pending).Error
+	if pending != nil {
+		t.Errorf("pending_email должен очиститься: %v", pending)
+	}
+
+	// токен одноразовый
+	if err := e.svc.ConfirmEmail(ctx, token, e.freshIP()); !errors.Is(err, ErrEmailTokenInvalid) {
+		t.Fatalf("повторное использование токена: %v", err)
+	}
+}
+
+func TestSetEmailTakenByAnotherAccount(t *testing.T) {
+	e, mailer := newEnvWithMailer(t)
+	reg1 := e.register("first", "правильный пароль")
+	if err := e.svc.SetEmail(ctx, reg1.User.ID, "правильный пароль", "shared@example.org", e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+	token1 := extractToken(mailer.wait(t))
+	if err := e.svc.ConfirmEmail(ctx, token1, e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+
+	reg2 := e.register("second", "другой пароль")
+	if err := e.svc.SetEmail(ctx, reg2.User.ID, "другой пароль", "shared@example.org", e.freshIP()); err != nil {
+		t.Fatal(err) // на этапе запроса конфликт ещё не виден: письмо уходит на тот же адрес, что и есть суть проблемы
+	}
+	token2 := extractToken(mailer.wait(t))
+	if err := e.svc.ConfirmEmail(ctx, token2, e.freshIP()); !errors.Is(err, ErrEmailTaken) {
+		t.Fatalf("занятая почта: %v", err)
+	}
+}
+
+func extractToken(msg mail.Message) string {
+	token := strings.SplitN(msg.HTML, "/email-confirm?token=", 2)[1]
+	return strings.SplitN(token, "\"", 2)[0]
+}
+
+func TestRemoveEmail(t *testing.T) {
+	e, mailer := newEnvWithMailer(t)
+	reg := e.register("mailer2", "правильный пароль")
+	if err := e.svc.SetEmail(ctx, reg.User.ID, "правильный пароль", "reader2@example.org", e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+	token := extractToken(mailer.wait(t))
+	if err := e.svc.ConfirmEmail(ctx, token, e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := e.svc.RemoveEmail(ctx, reg.User.ID, "неверный", e.freshIP()); !errors.Is(err, ErrWrongPassword) {
+		t.Fatalf("неверный пароль: %v", err)
+	}
+	if err := e.svc.RemoveEmail(ctx, reg.User.ID, "правильный пароль", e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+	var email *string
+	_ = e.db.Raw("SELECT email FROM users WHERE id = ?", reg.User.ID).Scan(&email).Error
+	if email != nil {
+		t.Errorf("почта должна быть снята: %v", email)
+	}
+}
+
+func TestLevelUpSendsEmailOnlyWithConfirmedAddress(t *testing.T) {
+	e, mailer := newEnvWithMailer(t)
+	reg := e.register("levelmail", "правильный пароль")
+
+	// без почты вообще повышение письма не шлёт
+	if err := e.db.Exec("UPDATE users SET xp = ? WHERE id = ?", xp.Level2Threshold-xp.LoginXP-1, reg.User.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	e.clock.Advance(24 * time.Hour)
+	res, err := e.svc.Login(ctx, "levelmail", "правильный пароль", e.freshIP())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.LevelUp {
+		t.Fatal("ожидалось повышение уровня")
+	}
+	mailer.none(t)
+
+	// подтверждаем почту, доводим до следующего порога — письмо должно прийти
+	if err := e.svc.SetEmail(ctx, reg.User.ID, "правильный пароль", "reader3@example.org", e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+	token := extractToken(mailer.wait(t))
+	if err := e.svc.ConfirmEmail(ctx, token, e.freshIP()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.db.Exec("UPDATE users SET xp = ? WHERE id = ?", xp.Level3Threshold-xp.LoginXP-1, reg.User.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	e.clock.Advance(24 * time.Hour)
+	res, err = e.svc.Login(ctx, "levelmail", "правильный пароль", e.freshIP())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.LevelUp {
+		t.Fatal("ожидалось повышение уровня")
+	}
+	msg := mailer.wait(t)
+	if msg.To != "reader3@example.org" {
+		t.Errorf("письмо о повышении ушло не туда: %q", msg.To)
+	}
 }
 
 // ---------------------------------------------------------------- удаление аккаунта

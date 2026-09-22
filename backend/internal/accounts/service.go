@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
 	"gorm.io/gorm"
@@ -20,6 +21,7 @@ import (
 	"kupol/internal/audit"
 	"kupol/internal/config"
 	"kupol/internal/i18n"
+	"kupol/internal/mail"
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
 	"kupol/internal/xp"
@@ -95,17 +97,23 @@ type Options struct {
 	SecretKey []byte
 	// Now — часы; nil — настоящее время (подмена нужна только тестам).
 	Now func() time.Time
+	// Mailer — отправка писем (шаг 5.1.1); nil — почта выключена (SMTP не настроен), письма просто не шлются.
+	Mailer mail.Sender
+	// SiteOrigin — для ссылки подтверждения почты (origin + "/email-confirm?token=…"); пусто, если Mailer тоже пуст.
+	SiteOrigin string
 }
 
 // Service — вся логика аккаунтов. Безопасен для одновременного использования.
 type Service struct {
-	db      *gorm.DB
-	hasher  *passwords.Hasher
-	limiter *ratelimit.Limiter
-	limits  config.Limits
-	log     *slog.Logger
-	box     *secretBox
-	now     func() time.Time
+	db         *gorm.DB
+	hasher     *passwords.Hasher
+	limiter    *ratelimit.Limiter
+	limits     config.Limits
+	log        *slog.Logger
+	box        *secretBox
+	now        func() time.Time
+	mailer     mail.Sender
+	siteOrigin string
 }
 
 func NewService(o Options) (*Service, error) {
@@ -131,7 +139,22 @@ func NewService(o Options) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("accounts: %w", err)
 	}
-	return &Service{db: o.DB, hasher: o.Hasher, limiter: o.Limiter, limits: l, log: o.Log, box: box, now: now}, nil
+	return &Service{db: o.DB, hasher: o.Hasher, limiter: o.Limiter, limits: l, log: o.Log, box: box, now: now, mailer: o.Mailer, siteOrigin: o.SiteOrigin}, nil
+}
+
+// sendMail отправляет письмо в фоне (не блокирует запрос, который его вызвал) с собственным таймаутом, не зависящим
+// от контекста запроса — тот завершается сразу после ответа клиенту. Молчит, если почта не настроена (mailer == nil).
+func (s *Service) sendMail(msg mail.Message) {
+	if s.mailer == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		if err := s.mailer.Send(ctx, msg); err != nil {
+			s.log.Warn("почта: не удалось отправить", "to", msg.To, "err", err)
+		}
+	}()
 }
 
 // ---------------------------------------------------------------- лимиты входа
@@ -533,9 +556,21 @@ func (s *Service) LoginWithCode(ctx context.Context, login, password, code strin
 	}
 	if xpRes.Promoted {
 		s.log.Info("уровень повышен по XP", "user_id", user.ID, "level", xpRes.Level, "xp", xpRes.XP)
+		s.notifyLevelUp(ctx, user)
 	}
 	s.log.Info("вход выполнен", "user_id", user.ID, "ip", ci.IP)
 	return &AuthResult{User: *user, Token: token, ExpiresAt: expires, LevelUp: xpRes.Promoted}, nil
+}
+
+// notifyLevelUp шлёт письмо о повышении уровня, если у пользователя есть подтверждённая почта.
+func (s *Service) notifyLevelUp(ctx context.Context, user *User) {
+	if user.Email == nil {
+		return
+	}
+	l := i18n.From(ctx)
+	msg := mail.LevelUp(l, user.Login, user.LevelNameIn(l), user.Level)
+	msg.To = *user.Email
+	s.sendMail(msg)
 }
 
 // ---------------------------------------------------------------- действия вошедшего
@@ -597,6 +632,140 @@ func (s *Service) ChangePassword(ctx context.Context, userID, currentSessionID i
 	}
 	s.log.Info("пароль изменён", "user_id", user.ID, "ip", ci.IP)
 	return nil
+}
+
+// ---------------------------------------------------------------- почта (шаг 5.1.1, по желанию)
+
+const (
+	emailConfirmTTL      = 24 * time.Hour
+	emailChangesPerHour  = 3
+	emailConfirmsPerHour = 10 // переходов по ссылке подтверждения (защита от перебора чужих токенов)
+)
+
+var emailRe = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+
+func normalizeEmail(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+
+func validateEmail(s string) error {
+	if n := utf8.RuneCountInString(s); n < 3 || n > 254 {
+		return errors.New("от 3 до 254 знаков")
+	}
+	if !emailRe.MatchString(s) {
+		return errors.New("не похоже на адрес почты")
+	}
+	return nil
+}
+
+// SetEmail проверяет пароль и адрес, гасит прежние неподтверждённые ссылки этого пользователя и высылает новую —
+// почта становится действующей только после перехода по ней (ConfirmEmail). Ничего не меняет в users.email сразу:
+// иначе чужой ввёл бы чужой адрес и незаметно бы его "занял" до проверки.
+func (s *Service) SetEmail(ctx context.Context, userID int64, password, email string, ci ClientInfo) error {
+	var user User
+	if err := s.db.WithContext(ctx).Take(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNoSession
+		}
+		return err
+	}
+	email = normalizeEmail(email)
+	if err := validateEmail(email); err != nil {
+		return fieldError("email", err.Error())
+	}
+	if err := s.verifyOwnPassword(ctx, &user, password, ci); err != nil {
+		return err
+	}
+	if allowed, retry := s.limiter.Allow(fmt.Sprintf("email:set:%d", userID), emailChangesPerHour, time.Hour); !allowed {
+		return &RateLimitedError{RetryAfter: retry}
+	}
+
+	token, err := newToken()
+	if err != nil {
+		return err
+	}
+	now := s.now()
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&emailConfirmationRow{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&User{}).Where("id = ?", userID).Update("pending_email", email).Error; err != nil {
+			return err
+		}
+		row := emailConfirmationRow{UserID: userID, Email: email, TokenHash: hashToken(token), CreatedAt: now, ExpiresAt: now.Add(emailConfirmTTL)}
+		return tx.Create(&row).Error
+	})
+	if err != nil {
+		return err
+	}
+	l := i18n.From(ctx)
+	msg := mail.EmailConfirmation(l, user.Login, s.siteOrigin+"/email-confirm?token="+token)
+	msg.To = email
+	s.sendMail(msg)
+	s.log.Info("почта: запрошено подтверждение", "user_id", userID)
+	return nil
+}
+
+type emailConfirmationRow struct {
+	ID        int64 `gorm:"primaryKey"`
+	UserID    int64
+	Email     string
+	TokenHash []byte
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+func (emailConfirmationRow) TableName() string { return "email_confirmations" }
+
+// ConfirmEmail подтверждает почту по токену из письма; не требует входа — ссылку могут открыть в другом браузере.
+func (s *Service) ConfirmEmail(ctx context.Context, token string, ci ClientInfo) error {
+	if allowed, retry := s.limiter.Allow("email:confirm:"+ci.IP, emailConfirmsPerHour, time.Hour); !allowed {
+		return &RateLimitedError{RetryAfter: retry}
+	}
+	var row emailConfirmationRow
+	err := s.db.WithContext(ctx).Where("token_hash = ? AND expires_at > ?", hashToken(token), s.now()).Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrEmailTokenInvalid
+	}
+	if err != nil {
+		return err
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&User{}).Where("id = ?", row.UserID).Updates(map[string]any{"email": row.Email, "pending_email": nil})
+		if res.Error != nil {
+			if errors.Is(res.Error, gorm.ErrDuplicatedKey) {
+				return ErrEmailTaken
+			}
+			return res.Error
+		}
+		if err := tx.Where("user_id = ?", row.UserID).Delete(&emailConfirmationRow{}).Error; err != nil {
+			return err
+		}
+		return audit.Record(tx, s.now(), audit.EmailConfirmed, audit.Event{ActorID: &row.UserID, TargetUserID: &row.UserID})
+	})
+	if err != nil {
+		return err
+	}
+	s.log.Info("почта подтверждена", "user_id", row.UserID)
+	return nil
+}
+
+// RemoveEmail снимает подтверждённую и неподтверждённую почту (пароль подтверждает владельца).
+func (s *Service) RemoveEmail(ctx context.Context, userID int64, password string, ci ClientInfo) error {
+	var user User
+	if err := s.db.WithContext(ctx).Take(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNoSession
+		}
+		return err
+	}
+	if err := s.verifyOwnPassword(ctx, &user, password, ci); err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&emailConfirmationRow{}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&User{}).Where("id = ?", userID).Updates(map[string]any{"email": nil, "pending_email": nil}).Error
+	})
 }
 
 // DeleteAccount («сдать дело в архив») полностью удаляет аккаунт и всё, что с ним связано (сессии,

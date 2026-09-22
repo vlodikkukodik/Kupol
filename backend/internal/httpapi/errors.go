@@ -42,6 +42,9 @@ const (
 	CodeTOTPInvalid        = "totp_invalid"         // неверный, просроченный или уже использованный код
 	CodeTOTPAlreadyEnabled = "totp_already_enabled" // код из приложения уже включён
 	CodeTOTPNotEnabled     = "totp_not_enabled"     // код из приложения не включён (или подключение не начато)
+
+	CodeEmailTaken        = "email_taken"         // почта уже подтверждена другим аккаунтом
+	CodeEmailTokenInvalid = "email_token_invalid" // ссылка подтверждения недействительна, устарела или уже использована
 )
 
 type ErrorBody struct {

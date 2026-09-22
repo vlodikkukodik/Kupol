@@ -1,12 +1,14 @@
 package httpapi_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -15,6 +17,7 @@ import (
 	"kupol/internal/config"
 	"kupol/internal/documents"
 	"kupol/internal/httpapi"
+	"kupol/internal/mail"
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
 	"kupol/internal/testutil"
@@ -34,7 +37,35 @@ type stack struct {
 	clients int
 }
 
-func newStack(t *testing.T, tweak func(*config.Config)) *stack {
+func newStack(t *testing.T, tweak func(*config.Config)) *stack { return newStackOpts(t, tweak, nil) }
+
+// fakeMailer — записывает письма вместо настоящей отправки (accounts.Service шлёт их в горутине, поэтому wait ждёт).
+type fakeMailer struct{ ch chan mail.Message }
+
+func newFakeMailer() *fakeMailer { return &fakeMailer{ch: make(chan mail.Message, 10)} }
+
+func (f *fakeMailer) Send(_ context.Context, msg mail.Message) error {
+	f.ch <- msg
+	return nil
+}
+
+func (f *fakeMailer) wait(t *testing.T) mail.Message {
+	t.Helper()
+	select {
+	case m := <-f.ch:
+		return m
+	case <-time.After(2 * time.Second):
+		t.Fatal("письмо не отправлено")
+		return mail.Message{}
+	}
+}
+
+func newStackWithMailer(t *testing.T) (*stack, *fakeMailer) {
+	m := newFakeMailer()
+	return newStackOpts(t, nil, m), m
+}
+
+func newStackOpts(t *testing.T, tweak func(*config.Config), mailer mail.Sender) *stack {
 	t.Helper()
 	cfg := config.Config{
 		Env:         "dev",
@@ -51,7 +82,10 @@ func newStack(t *testing.T, tweak func(*config.Config)) *stack {
 		t.Fatal(err)
 	}
 	limiter := ratelimit.New(nil)
-	svc, err := accounts.NewService(accounts.Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: testutil.Logger(), SecretKey: cfg.ProxySecret})
+	svc, err := accounts.NewService(accounts.Options{
+		DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: testutil.Logger(), SecretKey: cfg.ProxySecret,
+		Mailer: mailer, SiteOrigin: cfg.SiteOrigin,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

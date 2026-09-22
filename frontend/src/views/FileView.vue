@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ChangePasswordForm from '@/components/ChangePasswordForm.vue'
 import DeleteAccountForm from '@/components/DeleteAccountForm.vue'
+import EmailPanel from '@/components/EmailPanel.vue'
 import TotpPanel from '@/components/TotpPanel.vue'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
@@ -104,6 +105,11 @@ async function logout() {
         <UiSheet as="section" aria-labelledby="pw-title">
           <h2 id="pw-title">{{ $t('file.passwordTitle') }}</h2>
           <ChangePasswordForm />
+        </UiSheet>
+
+        <UiSheet as="section" aria-labelledby="email-title">
+          <h2 id="email-title">{{ $t('file.emailTitle') }}</h2>
+          <EmailPanel />
         </UiSheet>
 
         <UiSheet as="section" aria-labelledby="totp-title">

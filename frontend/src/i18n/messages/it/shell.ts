@@ -96,6 +96,7 @@ export default {
     teamMembers: 'Squadra',
     backupCode: 'Codice di riserva',
     restore: "Ripristino dell'accesso",
+    emailConfirm: 'Conferma della posta',
     notFound: 'Fascicolo non trovato',
   },
 

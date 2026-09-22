@@ -40,6 +40,17 @@ func DefaultLimits() Limits {
 	}
 }
 
+// SMTP — настройки почты для писем читателям (подтверждение адреса, уведомления). Пустой Host — почта выключена:
+// вызывающий код (accounts.Service) должен сам это проверять и просто не отправлять письмо.
+type SMTP struct {
+	Host, Port         string
+	Username, Password string
+	From, FromName     string
+}
+
+// Enabled — задан ли SMTP-сервер.
+func (s SMTP) Enabled() bool { return s.Host != "" }
+
 type Config struct {
 	Env            string // "dev" | "prod"
 	LogLevel       slog.Level
@@ -51,6 +62,7 @@ type Config struct {
 	// принимаются только с этим Origin (защита от CSRF).
 	SiteOrigin string
 	Limits     Limits
+	SMTP       SMTP
 }
 
 func (c Config) IsProd() bool { return c.Env == "prod" }
@@ -137,6 +149,23 @@ func load(get func(string) string) (Config, error) {
 			continue
 		}
 		*l.dst = n
+	}
+
+	c.SMTP = SMTP{
+		Host:     strings.TrimSpace(get("KUPOL_SMTP_HOST")),
+		Port:     orDefault(strings.TrimSpace(get("KUPOL_SMTP_PORT")), "587"),
+		Username: get("KUPOL_SMTP_USERNAME"),
+		Password: get("KUPOL_SMTP_PASSWORD"),
+		From:     strings.TrimSpace(get("KUPOL_SMTP_FROM")),
+		FromName: orDefault(strings.TrimSpace(get("KUPOL_SMTP_FROM_NAME")), "КУПОЛ"),
+	}
+	if c.SMTP.Enabled() {
+		if _, err := strconv.Atoi(c.SMTP.Port); err != nil {
+			fail("KUPOL_SMTP_PORT: ожидается номер порта, получено %q", c.SMTP.Port)
+		}
+		if c.SMTP.From == "" {
+			fail("KUPOL_SMTP_FROM: не задан (нужен вместе с KUPOL_SMTP_HOST)")
+		}
 	}
 
 	return c, errors.Join(errs...)

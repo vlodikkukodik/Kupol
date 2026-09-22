@@ -288,6 +288,11 @@ export interface UserDTO {
    * NextLevelXP — сколько XP нужно для следующего уровня; 0 — дальше только решением Особого Совета.
    */
   next_level_xp: number /* int */;
+  /**
+   * Email — подтверждённая почта (шаг 5.1.1, по желанию); PendingEmail — указана, но ссылка ещё не открыта.
+   */
+  email?: string;
+  pending_email?: string;
 }
 export interface RegisterRequest {
   login: string;
@@ -315,6 +320,13 @@ export interface ChangePasswordRequest {
 }
 export interface DeleteAccountRequest {
   password: string;
+}
+export interface SetEmailRequest {
+  password: string;
+  email: string;
+}
+export interface ConfirmEmailRequest {
+  token: string;
 }
 
 //////////
@@ -436,6 +448,14 @@ export const CodeTOTPAlreadyEnabled = "totp_already_enabled"; // код из п�
  * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
  */
 export const CodeTOTPNotEnabled = "totp_not_enabled"; // код из приложения не включён (или подключение не начато)
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeEmailTaken = "email_taken"; // почта уже подтверждена другим аккаунтом
+/**
+ * Коды ошибок API. Фронтенд ориентируется на code, а не на текст.
+ */
+export const CodeEmailTokenInvalid = "email_token_invalid"; // ссылка подтверждения недействительна, устарела или уже использована
 export interface ErrorBody {
   error: ErrorDetail;
 }

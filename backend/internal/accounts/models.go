@@ -24,6 +24,11 @@ type User struct {
 	LoginStreak int        `gorm:"column:login_streak"`
 	LastXPDay   *time.Time `gorm:"column:last_xp_day"`
 
+	// Email — подтверждённая почта (шаг 5.1.1: по желанию, спецификация «без почты» смягчена — пишем письма-уведомления,
+	// вход по-прежнему только по логину и паролю). PendingEmail — указан, но ссылку подтверждения ещё не открыли.
+	Email        *string `gorm:"column:email"`
+	PendingEmail *string `gorm:"column:pending_email"`
+
 	// Код из приложения (TOTP): секреты хранятся зашифрованными, наружу не выходят (см. totp.go).
 	TOTPPending   []byte     `gorm:"column:totp_pending"`
 	TOTPSecret    []byte     `gorm:"column:totp_secret"`

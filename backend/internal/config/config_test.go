@@ -30,6 +30,36 @@ func TestLoadDefaults(t *testing.T) {
 	if len(c.ProxySecret) != 32 {
 		t.Fatalf("секрет: %d байт", len(c.ProxySecret))
 	}
+	if c.SMTP.Enabled() {
+		t.Errorf("без KUPOL_SMTP_HOST почта должна быть выключена: %+v", c.SMTP)
+	}
+}
+
+func TestSMTP(t *testing.T) {
+	base := validEnv()
+	base["KUPOL_SMTP_HOST"] = "smtp.example.org"
+	base["KUPOL_SMTP_FROM"] = "kupol@example.org"
+	c, err := load(env(base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.SMTP.Enabled() || c.SMTP.Port != "587" || c.SMTP.From != "kupol@example.org" || c.SMTP.FromName != "КУПОЛ" {
+		t.Fatalf("SMTP по умолчанию: %+v", c.SMTP)
+	}
+
+	withoutFrom := validEnv()
+	withoutFrom["KUPOL_SMTP_HOST"] = "smtp.example.org"
+	if _, err := load(env(withoutFrom)); err == nil || !strings.Contains(err.Error(), "KUPOL_SMTP_FROM") {
+		t.Fatalf("без KUPOL_SMTP_FROM ожидалась ошибка: %v", err)
+	}
+
+	badPort := validEnv()
+	badPort["KUPOL_SMTP_HOST"] = "smtp.example.org"
+	badPort["KUPOL_SMTP_FROM"] = "kupol@example.org"
+	badPort["KUPOL_SMTP_PORT"] = "not-a-port"
+	if _, err := load(env(badPort)); err == nil || !strings.Contains(err.Error(), "KUPOL_SMTP_PORT") {
+		t.Fatalf("неверный порт: ожидалась ошибка: %v", err)
+	}
 }
 
 func TestLoadCollectsAllErrors(t *testing.T) {

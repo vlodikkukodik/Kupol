@@ -490,3 +490,31 @@ test('неверный пароль: сообщение одинаково дл�
   await expect(page.getByRole('alert')).toBeVisible()
   expect(await page.getByRole('alert').innerText()).toBe(known)
 })
+
+test('почта в личном деле: добавление ждёт подтверждения, снять можно сразу; ссылка с неверным кодом — понятная ошибка', async ({ page }) => {
+  const name = uniq()
+  await register(page, name)
+  await acknowledgeCode(page)
+
+  await expect(page.getByTestId('email-state')).toHaveText('Почта не указана.')
+  await page.getByTestId('email-add').click()
+  const setDialog = page.getByRole('dialog', { name: 'Указать почту' })
+  await setDialog.getByLabel('Почта').fill('reader@example.org')
+  await setDialog.getByLabel('Пароль', { exact: true }).fill(PASSWORD)
+  await page.getByTestId('email-submit').click()
+
+  await expect(page.getByTestId('email-notice')).toContainText('Письмо отправлено')
+  await expect(page.getByTestId('email-state')).toHaveText('Ожидает подтверждения: reader@example.org')
+
+  // сервер в dev-стеке без SMTP не отправляет письмо по-настоящему — саму ссылку не проверить без почтового ящика,
+  // но экран подтверждения на неверном коде обязан понятно сообщить об этом (нет SMTP в e2e — почта на бою настраивается отдельно)
+  await page.goto('/email-confirm?token=неверный-код-подтверждения')
+  await expect(page.getByTestId('email-confirm-failed')).toBeVisible()
+
+  await page.goto('/file')
+  await page.getByTestId('email-remove').click()
+  await page.getByRole('dialog', { name: 'Снять почту' }).getByLabel('Пароль', { exact: true }).fill(PASSWORD)
+  await page.getByTestId('email-remove-submit').click()
+  await expect(page.getByTestId('email-notice')).toContainText('Почта снята')
+  await expect(page.getByTestId('email-state')).toHaveText('Почта не указана.')
+})

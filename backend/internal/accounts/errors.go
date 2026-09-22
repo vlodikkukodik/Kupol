@@ -19,6 +19,10 @@ var (
 	ErrNoSession = errors.New("accounts: нет действующей сессии")
 	// ErrUserNotFound — пользователя с таким логином нет (административные операции).
 	ErrUserNotFound = errors.New("accounts: пользователь не найден")
+	// ErrEmailTaken — почта уже подтверждена другим аккаунтом.
+	ErrEmailTaken = errors.New("accounts: почта занята")
+	// ErrEmailTokenInvalid — ссылка подтверждения недействительна, устарела или уже использована.
+	ErrEmailTokenInvalid = errors.New("accounts: ссылка подтверждения недействительна или устарела")
 )
 
 // ValidationError — ошибки в полях формы; ключ — имя поля в JSON.

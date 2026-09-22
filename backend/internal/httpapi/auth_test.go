@@ -596,3 +596,43 @@ func TestCaptchaEndpoint(t *testing.T) {
 		t.Errorf("за 40 запросов только %d разных вопросов", len(seen))
 	}
 }
+
+func TestEmailSetConfirmAndRemove(t *testing.T) {
+	st, mailer := newStackWithMailer(t)
+	c := st.newClient(t)
+	c.register("mailclient", "правильный пароль")
+
+	// неверный пароль
+	want(t, c.do("PUT", "/api/me/email", map[string]any{"password": "неверный", "email": "reader@example.org"}), 403, "wrong_password")
+
+	r := c.do("PUT", "/api/me/email", map[string]any{"password": "правильный пароль", "email": "Reader@Example.org"})
+	want(t, r, 204, "")
+
+	msg := mailer.wait(t)
+	if msg.To != "reader@example.org" {
+		t.Fatalf("почта: %q", msg.To)
+	}
+	if !strings.Contains(msg.HTML, testOrigin+"/email-confirm?token=") {
+		t.Fatalf("нет ссылки с нужным origin: %s", msg.HTML)
+	}
+	session := c.do("GET", "/api/auth/session", nil).json()["user"].(map[string]any)
+	if session["pending_email"] != "reader@example.org" {
+		t.Fatalf("pending_email в сессии: %v", session["pending_email"])
+	}
+
+	token := strings.SplitN(strings.SplitN(msg.HTML, "/email-confirm?token=", 2)[1], "\"", 2)[0]
+	confirm := c.do("POST", "/api/auth/email/confirm", map[string]any{"token": "не тот"})
+	want(t, confirm, 422, "email_token_invalid")
+
+	want(t, c.do("POST", "/api/auth/email/confirm", map[string]any{"token": token}), 204, "")
+	session = c.do("GET", "/api/auth/session", nil).json()["user"].(map[string]any)
+	if session["email"] != "reader@example.org" || session["pending_email"] != nil {
+		t.Fatalf("после подтверждения: %v", session)
+	}
+
+	want(t, c.do("DELETE", "/api/me/email", map[string]any{"password": "правильный пароль"}), 204, "")
+	session = c.do("GET", "/api/auth/session", nil).json()["user"].(map[string]any)
+	if session["email"] != nil {
+		t.Fatalf("почта должна быть снята: %v", session["email"])
+	}
+}

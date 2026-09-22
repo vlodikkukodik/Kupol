@@ -29,6 +29,7 @@ import (
 	"kupol/internal/documents"
 	"kupol/internal/httpapi"
 	"kupol/internal/logging"
+	"kupol/internal/mail"
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
 	"kupol/internal/version"
@@ -44,7 +45,16 @@ func newAccounts(cfg config.Config, db *gorm.DB, log *slog.Logger) (*accounts.Se
 		return nil, nil, err
 	}
 	limiter := ratelimit.New(nil)
-	svc, err := accounts.NewService(accounts.Options{DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: log, SecretKey: cfg.ProxySecret})
+	var sender mail.Sender
+	if cfg.SMTP.Enabled() {
+		sender = mail.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.FromName)
+	} else {
+		log.Info("почта выключена: не задан KUPOL_SMTP_HOST")
+	}
+	svc, err := accounts.NewService(accounts.Options{
+		DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: log, SecretKey: cfg.ProxySecret,
+		Mailer: sender, SiteOrigin: cfg.SiteOrigin,
+	})
 	if err != nil {
 		return nil, nil, err
 	}

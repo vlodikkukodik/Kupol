@@ -25,6 +25,7 @@ import type {
   CaptchaResponse,
   ChangePasswordRequest,
   CommentResponse,
+  ConfirmEmailRequest,
   CreateDocumentRequest,
   DashboardResponse,
   DiffResponse,
@@ -46,6 +47,7 @@ import type {
   ReviewResponse,
   SaveDocumentRequest,
   SessionResponse,
+  SetEmailRequest,
   SiteResponse,
   SiteSettingsResponse,
   SubmitRequest,
@@ -87,6 +89,10 @@ export const authApi = {
   logout: () => api.post<null>('/auth/logout'),
   changePassword: (body: ChangePasswordRequest) => api.post<null>('/me/password', body),
   deleteAccount: (password: string) => api.delete<null>('/me', { password }),
+  setEmail: (body: SetEmailRequest) => api.put<null>('/me/email', body),
+  removeEmail: (password: string) => api.delete<null>('/me/email', { password }),
+  /** Переход по ссылке из письма подтверждения; входа не требует. */
+  confirmEmail: (body: ConfirmEmailRequest) => api.post<null>('/auth/email/confirm', body),
 }
 
 /** Код из приложения (TOTP) в личном деле: включается по желанию, все действия подтверждаются паролем. */

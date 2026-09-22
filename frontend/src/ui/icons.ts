@@ -46,6 +46,7 @@ export const ICONS = {
   columns: 'M6 4h5v16H6zM13 4h5v16h-5z',
   download: 'M12 4v11M7.5 10.5L12 15l4.5-4.5M5 20h14',
   upload: 'M12 15V4M7.5 8.5L12 4l4.5 4.5M5 20h14',
+  mail: 'M4 6h16v12H4zM4 7l8 6 8-6',
 } as const
 
 export type IconName = keyof typeof ICONS

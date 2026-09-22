@@ -57,6 +57,8 @@ const (
 	TOTPRecoveryUsed Action = "account.totp_recovery_used" // вход по одноразовому коду вместо кода из приложения
 
 	LevelPromoted Action = "account.level_promoted" // уровень поднялся автоматически по XP (1→2 или 2→3)
+
+	EmailConfirmed Action = "account.email_confirmed" // почта подтверждена по ссылке из письма
 )
 
 var titles = map[Action]string{
@@ -98,6 +100,8 @@ var titles = map[Action]string{
 	TOTPRecoveryUsed: "Вход по одноразовому коду",
 
 	LevelPromoted: "Уровень повышен по XP",
+
+	EmailConfirmed: "Почта подтверждена",
 }
 
 // Title — название события для людей; для неизвестного — само машинное имя.

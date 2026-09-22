@@ -96,6 +96,7 @@ export default {
     teamMembers: 'Команда',
     backupCode: 'Резервный код',
     restore: 'Восстановление доступа',
+    emailConfirm: 'Подтверждение почты',
     notFound: 'Дело не найдено',
   },
 

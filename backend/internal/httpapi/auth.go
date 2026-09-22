@@ -42,6 +42,9 @@ type UserDTO struct {
 	LoginStreak int `json:"login_streak"`
 	// NextLevelXP — сколько XP нужно для следующего уровня; 0 — дальше только решением Особого Совета.
 	NextLevelXP int `json:"next_level_xp"`
+	// Email — подтверждённая почта (шаг 5.1.1, по желанию); PendingEmail — указана, но ссылка ещё не открыта.
+	Email        *string `json:"email,omitempty"`
+	PendingEmail *string `json:"pending_email,omitempty"`
 }
 
 func toUserDTO(u accounts.User, lang i18n.Lang) UserDTO {
@@ -61,6 +64,8 @@ func toUserDTO(u accounts.User, lang i18n.Lang) UserDTO {
 		XP:           u.XP,
 		LoginStreak:  u.LoginStreak,
 		NextLevelXP:  u.NextLevelXP(),
+		Email:        u.Email,
+		PendingEmail: u.PendingEmail,
 	}
 }
 
@@ -105,6 +110,10 @@ func (h *authHandlers) fail(c *gin.Context, err error, invalidCredentialsMsg str
 		FailFields(c, http.StatusForbidden, CodeWrongPassword, "Неверный пароль", map[string]string{"current_password": "Неверный пароль"})
 	case errors.Is(err, accounts.ErrNoSession):
 		Fail(c, http.StatusUnauthorized, CodeUnauthenticated, "Требуется вход")
+	case errors.Is(err, accounts.ErrEmailTaken):
+		FailFields(c, http.StatusConflict, CodeEmailTaken, "Эта почта уже подтверждена другим аккаунтом", map[string]string{"email": "Эта почта уже подтверждена другим аккаунтом"})
+	case errors.Is(err, accounts.ErrEmailTokenInvalid):
+		Fail(c, http.StatusUnprocessableEntity, CodeEmailTokenInvalid, "Ссылка подтверждения недействительна или устарела")
 	default:
 		h.log.Error("ошибка обработчика аккаунтов", "err", err, "path", c.Request.URL.Path, "request_id", RequestID(c))
 		Fail(c, http.StatusInternalServerError, CodeInternal, "Сбой архива")
@@ -253,5 +262,55 @@ func (h *authHandlers) deleteAccount(c *gin.Context) {
 		return
 	}
 	clearSessionCookie(c, h.secure)
+	c.Status(http.StatusNoContent)
+}
+
+type SetEmailRequest struct {
+	Password string `json:"password"`
+	Email    string `json:"email"`
+}
+
+// PUT /api/me/email — указать или сменить почту; становится действующей после перехода по ссылке из письма.
+func (h *authHandlers) setEmail(c *gin.Context) {
+	var req SetEmailRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	a := CurrentAuth(c)
+	if err := h.svc.SetEmail(c.Request.Context(), a.User.ID, req.Password, req.Email, clientInfo(c)); err != nil {
+		h.fail(c, err, "")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// DELETE /api/me/email — снять почту (подтверждённую и/или ожидающую подтверждения).
+func (h *authHandlers) removeEmail(c *gin.Context) {
+	var req DeleteAccountRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	a := CurrentAuth(c)
+	if err := h.svc.RemoveEmail(c.Request.Context(), a.User.ID, req.Password, clientInfo(c)); err != nil {
+		h.fail(c, err, "")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type ConfirmEmailRequest struct {
+	Token string `json:"token"`
+}
+
+// POST /api/auth/email/confirm — переход по ссылке из письма; входа не требует (ссылку могут открыть в другом браузере).
+func (h *authHandlers) confirmEmail(c *gin.Context) {
+	var req ConfirmEmailRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := h.svc.ConfirmEmail(c.Request.Context(), req.Token, clientInfo(c)); err != nil {
+		h.fail(c, err, "")
+		return
+	}
 	c.Status(http.StatusNoContent)
 }

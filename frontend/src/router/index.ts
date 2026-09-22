@@ -67,6 +67,7 @@ export const routes: RouteRecordRaw[] = [
   },
   { path: '/backup-code', name: 'backup-code', component: () => import('@/views/BackupCodeView.vue'), meta: { title: 'title.backupCode', needsApi: true, requiresAuth: true } },
   { path: '/restore', name: 'restore', component: () => import('@/views/RestoreView.vue'), meta: { title: 'title.restore', needsApi: true, guestOnly: true } },
+  { path: '/email-confirm', name: 'email-confirm', component: () => import('@/views/EmailConfirmView.vue'), meta: { title: 'title.emailConfirm', needsApi: true } },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue'), meta: { title: 'title.notFound', needsApi: false } },
 ]
 
