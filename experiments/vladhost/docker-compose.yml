@@ -1,0 +1,21 @@
+# Локальная разработка: PostgreSQL на порту 5433 (5432 занят соседним проектом).
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vladhost
+      POSTGRES_PASSWORD: vladhost
+      POSTGRES_DB: vladhost
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - vladhost-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vladhost -d vladhost"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  vladhost-pgdata:

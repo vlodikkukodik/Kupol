@@ -1,0 +1,9 @@
+[Unit]
+Description=Vladhost — заявки на сертификаты
+
+[Path]
+DirectoryNotEmpty=/var/lib/vladhost/certs/queue
+Unit=vladhost-certs.service
+
+[Install]
+WantedBy=multi-user.target

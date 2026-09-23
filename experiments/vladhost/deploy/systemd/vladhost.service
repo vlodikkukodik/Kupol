@@ -1,0 +1,27 @@
+[Unit]
+Description=Vladhost — панель и API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=vladhost
+Group=vladhost
+EnvironmentFile=/etc/vladhost/env
+ExecStart=/opt/vladhost/bin/vladhost serve
+Restart=on-failure
+RestartSec=3
+
+# Панель не root и почти ничего не может писать: только файлы сайтов и свою папку заявок.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/data/vladhost /var/lib/vladhost/certs/queue
+
+[Install]
+WantedBy=multi-user.target

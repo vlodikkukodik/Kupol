@@ -1,0 +1,7 @@
+ACCESS.md
+.env
+node_modules/
+dist/
+bin/
+test-results/
+playwright-report/
