@@ -43,6 +43,13 @@ export const siteSchema = z.object({
   // none — выпуск сертификатов выключен (локальная разработка).
   cert_status: z.enum(['none', 'pending', 'active', 'failed']),
   cert_error: z.string(),
+  ftp: z.object({
+    available: z.boolean(), // FTP включён на сервере
+    enabled: z.boolean(), // у сайта выдан доступ
+    host: z.string().optional(),
+    port: z.number().optional(),
+    username: z.string().optional(),
+  }),
 })
 export type Site = z.infer<typeof siteSchema>
 
@@ -51,6 +58,8 @@ export const sitesSchema = z.object({
   limits: z.object({ max_sites: z.number(), disk_quota_bytes: z.number() }),
 })
 export const siteResponseSchema = z.object({ site: siteSchema })
+// Ответ выдачи FTP: пароль есть только здесь и показывается один раз.
+export const ftpGrantSchema = z.object({ site: siteSchema, password: z.string() })
 
 export const siteForm = z.object({
   slug: z

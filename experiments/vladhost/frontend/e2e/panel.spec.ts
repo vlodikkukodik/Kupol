@@ -18,8 +18,13 @@ test('приглашение → регистрация → сайт → деп�
   await login(page, adminName, adminPass)
   await expect(page.getByText(`Здравствуйте, ${adminName}`)).toBeVisible()
   await page.getByText('Настройки', { exact: true }).click()
+  // В списке лежат и старые инвайты прошлых прогонов: ждём, пока появится новый, а не читаем первую строку.
+  const codes = page.locator('td code')
+  await expect(page.getByRole('button', { name: 'Создать инвайт (7 дней)' })).toBeEnabled()
+  const before = await codes.count()
   await page.getByRole('button', { name: 'Создать инвайт (7 дней)' }).click()
-  const code = (await page.locator('td code').first().innerText()).trim()
+  await expect(codes).toHaveCount(before + 1)
+  const code = (await codes.first().innerText()).trim()
   expect(code.length).toBeGreaterThan(10)
 
   // Новый пользователь регистрируется в отдельном контексте (свои cookie).
@@ -73,6 +78,26 @@ test('приглашение → регистрация → сайт → деп�
   await expect(p.getByText('опубликован')).toBeVisible()
   const pub = `/tmp/vh-e2e-sites/${host}/public`
   expect(readFileSync(`${pub}/index.html`, 'utf8')).toBe('<h1>Привет</h1>')
+
+  // FTP: выдача пароля (виден один раз), смена, отключение.
+  await p.getByRole('button', { name: 'Включить FTP' }).click()
+  const dialog = p.getByRole('dialog')
+  await expect(dialog.getByText('Доступ по FTP')).toBeVisible()
+  await expect(dialog.locator('code', { hasText: `blog.${user}` })).toBeVisible()
+  const ftpPassword = (await dialog.getByTestId('ftp-password').innerText()).trim()
+  expect(ftpPassword).toMatch(/^[A-Za-z0-9]{20}$/)
+  await p.keyboard.press('Escape')
+  await expect(p.getByText(`логин blog.${user}`)).toBeVisible()
+  await expect(p.getByText(ftpPassword)).toHaveCount(0) // после закрытия пароль нигде не виден
+  await p.reload()
+  await expect(p.getByText(ftpPassword)).toHaveCount(0) // и не возвращается с сервера
+  await p.getByRole('button', { name: 'Новый FTP-пароль' }).click()
+  await p.getByRole('button', { name: 'Подтвердить' }).click()
+  const newPassword = (await p.getByRole('dialog').getByTestId('ftp-password').innerText()).trim()
+  expect(newPassword).not.toBe(ftpPassword)
+  await p.keyboard.press('Escape')
+  await p.getByRole('button', { name: 'Отключить FTP' }).click()
+  await expect(p.getByRole('button', { name: 'Включить FTP' })).toBeVisible()
 
   // Файлы: открыть index.html и изменить в CodeMirror.
   await p.getByRole('button', { name: 'Файлы' }).click()

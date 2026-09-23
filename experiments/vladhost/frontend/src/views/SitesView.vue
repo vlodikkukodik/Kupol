@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { NAlert, NButton, NCard, NEmpty, NForm, NFormItem, NInput, NPopconfirm, NProgress, NSpace, NTag, useMessage } from 'naive-ui'
+import { NAlert, NButton, NCard, NEmpty, NForm, NFormItem, NInput, NModal, NPopconfirm, NProgress, NSpace, NTag, useMessage } from 'naive-ui'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '@/api/client'
-import { fieldErrors, siteForm, siteResponseSchema, sitesSchema, type Site } from '@/api/schemas'
+import { fieldErrors, ftpGrantSchema, siteForm, siteResponseSchema, sitesSchema, type Site } from '@/api/schemas'
 import { formatBytes } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth'
 
@@ -99,6 +99,43 @@ async function retryCert(site: Site) {
   }
 }
 
+// Выданный FTP-пароль: показывается один раз, на сервере остаётся только хеш.
+const grant = ref<{ site: Site; password: string } | null>(null)
+
+async function enableFtp(site: Site) {
+  busyId.value = site.id
+  try {
+    const r = await api(`/api/sites/${site.id}/ftp`, { method: 'POST', schema: ftpGrantSchema })
+    grant.value = { site: r.site, password: r.password }
+    await load()
+  } catch (e) {
+    message.error(errText(e, 'Не удалось включить FTP'))
+  } finally {
+    busyId.value = null
+  }
+}
+
+async function disableFtp(site: Site) {
+  busyId.value = site.id
+  try {
+    await api(`/api/sites/${site.id}/ftp`, { method: 'DELETE', schema: siteResponseSchema })
+    await load()
+  } catch (e) {
+    message.error(errText(e, 'Не удалось отключить FTP'))
+  } finally {
+    busyId.value = null
+  }
+}
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    message.success('Скопировано')
+  } catch {
+    message.error('Не удалось скопировать — выделите текст вручную')
+  }
+}
+
 async function remove(site: Site) {
   busyId.value = site.id
   try {
@@ -158,6 +195,23 @@ onBeforeUnmount(() => clearInterval(poll))
         <template v-if="s.deployed_at">Обновлён {{ fmtDate(s.deployed_at) }}, {{ formatBytes(s.disk_bytes) }}</template>
         <template v-else>Загрузите zip с index.html в корне архива</template>
       </div>
+      <div v-if="s.ftp.available" class="ftp">
+        <template v-if="s.ftp.enabled">
+          <div class="muted">
+            FTPS: <code>{{ s.ftp.host }}</code>, порт <code>{{ s.ftp.port }}</code>, логин <code>{{ s.ftp.username }}</code>
+          </div>
+          <n-space class="actions">
+            <n-popconfirm @positive-click="enableFtp(s)">
+              <template #trigger>
+                <n-button size="tiny" :disabled="busyId === s.id">Новый FTP-пароль</n-button>
+              </template>
+              Выдать новый пароль? Старый перестанет работать, открытые FTP-сессии закроются.
+            </n-popconfirm>
+            <n-button size="tiny" quaternary type="error" :disabled="busyId === s.id" @click="disableFtp(s)">Отключить FTP</n-button>
+          </n-space>
+        </template>
+        <n-button v-else size="tiny" :loading="busyId === s.id" @click="enableFtp(s)">Включить FTP</n-button>
+      </div>
       <n-space class="actions">
         <n-button size="small" type="primary" :loading="busyId === s.id" tag="label">
           Загрузить zip
@@ -172,6 +226,31 @@ onBeforeUnmount(() => clearInterval(poll))
         </n-popconfirm>
       </n-space>
     </n-card>
+
+    <n-modal :show="grant !== null" preset="card" title="Доступ по FTP" style="max-width: 460px" @update:show="grant = null">
+      <template v-if="grant">
+        <p class="note">Пароль показывается один раз — сохраните его сейчас. Потерянный пароль можно заменить новым.</p>
+        <dl class="creds">
+          <dt>Сервер</dt>
+          <dd><code>{{ grant.site.ftp.host }}</code></dd>
+          <dt>Порт</dt>
+          <dd><code>{{ grant.site.ftp.port }}</code></dd>
+          <dt>Логин</dt>
+          <dd>
+            <code>{{ grant.site.ftp.username }}</code>
+            <n-button size="tiny" quaternary @click="copyText(grant.site.ftp.username ?? '')">Копировать</n-button>
+          </dd>
+          <dt>Пароль</dt>
+          <dd>
+            <code data-testid="ftp-password">{{ grant.password }}</code>
+            <n-button size="tiny" quaternary @click="copyText(grant.password)">Копировать</n-button>
+          </dd>
+        </dl>
+        <p class="note">
+          Подключение: FTPS (явный TLS, «FTP поверх TLS»), пассивный режим. Обычный FTP без шифрования сервер не принимает.
+        </p>
+      </template>
+    </n-modal>
 
     <n-empty v-if="!loading && !sites.length" description="Сайтов пока нет" class="gap" />
 
@@ -199,5 +278,10 @@ h2 { margin: 0 0 16px; }
 .gap { margin-bottom: 16px; }
 .muted { opacity: 0.7; font-size: 13px; margin-top: 8px; }
 .actions { margin-top: 12px; }
+.ftp { margin-top: 12px; }
+.note { font-size: 13px; opacity: 0.8; }
+.creds { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 12px 0; }
+.creds dt { opacity: 0.7; }
+.creds dd { margin: 0; display: flex; align-items: center; gap: 8px; word-break: break-all; }
 .file { display: none; }
 </style>

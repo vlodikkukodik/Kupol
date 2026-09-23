@@ -29,7 +29,7 @@ dev-front: ## Запустить Vite (проксирует /api на бэкен
 	cd frontend && npm run dev
 
 build: ## Собрать бинарь (linux/amd64, как на VPS) и фронтенд
-	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o ../bin/vladhost ./cmd/vladhost
+	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../bin/vladhost ./cmd/vladhost
 	cd frontend && npm run build
 
 test-back: db-up ## Тесты и линтер бэкенда (нужна БД)

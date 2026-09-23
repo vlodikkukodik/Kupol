@@ -52,4 +52,15 @@ EOF
     chmod 0640 /etc/vladhost/env
 fi
 
+# --- FTP (добавлено в фазе 5): настройки дописываются к существующему env, если их ещё нет ---
+install -d -o root -g vladhost -m 0750 /etc/vladhost/ftp
+grep -q '^VLADHOST_FTP_ADDR=' /etc/vladhost/env || cat >>/etc/vladhost/env <<'EOF'
+VLADHOST_FTP_ADDR=:2121
+VLADHOST_FTP_HOST=ftp.vladinc.ru
+VLADHOST_FTP_PUBLIC_IP=37.153.70.33
+VLADHOST_FTP_PASSIVE_PORTS=50000-50100
+VLADHOST_FTP_CERT=/etc/vladhost/ftp/fullchain.pem
+VLADHOST_FTP_KEY=/etc/vladhost/ftp/privkey.pem
+EOF
+
 echo "готово: swap=$(swapon --show --noheadings | awk '{print $3}' | tr '\n' ' ') env=$(stat -c '%a %U:%G' /etc/vladhost/env)"

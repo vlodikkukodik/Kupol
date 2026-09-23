@@ -12,6 +12,7 @@ import (
 	"vladhost/internal/auth"
 	"vladhost/internal/config"
 	"vladhost/internal/database"
+	"vladhost/internal/ftpd"
 	"vladhost/internal/httpapi"
 	"vladhost/internal/sites"
 )
@@ -21,6 +22,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ошибка:", err)
 		os.Exit(1)
 	}
+}
+
+func startFTP(svc *sites.Service, cfg config.FTPConfig) error {
+	ftp, err := ftpd.New(svc, cfg)
+	if err != nil {
+		return err
+	}
+	if err := ftp.Listen(); err != nil {
+		return err
+	}
+	fmt.Println("FTPS слушает", ftp.Addr())
+	go func() {
+		if err := ftp.Serve(); err != nil {
+			fmt.Fprintln(os.Stderr, "FTP остановился:", err)
+		}
+	}()
+	return nil
 }
 
 func run(args []string) error {
@@ -48,6 +66,14 @@ func run(args []string) error {
 		siteSvc := sites.NewService(db, cfg.SitesRoot, cfg.BaseDomain, cfg.CertsDir,
 			sites.Limits{MaxSites: cfg.MaxSites, DiskQuotaBytes: cfg.DiskQuotaBytes})
 		go siteSvc.WatchCerts(context.Background(), 5*time.Second)
+		if cfg.FTP.Addr != "" {
+			// FTP необязателен для панели: если он не запустился (нет сертификата, порт занят), панель
+			// продолжает работать, а в интерфейсе FTP показывается как недоступный.
+			if err := startFTP(siteSvc, cfg.FTP); err != nil {
+				fmt.Fprintln(os.Stderr, "ВНИМАНИЕ: FTP отключён:", err)
+				cfg.FTP.Addr = ""
+			}
+		}
 		return httpapi.New(svc, siteSvc, cfg).Run(cfg.Addr)
 	case args[0] == "admin" && len(args) >= 2 && args[1] == "create":
 		fs := flag.NewFlagSet("admin create", flag.ContinueOnError)

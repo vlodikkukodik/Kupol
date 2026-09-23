@@ -46,6 +46,9 @@ type Site struct {
 	DeployedAt *time.Time `json:"deployed_at"`
 	CreatedAt  time.Time  `json:"created_at"`
 
+	FTPEnabled      bool   `json:"ftp_enabled"`
+	FTPPasswordHash string `json:"-"`
+
 	CertStatus      string     `json:"cert_status"`
 	CertError       string     `json:"cert_error"`
 	CertRequestedAt *time.Time `json:"-"`
@@ -70,10 +73,17 @@ type Service struct {
 	certsDir   string // пусто — сертификаты не выпускаются (dev)
 	limits     Limits
 	locks      sync.Map // host -> *sync.Mutex: один деплой на сайт за раз
+
+	ftpMu      sync.Mutex
+	ftpUsage   map[int64]*siteUsage // счётчик занятого места у сайтов с открытыми FTP-сессиями
+	ftpRevoked map[int64]time.Time  // когда у сайта последний раз отозвали или сменили FTP-пароль
 }
 
 func NewService(db *gorm.DB, root, baseDomain, certsDir string, limits Limits) *Service {
-	return &Service{db: db, root: root, baseDomain: baseDomain, certsDir: certsDir, limits: limits}
+	return &Service{
+		db: db, root: root, baseDomain: baseDomain, certsDir: certsDir, limits: limits,
+		ftpUsage: map[int64]*siteUsage{}, ftpRevoked: map[int64]time.Time{},
+	}
 }
 
 func (s *Service) Limits() Limits { return s.limits }

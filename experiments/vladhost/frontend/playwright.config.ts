@@ -13,7 +13,12 @@ export default defineConfig({
       command: '../bin/vladhost serve',
       url: 'http://127.0.0.1:8090/api/healthz',
       reuseExistingServer: false,
-      env: { VLADHOST_SITES_ROOT: '/tmp/vh-e2e-sites', VLADHOST_COOKIE_SECURE: 'false' },
+      env: {
+        VLADHOST_SITES_ROOT: '/tmp/vh-e2e-sites',
+        VLADHOST_COOKIE_SECURE: 'false',
+        VLADHOST_FTP_ADDR: '127.0.0.1:2121',
+        VLADHOST_FTP_PASSIVE_PORTS: '42300-42310',
+      },
     },
     { command: 'npm run dev -- --host 127.0.0.1', url: 'http://127.0.0.1:5174', reuseExistingServer: false },
   ],

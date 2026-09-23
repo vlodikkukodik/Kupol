@@ -58,6 +58,8 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Eng
 	authed.DELETE("/sites/:id", s.deleteSite)
 	authed.POST("/sites/:id/deploy", s.deploySite)
 	authed.POST("/sites/:id/cert/retry", s.retryCert)
+	authed.POST("/sites/:id/ftp", s.enableFTP)
+	authed.DELETE("/sites/:id/ftp", s.disableFTP)
 	authed.GET("/sites/:id/files", s.listFiles)
 	authed.DELETE("/sites/:id/files", s.deleteFile)
 	authed.POST("/sites/:id/files/mkdir", s.mkdir)

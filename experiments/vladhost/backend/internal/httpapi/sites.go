@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"net"
 	"net/http"
 	"strconv"
 
@@ -12,10 +13,28 @@ import (
 
 type siteJSON struct {
 	sites.Site
-	URL string `json:"url"`
+	URL string   `json:"url"`
+	FTP ftpBlock `json:"ftp"`
 }
 
-func toJSON(s sites.Site) siteJSON { return siteJSON{Site: s, URL: "https://" + s.Host} }
+// ftpBlock — сведения для подключения по FTP. Пароль сюда не попадает: он показывается один раз при выдаче.
+type ftpBlock struct {
+	Available bool   `json:"available"` // на сервере включён FTP
+	Enabled   bool   `json:"enabled"`   // у сайта выдан доступ
+	Host      string `json:"host,omitempty"`
+	Port      int    `json:"port,omitempty"`
+	Username  string `json:"username,omitempty"`
+}
+
+func (s *Server) toJSON(st sites.Site) siteJSON {
+	out := siteJSON{Site: st, URL: "https://" + st.Host}
+	if s.cfg.FTP.Addr != "" {
+		_, port, _ := net.SplitHostPort(s.cfg.FTP.Addr)
+		p, _ := strconv.Atoi(port)
+		out.FTP = ftpBlock{Available: true, Enabled: st.FTPEnabled, Host: s.cfg.FTP.Host, Port: p, Username: s.sites.FTPUsername(st.Host)}
+	}
+	return out
+}
 
 func (s *Server) listSites(c *gin.Context) {
 	list, err := s.sites.List(c.Request.Context(), c.GetInt64("uid"))
@@ -25,7 +44,7 @@ func (s *Server) listSites(c *gin.Context) {
 	}
 	out := make([]siteJSON, 0, len(list))
 	for _, st := range list {
-		out = append(out, toJSON(st))
+		out = append(out, s.toJSON(st))
 	}
 	lim := s.sites.Limits()
 	c.JSON(http.StatusOK, gin.H{
@@ -52,7 +71,7 @@ func (s *Server) createSite(c *gin.Context) {
 		failErr(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"site": toJSON(*site)})
+	c.JSON(http.StatusCreated, gin.H{"site": s.toJSON(*site)})
 }
 
 func (s *Server) retryCert(c *gin.Context) {
@@ -65,7 +84,39 @@ func (s *Server) retryCert(c *gin.Context) {
 		failErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"site": toJSON(*site)})
+	c.JSON(http.StatusOK, gin.H{"site": s.toJSON(*site)})
+}
+
+// enableFTP выдаёт FTP-доступ к сайту или меняет его пароль. Пароль есть только в этом ответе.
+func (s *Server) enableFTP(c *gin.Context) {
+	id, ok := siteID(c)
+	if !ok {
+		return
+	}
+	if s.cfg.FTP.Addr == "" {
+		fail(c, http.StatusConflict, "ftp_unavailable", "FTP на сервере не включён")
+		return
+	}
+	site, password, err := s.sites.EnableFTP(c.Request.Context(), c.GetInt64("uid"), id)
+	if err != nil {
+		failErr(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, gin.H{"site": s.toJSON(*site), "password": password})
+}
+
+func (s *Server) disableFTP(c *gin.Context) {
+	id, ok := siteID(c)
+	if !ok {
+		return
+	}
+	site, err := s.sites.DisableFTP(c.Request.Context(), c.GetInt64("uid"), id)
+	if err != nil {
+		failErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"site": s.toJSON(*site)})
 }
 
 func (s *Server) deleteSite(c *gin.Context) {
@@ -107,7 +158,7 @@ func (s *Server) deploySite(c *gin.Context) {
 		failErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"site": toJSON(*site)})
+	c.JSON(http.StatusOK, gin.H{"site": s.toJSON(*site)})
 }
 
 func siteID(c *gin.Context) (int64, bool) {

@@ -20,9 +20,9 @@ import (
 )
 
 type env struct {
-	t    *testing.T
-	r    *gin.Engine
-	svc  *auth.Service
+	t     *testing.T
+	r     *gin.Engine
+	svc   *auth.Service
 	root  string // корень файлов сайтов
 	certs string // каталог обмена с выпускателем сертификатов
 	sites *sites.Service
