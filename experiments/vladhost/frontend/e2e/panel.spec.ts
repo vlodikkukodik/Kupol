@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { makeZip } from './zip'
 
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Основное меню' })
@@ -115,6 +115,30 @@ test('приглашение → регистрация → сайт → деп�
   await p.keyboard.press('Escape')
   await p.getByRole('button', { name: 'Отключить FTP' }).click()
   await expect(p.getByRole('button', { name: 'Включить FTP' })).toBeVisible()
+
+  // Журналы: шлюз в этом стенде не запущен, поэтому кладём в каталог журналов то, что записал бы он.
+  const at = (s: number) => new Date(Date.now() + s * 1000).toISOString()
+  const line = (o: object) => `${JSON.stringify(o)}\n`
+  mkdirSync(`/tmp/vh-e2e-logs/${host}`, { recursive: true })
+  writeFileSync(
+    `/tmp/vh-e2e-logs/${host}/access.log`,
+    line({ t: at(1), ip: '203.0.113.7', host, m: 'GET', p: '/index.html', s: 200, b: 15, ms: 2, ua: 'e2e' }) +
+      line({ t: at(2), ip: '203.0.113.8', host, m: 'GET', p: '/no-such-page', s: 404, b: 300, ms: 1 }),
+  )
+  writeFileSync(`/tmp/vh-e2e-logs/${host}/error.log`, line({ t: at(2), ip: '203.0.113.8', host, p: '/no-such-page', code: 'not_found', d: '/no-such-page' }))
+  await siteMenu.getByText('Журналы').click()
+  await expect(p.getByRole('cell', { name: '/index.html' })).toBeVisible()
+  await expect(p.getByRole('cell', { name: '/no-such-page' })).toBeVisible()
+  await p.getByLabel('Поиск в журнале').fill('no-such')
+  await expect(p.getByRole('cell', { name: '/index.html' })).toHaveCount(0)
+  await p.getByLabel('Поиск в журнале').fill('')
+  await p.getByText('4xx', { exact: true }).click()
+  await expect(p.getByRole('cell', { name: '/index.html' })).toHaveCount(0)
+  await expect(p.getByRole('cell', { name: '/no-such-page' })).toBeVisible()
+  await p.getByText('Ошибки', { exact: true }).click()
+  await expect(p.getByText('Файл не найден')).toBeVisible()
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Скачать' }).click()])
+  expect(readFileSync(await dl.path()!, 'utf8')).toContain('[not_found]')
 
   // Свои домены: инструкция с IP сервера, проверка ввода, отвязка.
   await siteMenu.getByText('Домены').click()

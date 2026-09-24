@@ -37,6 +37,7 @@ const SAME_IN_BOTH = new Set([
   'dashboard.account.quotasValue',
   'sites.ftp.title',
   'siteArea.ftp',
+  'logs.cols.ip',
   'sites.cert.active',
   'sites.namePlaceholder',
   'sites.domains.placeholder', // пример домена не переводится

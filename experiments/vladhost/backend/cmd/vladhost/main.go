@@ -28,9 +28,11 @@ func main() {
 
 // runWeb запускает веб-шлюз сайтов пользователей (отдельная служба, читает только каталог сайтов).
 func runWeb(cfg config.WebConfig) error {
+	gw := webgw.New(webgw.Options{Root: cfg.SitesRoot, BaseDomain: cfg.BaseDomain, DomainsDir: cfg.DomainsDir, LogDir: cfg.LogDir})
+	go gw.MaintainLogs(context.Background(), time.Hour)
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           webgw.New(webgw.Options{Root: cfg.SitesRoot, BaseDomain: cfg.BaseDomain, DomainsDir: cfg.DomainsDir}),
+		Handler:           gw,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      2 * time.Minute,
@@ -85,6 +87,7 @@ func run(args []string) error {
 		fmt.Println("слушаю", cfg.Addr)
 		siteSvc := sites.NewService(db, cfg.SitesRoot, cfg.BaseDomain, cfg.CertsDir,
 			sites.Limits{MaxSites: cfg.MaxSites, DiskQuotaBytes: cfg.DiskQuotaBytes})
+		siteSvc.ConfigureLogs(cfg.LogDir)
 		go siteSvc.WatchCerts(context.Background(), 5*time.Second)
 		if len(cfg.ServerIPs) > 0 {
 			siteSvc.ConfigureDomains(sites.DomainConfig{ServerIPs: cfg.ServerIPs, MappingDir: cfg.DomainsDir})

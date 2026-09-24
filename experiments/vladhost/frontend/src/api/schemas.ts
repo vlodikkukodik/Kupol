@@ -76,7 +76,31 @@ export const sitesSchema = z.object({
   sites: z.array(siteSchema),
   limits: z.object({ max_sites: z.number(), disk_quota_bytes: z.number() }),
   domain_config: z.object({ available: z.boolean(), server_ips: z.array(z.string()), per_site: z.number() }),
+  logs_available: z.boolean(),
 })
+
+export const logKinds = ['access', 'error'] as const
+export type LogKind = (typeof logKinds)[number]
+export const logStatusClasses = ['', '2xx', '3xx', '4xx', '5xx'] as const
+export type LogStatusClass = (typeof logStatusClasses)[number]
+
+// Событие журнала: у доступа заполнены m/s/b/ms, у ошибок — code/d.
+export const logEntrySchema = z.object({
+  t: z.string(),
+  ip: z.string(),
+  host: z.string(),
+  m: z.string().optional(),
+  p: z.string(),
+  s: z.number().optional(),
+  b: z.number().optional(),
+  ms: z.number().optional(),
+  ref: z.string().optional(),
+  ua: z.string().optional(),
+  code: z.string().optional(),
+  d: z.string().optional(),
+})
+export type LogEntry = z.infer<typeof logEntrySchema>
+export const logPageSchema = z.object({ entries: z.array(logEntrySchema), has_more: z.boolean() })
 export const siteResponseSchema = z.object({ site: siteSchema })
 // Ответ выдачи FTP: пароль есть только здесь и показывается один раз.
 export const ftpGrantSchema = z.object({ site: siteSchema, password: z.string() })

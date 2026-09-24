@@ -71,6 +71,7 @@ type Service struct {
 	locks      sync.Map // host -> *sync.Mutex: один деплой на сайт за раз
 
 	domains *DomainConfig // свои домены; nil — не настроены
+	logDir  string        // журналы сайтов (пишет веб-шлюз); пусто — не настроены
 
 	ftpMu      sync.Mutex
 	ftpUsage   map[int64]*siteUsage // счётчик занятого места у сайтов с открытыми FTP-сессиями

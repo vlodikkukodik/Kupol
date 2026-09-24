@@ -23,6 +23,10 @@ install -d -m 0755 /opt/vladhost /opt/vladhost/bin /opt/vladhost/frontend /opt/v
 install -d -o vladhost -g vladhost -m 0755 /data/vladhost /data/vladhost/sites
 # Привязки своих доменов ({домен} → адрес сайта): пишет панель, читает веб-шлюз.
 install -d -o vladhost -g vladhost -m 0755 /data/vladhost/domains
+# Журналы сайтов (доступ и ошибки): пишет шлюз (vladhost-web), читает панель через группу vladhost. setgid — новые
+# каталоги и файлы сайтов наследуют группу vladhost, а права 0750/0640 не пускают остальных пользователей сервера.
+install -d -m 0755 /var/log/vladhost
+install -d -o vladhost-web -g vladhost -m 2750 /var/log/vladhost/sites
 install -d -m 0755 /etc/nginx/snippets /etc/nginx/vladhost-domains
 # Обмен с выпускателем сертификатов: queue пишет панель, status пишет только root (защита от подмены симлинком).
 install -d -m 0755 /var/lib/vladhost /var/lib/vladhost/certs /var/lib/vladhost/certs/status
@@ -76,5 +80,6 @@ if [ -n "$server_ip" ]; then
     grep -q '^VLADHOST_SERVER_IPS=' /etc/vladhost/env || echo "VLADHOST_SERVER_IPS=$server_ip" >>/etc/vladhost/env
 fi
 grep -q '^VLADHOST_DOMAINS_DIR=' /etc/vladhost/env || echo 'VLADHOST_DOMAINS_DIR=/data/vladhost/domains' >>/etc/vladhost/env
+grep -q '^VLADHOST_LOG_DIR=' /etc/vladhost/env || echo 'VLADHOST_LOG_DIR=/var/log/vladhost/sites' >>/etc/vladhost/env
 
 echo "готово: swap=$(swapon --show --noheadings | awk '{print $3}' | tr '\n' ' ') env=$(stat -c '%a %U:%G' /etc/vladhost/env)"

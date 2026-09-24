@@ -125,6 +125,11 @@ export function formatDateTime(iso: string, locale: Locale = current.value): str
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
 }
 
+/** Момент события в журнале: с секундами. */
+export function formatTimestamp(iso: string, locale: Locale = current.value): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(iso))
+}
+
 /** Размер: 1,5 МБ / 1,5 MB (запятая в обоих языках). */
 export function formatBytes(n: number, locale: Locale = current.value): string {
   const num = (v: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: v >= 10 ? 0 : 1 }).format(v)

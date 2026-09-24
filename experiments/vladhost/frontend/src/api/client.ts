@@ -83,8 +83,8 @@ export async function apiVoid(path: string, opts: Omit<Options<z.ZodType>, 'sche
   await api(path, opts)
 }
 
-export async function api<S extends z.ZodType>(path: string, opts: Options<S> = {}): Promise<z.infer<S>> {
-  const { method = 'GET', body, schema, auth = true } = opts
+/** Отправляет запрос с токеном; при 401 один раз обновляет сессию и повторяет. Ошибочные статусы не разбираются. */
+async function call(path: string, method: string, body: unknown, auth: boolean): Promise<Response> {
   let res: Response
   try {
     res = await send(path, method, body, auth ? accessToken : null)
@@ -100,9 +100,22 @@ export async function api<S extends z.ZodType>(path: string, opts: Options<S> = 
       onSessionLost()
     }
   }
+  return res
+}
+
+export async function api<S extends z.ZodType>(path: string, opts: Options<S> = {}): Promise<z.infer<S>> {
+  const { method = 'GET', body, schema, auth = true } = opts
+  const res = await call(path, method, body, auth)
   if (!res.ok) throw await toError(res)
   if (res.status === 204 || !schema) return undefined as z.infer<S>
   const parsed = schema.safeParse(await res.json())
   if (!parsed.success) throw new ApiError(res.status, 'bad_response', t('errors.badResponse'))
   return parsed.data
+}
+
+/** Скачивание файла с авторизацией (обычная ссылка не передаёт токен из памяти). */
+export async function apiBlob(path: string): Promise<Blob> {
+  const res = await call(path, 'GET', undefined, true)
+  if (!res.ok) throw await toError(res)
+  return res.blob()
 }

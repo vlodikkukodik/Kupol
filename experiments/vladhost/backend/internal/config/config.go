@@ -26,6 +26,7 @@ type Config struct {
 	FTP            FTPConfig
 	ServerIPs      []string // IP сервера: на него пользователь направляет A-запись своего домена; пусто — свои домены выключены
 	DomainsDir     string   // {домен} → адрес сайта; эту папку читает веб-шлюз
+	LogDir         string   // журналы сайтов, которые пишет веб-шлюз; пусто — раздел «Журналы» недоступен
 	CertsDir       string   // обмен с выпускателем сертификатов (queue/ и status/); пусто — выключено
 	PanelOrigin    string   // https://app.vladinc.ru — для проверки Origin у cookie-эндпоинтов; пусто — не проверять
 	MaxSites       int      // сайтов на пользователя
@@ -60,6 +61,7 @@ func Load() (Config, error) {
 		BaseDomain:     env("VLADHOST_BASE_DOMAIN", "vladinc.ru"),
 		CertsDir:       os.Getenv("VLADHOST_CERTS_DIR"),
 		DomainsDir:     env("VLADHOST_DOMAINS_DIR", "/data/vladhost/domains"),
+		LogDir:         os.Getenv("VLADHOST_LOG_DIR"),
 		PanelOrigin:    os.Getenv("VLADHOST_PANEL_ORIGIN"),
 		MaxSites:       1,
 		DiskQuotaBytes: 500 << 20,
@@ -97,6 +99,7 @@ type WebConfig struct {
 	SitesRoot  string
 	BaseDomain string
 	DomainsDir string // {домен} → адрес сайта (свои домены); пусто — не используется
+	LogDir     string // журналы сайтов (доступ и ошибки); пусто — не ведутся
 }
 
 func LoadWeb() WebConfig {
@@ -105,6 +108,7 @@ func LoadWeb() WebConfig {
 		SitesRoot:  env("VLADHOST_SITES_ROOT", "/data/vladhost/sites"),
 		BaseDomain: env("VLADHOST_BASE_DOMAIN", "vladinc.ru"),
 		DomainsDir: env("VLADHOST_DOMAINS_DIR", "/data/vladhost/domains"),
+		LogDir:     os.Getenv("VLADHOST_LOG_DIR"),
 	}
 }
 

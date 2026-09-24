@@ -1,5 +1,5 @@
 [Unit]
-Description=Vladhost — веб-шлюз сайтов пользователей (статика, .htaccess, страницы по умолчанию)
+Description=Vladhost — веб-шлюз сайтов пользователей (статика, .htaccess, страницы по умолчанию, журналы)
 After=network.target
 
 [Service]
@@ -10,6 +10,7 @@ Environment=VLADHOST_WEB_ADDR=127.0.0.1:8091
 Environment=VLADHOST_SITES_ROOT=/data/vladhost/sites
 Environment=VLADHOST_BASE_DOMAIN=vladinc.ru
 Environment=VLADHOST_DOMAINS_DIR=/data/vladhost/domains
+Environment=VLADHOST_LOG_DIR=/var/log/vladhost/sites
 ExecStart=/opt/vladhost/bin/vladhost web
 Restart=always
 RestartSec=2
@@ -29,6 +30,9 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 ReadOnlyPaths=/data/vladhost
+# Единственное место, куда шлюз пишет: журналы сайтов.
+ReadWritePaths=/var/log/vladhost/sites
+UMask=0027
 InaccessiblePaths=/etc/vladhost /var/lib/vladhost /etc/letsencrypt
 # Один шумный сайт не должен съесть память сервера, на котором живут и другие проекты.
 MemoryMax=384M

@@ -8,6 +8,7 @@ export const useSitesStore = defineStore('sites', () => {
   const sites = ref<Site[]>([])
   const limits = ref({ max_sites: 1, disk_quota_bytes: 0 })
   const domainConfig = ref({ available: false, server_ips: [] as string[], per_site: 0 })
+  const logsAvailable = ref(false)
   const loading = ref(true)
   const loadError = ref('')
 
@@ -21,6 +22,7 @@ export const useSitesStore = defineStore('sites', () => {
       sites.value = r.sites
       limits.value = r.limits
       domainConfig.value = r.domain_config
+      logsAvailable.value = r.logs_available
     } catch (e) {
       loadError.value = e instanceof ApiError ? e.message : fallback
     } finally {
@@ -37,5 +39,5 @@ export const useSitesStore = defineStore('sites', () => {
     ),
   )
 
-  return { sites, limits, domainConfig, loading, loadError, used, waiting, load, byId }
+  return { sites, limits, domainConfig, logsAvailable, loading, loadError, used, waiting, load, byId }
 })

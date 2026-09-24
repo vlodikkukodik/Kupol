@@ -30,6 +30,7 @@ export default defineConfig({
         VLADHOST_FTP_PASSIVE_PORTS: '42300-42310',
         VLADHOST_SERVER_IPS: '203.0.113.10',
         VLADHOST_DOMAINS_DIR: '/tmp/vh-e2e-domains',
+        VLADHOST_LOG_DIR: '/tmp/vh-e2e-logs',
       },
     },
     { command: 'npm run dev -- --host 127.0.0.1', url: DEV, reuseExistingServer: false },

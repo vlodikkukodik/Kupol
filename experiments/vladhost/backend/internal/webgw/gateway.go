@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"vladhost/internal/i18n"
+	"vladhost/internal/sitelog"
 	"vladhost/internal/webgw/htaccess"
 )
 
@@ -40,6 +41,8 @@ type Options struct {
 	BaseDomain string // vladinc.ru
 	// DomainsDir — папка привязок своих доменов: файл {домен} содержит адрес сайта. Пусто — свои домены не обслуживаются.
 	DomainsDir string
+	// LogDir — куда писать журналы сайтов (доступ и ошибки). Пусто — журналы не ведутся.
+	LogDir string
 }
 
 type Handler struct {
@@ -53,6 +56,8 @@ type Handler struct {
 	authMu    sync.Mutex
 	authFails map[string]*failure
 	authSem   chan struct{} // ограничивает число одновременных проверок пароля: bcrypt дорог
+
+	logs *sitelog.Writer // nil — журналы не ведутся
 }
 
 type failure struct {
@@ -67,13 +72,22 @@ type cachedConfig struct {
 }
 
 func New(opts Options) *Handler {
-	return &Handler{
+	h := &Handler{
 		opts:      opts,
 		hostRe:    regexp.MustCompile(`^([a-z0-9-]+)\.([a-z0-9-]+)\.` + regexp.QuoteMeta(strings.ToLower(opts.BaseDomain)) + `$`),
 		baseLow:   strings.ToLower(opts.BaseDomain),
 		authFails: map[string]*failure{},
 		authSem:   make(chan struct{}, 4),
 	}
+	if opts.LogDir != "" {
+		// Журналы вторичны: если каталог недоступен, сайты всё равно отдаются.
+		if w, err := sitelog.NewWriter(opts.LogDir); err != nil {
+			log.Printf("шлюз: журналы сайтов отключены: %v", err)
+		} else {
+			h.logs = w
+		}
+	}
+	return h
 }
 
 // request — состояние обработки одного запроса.
@@ -89,14 +103,27 @@ type request struct {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	lang := i18n.FromAcceptLanguage(r.Header.Get("Accept-Language"))
+	host := normalizeHost(r.Host)
+	var (
+		sw       *statusWriter // появляется, когда сайт найден: журнал ведётся только для существующих сайтов
+		siteHost string
+	)
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("шлюз: паника при %s %s: %v", r.Method, r.URL.Path, p)
-			errorPage(w, r, lang, http.StatusInternalServerError)
+			if sw != nil {
+				errorPage(sw, r, lang, http.StatusInternalServerError)
+				h.logError(siteHost, r, host, "server_error", "panic")
+			} else {
+				errorPage(w, r, lang, http.StatusInternalServerError)
+			}
+		}
+		if sw != nil {
+			h.logAccess(siteHost, r, host, sw, start)
 		}
 	}()
-	host := normalizeHost(r.Host)
 	siteHost, ok := h.resolveSite(host)
 	if !ok {
 		noSitePage(w, r, lang)
@@ -114,15 +141,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = root.Close() }()
 
-	q := &request{h: h, w: w, r: r, lang: lang, host: host, site: siteHost, root: root}
+	sw = &statusWriter{ResponseWriter: w}
+	q := &request{h: h, w: sw, r: r, lang: lang, host: host, site: siteHost, root: root}
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
 	case http.MethodOptions:
-		w.Header().Set("Allow", "GET, HEAD, OPTIONS")
-		w.WriteHeader(http.StatusNoContent)
+		sw.Header().Set("Allow", "GET, HEAD, OPTIONS")
+		sw.WriteHeader(http.StatusNoContent)
 		return
 	default:
-		w.Header().Set("Allow", "GET, HEAD, OPTIONS")
+		sw.Header().Set("Allow", "GET, HEAD, OPTIONS")
 		q.fail(http.StatusMethodNotAllowed)
 		return
 	}
@@ -492,6 +520,7 @@ func (q *request) fail(status int) {
 		}
 		q.eff.ApplyHeaders(q.w.Header(), status, "")
 	}
+	q.h.logError(q.site, q.r, q.host, errorCode(status), q.r.URL.Path)
 	errorPage(q.w, q.r, q.lang, status)
 }
 

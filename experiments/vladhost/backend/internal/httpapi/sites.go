@@ -58,9 +58,10 @@ func (s *Server) listSites(c *gin.Context) {
 	}
 	lim := s.sites.Limits()
 	c.JSON(http.StatusOK, gin.H{
-		"sites":         out,
-		"limits":        gin.H{"max_sites": lim.MaxSites, "disk_quota_bytes": lim.DiskQuotaBytes},
-		"domain_config": s.domainConfig(),
+		"sites":          out,
+		"limits":         gin.H{"max_sites": lim.MaxSites, "disk_quota_bytes": lim.DiskQuotaBytes},
+		"domain_config":  s.domainConfig(),
+		"logs_available": s.sites.LogsAvailable(),
 	})
 }
 

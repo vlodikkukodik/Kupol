@@ -2,6 +2,7 @@
 import {
   ArrowBack,
   FolderOpenOutline,
+  DocumentTextOutline,
   GlobeOutline,
   KeyOutline,
   LinkOutline,
@@ -37,6 +38,7 @@ const items: NavItem[] = [
   { name: 'site-overview', label: 'siteArea.overview', icon: SpeedometerOutline, grad: 'var(--grad-primary)' },
   { name: 'files', label: 'siteArea.files', icon: FolderOpenOutline, grad: 'var(--grad-cyan)' },
   { name: 'site-domains', label: 'siteArea.domains', icon: LinkOutline, grad: 'var(--grad-emerald)' },
+  { name: 'site-logs', label: 'siteArea.logs', icon: DocumentTextOutline, grad: 'var(--grad-cyan)' },
   { name: 'site-ftp', label: 'siteArea.ftp', icon: KeyOutline, grad: 'var(--grad-violet)' },
   { name: 'site-settings', label: 'siteArea.settings', icon: SettingsOutline, grad: 'var(--grad-amber)' },
 ]
