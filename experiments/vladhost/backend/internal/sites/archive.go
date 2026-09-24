@@ -3,13 +3,15 @@ package sites
 import (
 	"archive/zip"
 	"errors"
-	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"vladhost/internal/apperr"
 )
 
 const maxArchiveFiles = 20000
@@ -19,7 +21,7 @@ const maxArchiveFiles = 20000
 // превышение лимита размера — считается по факту чтения, а не по заявленному в заголовке.
 func extractZip(zr *zip.Reader, dst string, limit int64) (int64, error) {
 	if len(zr.File) > maxArchiveFiles {
-		return 0, badArchive("слишком много файлов в архиве (максимум %d)", maxArchiveFiles)
+		return 0, badArchive("too_many", maxArchiveFiles)
 	}
 	prefix := commonDir(zr.File)
 	var total int64
@@ -35,7 +37,7 @@ func extractZip(zr *zip.Reader, dst string, limit int64) (int64, error) {
 		}
 		target := filepath.Join(dst, filepath.FromSlash(name))
 		if !strings.HasPrefix(target, dst+string(filepath.Separator)) {
-			return 0, badArchive("недопустимый путь в архиве: %q", f.Name)
+			return 0, badArchive("bad_path", f.Name)
 		}
 		mode := f.Mode()
 		switch {
@@ -53,11 +55,11 @@ func extractZip(zr *zip.Reader, dst string, limit int64) (int64, error) {
 				hasIndex = true
 			}
 		default:
-			return 0, badArchive("в архиве символические ссылки и спецфайлы не допускаются: %q", f.Name)
+			return 0, badArchive("special_file", f.Name)
 		}
 	}
 	if !hasIndex {
-		return 0, badArchive("в корне архива нет index.html")
+		return 0, badArchive("no_index")
 	}
 	return total, nil
 }
@@ -71,13 +73,13 @@ func writeEntry(f *zip.File, target string, remaining int64) (int64, error) {
 	}
 	rc, err := f.Open()
 	if err != nil {
-		return 0, badArchive("не удалось прочитать %q", f.Name)
+		return 0, badArchive("unreadable", f.Name)
 	}
 	defer func() { _ = rc.Close() }()
 	out, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return 0, badArchive("файл встречается в архиве дважды: %q", f.Name)
+			return 0, badArchive("duplicate", f.Name)
 		}
 		return 0, err
 	}
@@ -87,7 +89,7 @@ func writeEntry(f *zip.File, target string, remaining int64) (int64, error) {
 		err = cerr
 	}
 	if err != nil {
-		return 0, badArchive("повреждённый файл в архиве: %q", f.Name)
+		return 0, badArchive("corrupt", f.Name)
 	}
 	if n > remaining {
 		return 0, ErrQuota
@@ -97,10 +99,10 @@ func writeEntry(f *zip.File, target string, remaining int64) (int64, error) {
 
 func checkName(name string) error {
 	if strings.ContainsAny(name, "\\\x00") || path.IsAbs(name) {
-		return badArchive("недопустимый путь в архиве: %q", name)
+		return badArchive("bad_path", name)
 	}
 	if slices.Contains(strings.Split(name, "/"), "..") {
-		return badArchive("недопустимый путь в архиве: %q", name)
+		return badArchive("bad_path", name)
 	}
 	return nil
 }
@@ -134,10 +136,7 @@ func commonDir(files []*zip.File) string {
 	return first + "/"
 }
 
-type badArchiveError struct{ msg string }
-
-func (e *badArchiveError) Error() string { return e.msg }
-
-func badArchive(format string, a ...any) error {
-	return &badArchiveError{fmt.Sprintf(format, a...)}
+// badArchive — архив пользователя непригоден. Код — ключ каталога "err.archive.<code>", args подставляются в текст.
+func badArchive(code string, args ...any) error {
+	return apperr.New(http.StatusUnprocessableEntity, "archive."+code, "bad archive: "+code).With(args...)
 }

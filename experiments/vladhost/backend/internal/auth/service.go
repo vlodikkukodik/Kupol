@@ -235,7 +235,7 @@ func (s *Service) issue(ctx context.Context, db *gorm.DB, u User) (*Session, err
 	}
 	rt := RefreshToken{UserID: u.ID, TokenHash: hashToken(raw), ExpiresAt: now.Add(s.refreshTTL)}
 	if err := db.WithContext(ctx).Create(&rt).Error; err != nil {
-		return nil, fmt.Errorf("сохранение refresh-токена: %w", err)
+		return nil, fmt.Errorf("save refresh token: %w", err)
 	}
 	return &Session{
 		AccessToken: access, ExpiresIn: int(s.accessTTL.Seconds()),

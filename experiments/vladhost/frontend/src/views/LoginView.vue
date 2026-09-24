@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { NAlert, NButton, NCard, NForm, NFormItem, NInput } from 'naive-ui'
+import { LockClosedOutline, PersonOutline } from '@vicons/ionicons5'
+import { NAlert, NButton, NForm, NFormItem, NIcon, NInput } from 'naive-ui'
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/client'
 import { fieldErrors, loginForm } from '@/api/schemas'
+import AuthShell from '@/components/AuthShell.vue'
+import { resolveMessage, useI18n } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
@@ -26,7 +30,7 @@ async function submit() {
     const next = typeof route.query.next === 'string' && route.query.next.startsWith('/') ? route.query.next : '/'
     await router.push(next)
   } catch (e) {
-    failure.value = e instanceof ApiError ? e.message : 'Не удалось войти'
+    failure.value = e instanceof ApiError ? e.message : t('auth.login.failed')
   } finally {
     busy.value = false
   }
@@ -34,26 +38,77 @@ async function submit() {
 </script>
 
 <template>
-  <main class="center">
-    <n-card title="Вход в Vladhost" class="card">
-      <n-form @submit.prevent="submit">
-        <n-form-item label="Email или имя" :validation-status="errors.login ? 'error' : undefined" :feedback="errors.login">
-          <n-input v-model:value="form.login" autofocus autocomplete="username" placeholder="john" :input-props="{ 'aria-label': 'Email или имя' }" />
-        </n-form-item>
-        <n-form-item label="Пароль" :validation-status="errors.password ? 'error' : undefined" :feedback="errors.password">
-          <n-input v-model:value="form.password" type="password" show-password-on="click" autocomplete="current-password" :input-props="{ 'aria-label': 'Пароль' }" />
-        </n-form-item>
+  <auth-shell>
+    <h2 class="title">{{ t('auth.login.title') }}</h2>
+    <p class="subtitle">{{ t('auth.login.subtitle') }}</p>
+
+    <n-form @submit.prevent="submit">
+      <n-form-item
+        :label="t('auth.login.identity')"
+        :validation-status="errors.login ? 'error' : undefined"
+        :feedback="errors.login ? resolveMessage(errors.login) : undefined"
+      >
+        <n-input
+          v-model:value="form.login"
+          size="large"
+          placeholder="name@example.com"
+          autofocus
+          autocomplete="username"
+          :input-props="{ 'aria-label': t('auth.login.identity') }"
+        >
+          <template #prefix><n-icon :component="PersonOutline" /></template>
+        </n-input>
+      </n-form-item>
+      <n-form-item
+        :label="t('auth.login.password')"
+        :validation-status="errors.password ? 'error' : undefined"
+        :feedback="errors.password ? resolveMessage(errors.password) : undefined"
+      >
+        <n-input
+          v-model:value="form.password"
+          size="large"
+          placeholder="••••••••"
+          type="password"
+          show-password-on="click"
+          autocomplete="current-password"
+          :input-props="{ 'aria-label': t('auth.login.password') }"
+        >
+          <template #prefix><n-icon :component="LockClosedOutline" /></template>
+        </n-input>
+      </n-form-item>
+
+      <transition name="page">
         <n-alert v-if="failure" type="error" :show-icon="false" class="gap">{{ failure }}</n-alert>
-        <n-button type="primary" attr-type="submit" block :loading="busy">Войти</n-button>
-      </n-form>
-      <p class="hint">Регистрация только по приглашению. <router-link to="/register">Есть код?</router-link></p>
-    </n-card>
-  </main>
+      </transition>
+
+      <n-button type="primary" size="large" attr-type="submit" block :loading="busy">{{ t('auth.login.submit') }}</n-button>
+    </n-form>
+
+    <p class="hint">
+      {{ t('auth.login.inviteOnly') }}
+      <router-link to="/register">{{ t('auth.login.haveCode') }}</router-link>
+    </p>
+  </auth-shell>
 </template>
 
 <style scoped>
-.center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
-.card { width: 100%; max-width: 380px; }
-.gap { margin-bottom: 12px; }
-.hint { margin: 16px 0 0; font-size: 13px; opacity: 0.75; }
+.title {
+  font-size: 26px;
+  font-weight: 750;
+}
+
+.subtitle {
+  margin: 6px 0 22px;
+  color: var(--text-dim);
+}
+
+.gap {
+  margin-bottom: 14px;
+}
+
+.hint {
+  margin: 20px 0 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
 </style>

@@ -25,6 +25,18 @@ function build(doc: string): EditorState {
       highlightActiveLine(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       oneDark,
+      // Свой фон и рамка под стеклянный интерфейс: цвета подсветки остаются от oneDark.
+      EditorView.theme(
+        {
+          '&': { backgroundColor: 'rgba(7, 9, 20, 0.55)', borderRadius: '14px' },
+          '.cm-gutters': { backgroundColor: 'transparent', border: 'none', color: 'rgba(241,242,255,.35)' },
+          '.cm-activeLine': { backgroundColor: 'rgba(167,139,250,.09)' },
+          '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#c4b5fd' },
+          '.cm-cursor': { borderLeftColor: '#f472b6' },
+          '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: 'rgba(139,92,246,.4) !important' },
+        },
+        { dark: true },
+      ),
       EditorView.lineWrapping,
       languageExtension(langFor(props.filename)),
       keymap.of([
@@ -61,7 +73,7 @@ onBeforeUnmount(() => view?.destroy())
 </template>
 
 <style scoped>
-.editor { border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+.editor { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
 .editor :deep(.cm-editor) { height: 60vh; }
 .editor :deep(.cm-scroller) { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
 </style>

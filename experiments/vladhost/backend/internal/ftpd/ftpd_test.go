@@ -33,7 +33,7 @@ type fixture struct {
 }
 
 // setup поднимает настоящий FTP-сервер (FTPS, самоподписанный сертификат) на свободном порту.
-func setup(t *testing.T, quota int64) *fixture {
+func setup(t *testing.T, quota int64, opts ...func(*config.FTPConfig)) *fixture {
 	t.Helper()
 	db := testdb.Open(t)
 	root := t.TempDir()
@@ -53,9 +53,13 @@ func setup(t *testing.T, quota int64) *fixture {
 		t.Fatal(err)
 	}
 
-	srv, err := ftpd.New(svc, config.FTPConfig{
+	cfg := config.FTPConfig{
 		Addr: "127.0.0.1:0", Host: "ftp.vladinc.ru", PublicIP: "127.0.0.1", PassiveStart: 42100, PassiveEnd: 42200,
-	})
+	}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	srv, err := ftpd.New(svc, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,8 +187,73 @@ func TestFTPFlow(t *testing.T) {
 	}
 }
 
+// allowPlain включает приём обычного FTP без TLS (как VLADHOST_FTP_ALLOW_PLAIN=true).
+func allowPlain(c *config.FTPConfig) { c.AllowPlain = true }
+
+// dialPlain — обычный FTP без AUTH TLS.
+func (f *fixture) dialPlain(user, pass string) (*ftp.ServerConn, error) {
+	c, err := ftp.Dial(f.addr, ftp.DialWithTimeout(5*time.Second))
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Login(user, pass); err != nil {
+		_ = c.Quit()
+		return nil, err
+	}
+	return c, nil
+}
+
+func TestPlainFTPAcceptedWhenAllowed(t *testing.T) {
+	f := setup(t, 1<<20, allowPlain)
+
+	// Обычный FTP без шифрования: вход, загрузка, скачивание, список.
+	c, err := f.dialPlain(f.user, f.password)
+	if err != nil {
+		t.Fatalf("обычный FTP должен приниматься: %v", err)
+	}
+	defer func() { _ = c.Quit() }()
+	if err := c.Stor("index.html", strings.NewReader("<h1>plain</h1>")); err != nil {
+		t.Fatalf("STOR по обычному FTP: %v", err)
+	}
+	r, err := c.Retr("index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := io.ReadAll(r)
+	_ = r.Close()
+	if string(got) != "<h1>plain</h1>" || f.disk("index.html") != "<h1>plain</h1>" {
+		t.Fatalf("данные: %q", got)
+	}
+	if l, err := c.List("/"); err != nil || len(l) != 1 {
+		t.Fatalf("LIST: %v %v", l, err)
+	}
+
+	// Защита та же: неверный пароль, выход из каталога, квота.
+	if bad, err := f.dialPlain(f.user, "wrong-password"); err == nil {
+		_ = bad.Quit()
+		t.Fatal("неверный пароль по обычному FTP не должен проходить")
+	}
+	if r, err := c.Retr("../../etc/passwd"); err == nil {
+		_ = r.Close()
+		t.Fatal("выход из каталога по обычному FTP")
+	}
+	if err := c.Stor("big.bin", bytes.NewReader(bytes.Repeat([]byte("A"), 2<<20))); err == nil {
+		t.Fatal("квота должна действовать и для обычного FTP")
+	}
+	if used := dirSize(t, f.pub); used > 1<<20 {
+		t.Fatalf("квота нарушена: %d", used)
+	}
+
+	// FTPS на том же сервере продолжает работать.
+	s, err := f.dial(f.user, f.password)
+	if err != nil {
+		t.Fatalf("FTPS при разрешённом обычном FTP: %v", err)
+	}
+	_ = s.Quit()
+}
+
 func TestFTPRequiresTLS(t *testing.T) {
-	f := setup(t, 1<<20)
+	f := setup(t, 1<<20)                                           // режим «только FTPS»
 	c, err := ftp.Dial(f.addr, ftp.DialWithTimeout(5*time.Second)) // без AUTH TLS
 	if err != nil {
 		t.Fatal(err)

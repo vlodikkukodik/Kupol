@@ -52,7 +52,7 @@ func (s *Server) saveFile(c *gin.Context) {
 			failErr(c, sites.ErrTooLarge)
 			return
 		}
-		fail(c, http.StatusBadRequest, "bad_request", "Некорректный запрос")
+		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
 	err := s.sites.WriteFile(c.Request.Context(), c.GetInt64("uid"), id, c.Query("path"),
@@ -85,7 +85,7 @@ func (s *Server) mkdir(c *gin.Context) {
 		Path string `json:"path"`
 	}
 	if c.ShouldBindJSON(&in) != nil {
-		fail(c, http.StatusBadRequest, "bad_request", "Некорректный запрос")
+		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
 	if err := s.sites.Mkdir(c.Request.Context(), c.GetInt64("uid"), id, in.Path); err != nil {
@@ -105,7 +105,7 @@ func (s *Server) renameFile(c *gin.Context) {
 		To   string `json:"to"`
 	}
 	if c.ShouldBindJSON(&in) != nil {
-		fail(c, http.StatusBadRequest, "bad_request", "Некорректный запрос")
+		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
 	if err := s.sites.Rename(c.Request.Context(), c.GetInt64("uid"), id, in.From, in.To); err != nil {
@@ -128,7 +128,7 @@ func (s *Server) uploadFile(c *gin.Context) {
 			failErr(c, sites.ErrQuota)
 			return
 		}
-		fail(c, http.StatusBadRequest, "bad_request", "Приложите файл в поле file")
+		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
 	name := path.Base(strings.ReplaceAll(fh.Filename, "\\", "/"))

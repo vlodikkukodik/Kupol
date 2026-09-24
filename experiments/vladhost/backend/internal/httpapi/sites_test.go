@@ -42,6 +42,11 @@ func makeZip(t *testing.T, files ...zipFile) []byte {
 
 func (e *env) upload(path, token string, data []byte) *httptest.ResponseRecorder {
 	e.t.Helper()
+	return e.uploadLang("", path, token, data)
+}
+
+func (e *env) uploadLang(lang, path, token string, data []byte) *httptest.ResponseRecorder {
+	e.t.Helper()
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	fw, _ := mw.CreateFormFile("file", "site.zip")
@@ -50,6 +55,9 @@ func (e *env) upload(path, token string, data []byte) *httptest.ResponseRecorder
 	req := httptest.NewRequest("POST", path, &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
+	if lang != "" {
+		req.Header.Set("Accept-Language", lang)
+	}
 	w := httptest.NewRecorder()
 	e.r.ServeHTTP(w, req)
 	return w
@@ -215,7 +223,7 @@ func TestDeployRejectsHostileArchives(t *testing.T) {
 	for name, data := range cases {
 		t.Run(name, func(t *testing.T) {
 			w := e.upload(url, tok, data)
-			if w.Code != 422 || decode[errBody](t, w).Error.Code != "bad_archive" {
+			if w.Code != 422 || !strings.HasPrefix(decode[errBody](t, w).Error.Code, "archive.") {
 				t.Fatalf("%d %s", w.Code, w.Body)
 			}
 			// Неудачный деплой не ломает работающий сайт и ничего не пишет за пределы каталога.

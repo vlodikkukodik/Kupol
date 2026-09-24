@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,21 +21,16 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"vladhost/internal/apperr"
 	"vladhost/internal/auth"
 )
 
 var (
-	ErrLimit     = errors.New("достигнут лимит сайтов на аккаунт")
-	ErrSlugTaken = errors.New("сайт с таким именем уже есть")
-	ErrNotFound  = errors.New("сайт не найден")
-	ErrQuota     = errors.New("превышена квота диска")
+	ErrLimit     = apperr.New(http.StatusForbidden, "site_limit", "site limit reached")
+	ErrSlugTaken = apperr.New(http.StatusConflict, "slug_taken", "site name already taken").OnField("slug")
+	ErrNotFound  = apperr.New(http.StatusNotFound, "not_found", "site not found")
+	ErrQuota     = apperr.New(http.StatusRequestEntityTooLarge, "quota_exceeded", "disk quota exceeded")
 )
-
-// IsBadArchive сообщает, что архив пользователя непригоден (его текст можно показать человеку).
-func IsBadArchive(err error) bool {
-	var b *badArchiveError
-	return errors.As(err, &b)
-}
 
 type Site struct {
 	ID         int64      `gorm:"primaryKey" json:"id"`
@@ -93,7 +89,7 @@ var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$`)
 func normalizeSlug(raw string) (string, error) {
 	slug := strings.ToLower(strings.TrimSpace(raw))
 	if !slugRe.MatchString(slug) || strings.Contains(slug, "--") {
-		return "", &auth.ValidationError{Field: "slug", Message: "2–32 символа: латиница, цифры и дефис, не с дефиса и не на дефис, без двойных дефисов"}
+		return "", apperr.Validation("slug", "slug", "invalid site name")
 	}
 	return slug, nil
 }
@@ -185,7 +181,7 @@ func (s *Service) Deploy(ctx context.Context, userID, id int64, archive io.Reade
 	}
 	zr, err := zip.NewReader(archive, size)
 	if err != nil {
-		return nil, badArchive("это не zip-архив или он повреждён")
+		return nil, badArchive("not_zip")
 	}
 
 	mu := s.lock(site.Host)

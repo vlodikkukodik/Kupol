@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { makeZip } from './zip'
 
+const nav = (page: Page) => page.getByRole('navigation', { name: 'Основное меню' })
+
 async function login(page: Page, login: string, password: string) {
   await page.goto('/login')
   await page.getByLabel('Email или имя').fill(login)
@@ -10,6 +12,7 @@ async function login(page: Page, login: string, password: string) {
 }
 
 test('приглашение → регистрация → сайт → деплой → правка файла → выход', async ({ page, browser }) => {
+  test.setTimeout(120_000) // длинный сценарий: bcrypt, выпуск токенов, анимации
   const adminName = process.env.E2E_ADMIN!
   const adminPass = process.env.E2E_ADMIN_PASSWORD!
   const user = `u${Date.now().toString(36)}`
@@ -17,18 +20,18 @@ test('приглашение → регистрация → сайт → деп�
   // Админ создаёт инвайт.
   await login(page, adminName, adminPass)
   await expect(page.getByText(`Здравствуйте, ${adminName}`)).toBeVisible()
-  await page.getByText('Настройки', { exact: true }).click()
+  await nav(page).getByText('Настройки').click()
   // В списке лежат и старые инвайты прошлых прогонов: ждём, пока появится новый, а не читаем первую строку.
   const codes = page.locator('td code')
-  await expect(page.getByRole('button', { name: 'Создать инвайт (7 дней)' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: /Создать инвайт/ })).toBeEnabled()
   const before = await codes.count()
-  await page.getByRole('button', { name: 'Создать инвайт (7 дней)' }).click()
+  await page.getByRole('button', { name: /Создать инвайт/ }).click()
   await expect(codes).toHaveCount(before + 1)
   const code = (await codes.first().innerText()).trim()
   expect(code.length).toBeGreaterThan(10)
 
   // Новый пользователь регистрируется в отдельном контексте (свои cookie).
-  const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:5174' })
+  const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', locale: 'ru-RU' })
   const p = await ctx.newPage()
   // Для диагностики: неожиданные ошибки API попадают в вывод теста.
   p.on('response', (r) => {
@@ -62,7 +65,7 @@ test('приглашение → регистрация → сайт → деп�
   await expect(p.getByText(`Здравствуйте, ${user}`)).toBeVisible()
 
   // Сайт.
-  await p.getByText('Сайты', { exact: true }).click()
+  await nav(p).getByText('Сайты').click()
   await p.getByLabel('Имя сайта').fill('blog')
   await p.getByRole('button', { name: 'Создать', exact: true }).click()
   const host = `blog.${user}.vladinc.ru`
@@ -118,18 +121,21 @@ test('приглашение → регистрация → сайт → деп�
   await p.getByRole('button', { name: 'Новая папка' }).click()
   await p.getByRole('dialog').getByRole('textbox').fill('img')
   await p.getByRole('button', { name: 'Готово' }).click()
-  await p.getByRole('link', { name: 'img' }).click()
+  // Ссылка папки открывается с клавиатуры (focus + Enter): заодно проверяет, что список доступен без мыши.
+  await p.getByRole('link', { name: 'img' }).focus()
+  await p.keyboard.press('Enter')
   await expect(p.getByText('Папка пуста')).toBeVisible()
 
   // Обычный пользователь не видит инвайтов.
-  await p.getByText('Настройки', { exact: true }).click()
+  await nav(p).getByText('Настройки').click()
   await expect(p.getByText('Приглашения')).toHaveCount(0)
 
   // Выход закрывает сессию: перезагрузка ведёт на вход.
-  await p.getByRole('button', { name: 'Выйти' }).click()
-  await expect(p.getByText('Вход в Vladhost')).toBeVisible()
+  await p.locator('button.user').click()
+  await p.getByText('Выйти').click()
+  await expect(p.getByRole('heading', { name: 'С возвращением' })).toBeVisible()
   await p.goto('/')
-  await expect(p.getByText('Вход в Vladhost')).toBeVisible()
+  await expect(p.getByRole('heading', { name: 'С возвращением' })).toBeVisible()
   await ctx.close()
 })
 
@@ -137,5 +143,5 @@ test('неверный пароль показывает ошибку и не п
   await login(page, process.env.E2E_ADMIN!, 'wrong-password')
   await expect(page.getByText('неверный логин или пароль')).toBeVisible()
   await page.goto('/settings')
-  await expect(page.getByText('Вход в Vladhost')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'С возвращением' })).toBeVisible()
 })

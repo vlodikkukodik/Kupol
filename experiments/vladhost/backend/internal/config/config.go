@@ -36,6 +36,7 @@ type FTPConfig struct {
 	Addr         string // например ":2121"
 	Host         string // имя, которое видят клиенты (ftp.vladinc.ru)
 	PublicIP     string // IP для пассивного режима
+	AllowPlain   bool   // принимать и обычный FTP без TLS (пароль и файлы идут открытым текстом); false — только FTPS
 	PassiveStart int    // диапазон портов пассивного режима
 	PassiveEnd   int
 	CertFile     string // пусто — на старте создаётся временный самоподписанный сертификат (только dev)
@@ -85,6 +86,7 @@ func loadFTP(f *FTPConfig) error {
 	}
 	f.Host = env("VLADHOST_FTP_HOST", "ftp.vladinc.ru")
 	f.PublicIP = os.Getenv("VLADHOST_FTP_PUBLIC_IP")
+	f.AllowPlain = env("VLADHOST_FTP_ALLOW_PLAIN", "true") != "false"
 	f.CertFile = os.Getenv("VLADHOST_FTP_CERT")
 	f.KeyFile = os.Getenv("VLADHOST_FTP_KEY")
 	if (f.CertFile == "") != (f.KeyFile == "") {

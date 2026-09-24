@@ -1,3 +1,5 @@
+import type { MessageKey } from '@/i18n'
+
 // Пути внутри сайта: без ведущего слеша, корень — пустая строка (как на сервере, но без ".").
 
 export function joinPath(dir: string, name: string): string {
@@ -29,12 +31,12 @@ export function breadcrumbs(p: string, rootName: string): Crumb[] {
   return out
 }
 
-/** Проверка имени файла/папки до отправки на сервер (сервер проверяет повторно). */
-export function validateName(name: string): string | null {
+/** Проверка имени файла/папки до отправки на сервер (сервер проверяет повторно). Возвращает ключ текста ошибки. */
+export function validateName(name: string): MessageKey | null {
   const n = name.trim()
-  if (!n) return 'Введите имя'
-  if (n === '.' || n === '..') return 'Недопустимое имя'
-  if (/[\\/\0]/.test(n)) return 'Имя не должно содержать / и \\'
-  if (n.length > 255) return 'Слишком длинное имя'
+  if (!n) return 'validation.nameRequired'
+  if (n === '.' || n === '..') return 'validation.nameInvalid'
+  if (/[\\/\0]/.test(n)) return 'validation.nameSlash'
+  if (n.length > 255) return 'validation.nameTooLong'
   return null
 }

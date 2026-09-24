@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,16 +14,18 @@ import (
 	"syscall"
 	"time"
 	"unicode/utf8"
+
+	"vladhost/internal/apperr"
 )
 
 var (
-	ErrBadPath      = errors.New("недопустимый путь")
-	ErrFileNotFound = errors.New("файл или папка не найдены")
-	ErrExists       = errors.New("такой файл или папка уже есть")
-	ErrIsDir        = errors.New("это папка, а нужен файл")
-	ErrNotDir       = errors.New("это файл, а нужна папка")
-	ErrTooLarge     = errors.New("файл слишком большой для редактора")
-	ErrNotText      = errors.New("это не текстовый файл, редактировать нельзя")
+	ErrBadPath      = apperr.New(http.StatusUnprocessableEntity, "bad_path", "invalid path")
+	ErrFileNotFound = apperr.New(http.StatusNotFound, "file_not_found", "file or directory not found")
+	ErrExists       = apperr.New(http.StatusConflict, "exists", "file or directory already exists")
+	ErrIsDir        = apperr.New(http.StatusUnprocessableEntity, "is_dir", "is a directory, file expected")
+	ErrNotDir       = apperr.New(http.StatusUnprocessableEntity, "not_dir", "is a file, directory expected")
+	ErrTooLarge     = apperr.New(http.StatusRequestEntityTooLarge, "too_large", "file is too large for the editor")
+	ErrNotText      = apperr.New(http.StatusUnsupportedMediaType, "not_text", "not a text file")
 )
 
 // MaxEditBytes — предел размера файла, который открывается и сохраняется через редактор.

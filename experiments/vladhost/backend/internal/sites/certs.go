@@ -2,12 +2,14 @@ package sites
 
 import (
 	"context"
-	"errors"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"vladhost/internal/apperr"
 )
 
 // Сертификаты выпускает отдельная root-служба (deploy/vladhost-certs.sh): панель работает без прав root.
@@ -81,7 +83,7 @@ func (s *Service) reconcileCerts(ctx context.Context) error {
 		status, msg, ok := s.readCertStatus(site)
 		if !ok {
 			if site.CertRequestedAt != nil && time.Since(*site.CertRequestedAt) > certPendingTimeout {
-				status, msg = CertFailed, "выпускатель сертификатов не ответил"
+				status, msg = CertFailed, "certificate issuer did not respond in time"
 			} else {
 				continue
 			}
@@ -116,4 +118,4 @@ func (s *Service) readCertStatus(site Site) (status, msg string, ok bool) {
 	return "", "", false
 }
 
-var ErrCertState = errors.New("для этого сайта нельзя повторить выпуск сертификата")
+var ErrCertState = apperr.New(http.StatusConflict, "cert_state", "certificate issuance cannot be retried for this site")

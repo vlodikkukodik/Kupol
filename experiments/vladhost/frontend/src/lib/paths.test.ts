@@ -22,10 +22,10 @@ describe('paths', () => {
 
   it.each([
     ['ok.html', null],
-    ['  ', 'Введите имя'],
-    ['..', 'Недопустимое имя'],
-    ['a/b', 'Имя не должно содержать / и \\'],
-    ['a\\b', 'Имя не должно содержать / и \\'],
-    ['x'.repeat(256), 'Слишком длинное имя'],
+    ['  ', 'validation.nameRequired'],
+    ['..', 'validation.nameInvalid'],
+    ['a/b', 'validation.nameSlash'],
+    ['a\\b', 'validation.nameSlash'],
+    ['x'.repeat(256), 'validation.nameTooLong'],
   ])('validateName(%j)', (name, want) => expect(validateName(name)).toBe(want))
 })

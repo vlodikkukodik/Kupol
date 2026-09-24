@@ -4,13 +4,14 @@ package httpapi
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"vladhost/internal/apperr"
 	"vladhost/internal/auth"
 	"vladhost/internal/config"
+	"vladhost/internal/i18n"
 	"vladhost/internal/sites"
 )
 
@@ -31,7 +32,7 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Eng
 		s.cookieName, s.cookiePath = "__Host-vh_refresh", "/"
 	}
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(gin.Recovery(), langMiddleware)
 	// Перед Go стоит nginx на этой же машине.
 	_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 
@@ -80,58 +81,40 @@ type apiError struct {
 	Field   string `json:"field,omitempty"`
 }
 
-func fail(c *gin.Context, status int, code, msg string) {
-	c.AbortWithStatusJSON(status, gin.H{"error": apiError{Code: code, Message: msg}})
+// lang — язык ответа для этого запроса (см. langMiddleware).
+func lang(c *gin.Context) i18n.Lang {
+	if l, ok := c.Get("lang"); ok {
+		if v, ok := l.(i18n.Lang); ok {
+			return v
+		}
+	}
+	return i18n.Default
 }
 
-// failErr переводит доменную ошибку в HTTP-ответ; неизвестные ошибки не раскрываются клиенту.
+// langMiddleware выбирает язык по Accept-Language: фронтенд ставит его по переключателю в шапке.
+func langMiddleware(c *gin.Context) {
+	l := i18n.FromAcceptLanguage(c.GetHeader("Accept-Language"))
+	c.Set("lang", l)
+	c.Header("Content-Language", string(l))
+	c.Writer.Header().Add("Vary", "Accept-Language")
+	c.Next()
+}
+
+// fail отвечает ошибкой с текстом из каталога: ключ "err."+code, args подставляются в текст.
+func fail(c *gin.Context, status int, code string, args ...any) {
+	c.AbortWithStatusJSON(status, gin.H{"error": apiError{Code: code, Message: i18n.T(lang(c), "err."+code, args...)}})
+}
+
+// failErr переводит ошибку домена в HTTP-ответ; неизвестные ошибки не раскрываются клиенту.
 func failErr(c *gin.Context, err error) {
-	var ve *auth.ValidationError
-	switch {
-	case errors.As(err, &ve):
-		c.AbortWithStatusJSON(http.StatusUnprocessableEntity,
-			gin.H{"error": apiError{Code: "validation", Message: ve.Message, Field: ve.Field}})
-	case errors.Is(err, auth.ErrInvalidInvite):
-		fail(c, http.StatusUnprocessableEntity, "invalid_invite", err.Error())
-	case errors.Is(err, auth.ErrEmailTaken):
-		c.AbortWithStatusJSON(http.StatusConflict,
-			gin.H{"error": apiError{Code: "email_taken", Message: err.Error(), Field: "email"}})
-	case errors.Is(err, auth.ErrUsernameTaken):
-		c.AbortWithStatusJSON(http.StatusConflict,
-			gin.H{"error": apiError{Code: "username_taken", Message: err.Error(), Field: "username"}})
-	case errors.Is(err, auth.ErrInvalidCredentials):
-		fail(c, http.StatusUnauthorized, "invalid_credentials", err.Error())
-	case errors.Is(err, auth.ErrInvalidToken):
-		fail(c, http.StatusUnauthorized, "unauthorized", err.Error())
-	case errors.Is(err, sites.ErrLimit):
-		fail(c, http.StatusForbidden, "site_limit", err.Error())
-	case errors.Is(err, sites.ErrSlugTaken):
-		c.AbortWithStatusJSON(http.StatusConflict,
-			gin.H{"error": apiError{Code: "slug_taken", Message: err.Error(), Field: "slug"}})
-	case errors.Is(err, sites.ErrNotFound):
-		fail(c, http.StatusNotFound, "not_found", err.Error())
-	case errors.Is(err, sites.ErrFileNotFound):
-		fail(c, http.StatusNotFound, "file_not_found", err.Error())
-	case errors.Is(err, sites.ErrBadPath):
-		fail(c, http.StatusUnprocessableEntity, "bad_path", err.Error())
-	case errors.Is(err, sites.ErrExists):
-		fail(c, http.StatusConflict, "exists", err.Error())
-	case errors.Is(err, sites.ErrIsDir), errors.Is(err, sites.ErrNotDir):
-		fail(c, http.StatusUnprocessableEntity, "wrong_type", err.Error())
-	case errors.Is(err, sites.ErrTooLarge):
-		fail(c, http.StatusRequestEntityTooLarge, "too_large", err.Error())
-	case errors.Is(err, sites.ErrNotText):
-		fail(c, http.StatusUnsupportedMediaType, "not_text", err.Error())
-	case errors.Is(err, sites.ErrCertState):
-		fail(c, http.StatusConflict, "cert_state", err.Error())
-	case errors.Is(err, sites.ErrQuota):
-		fail(c, http.StatusRequestEntityTooLarge, "quota_exceeded", err.Error())
-	case sites.IsBadArchive(err):
-		fail(c, http.StatusUnprocessableEntity, "bad_archive", err.Error())
-	default:
-		_ = c.Error(err)
-		fail(c, http.StatusInternalServerError, "internal", "Внутренняя ошибка")
+	if ae, ok := errors.AsType[*apperr.Error](err); ok {
+		c.AbortWithStatusJSON(ae.Status, gin.H{"error": apiError{
+			Code: ae.Code, Message: i18n.T(lang(c), "err."+ae.Code, ae.Args...), Field: ae.Field,
+		}})
+		return
 	}
+	_ = c.Error(err)
+	fail(c, http.StatusInternalServerError, "internal")
 }
 
 func (s *Server) setRefreshCookie(c *gin.Context, value string, maxAge int) {
@@ -157,7 +140,7 @@ func (s *Server) register(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if c.ShouldBindJSON(&in) != nil {
-		fail(c, http.StatusBadRequest, "bad_request", "Некорректный запрос")
+		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
 	sess, err := s.svc.Register(c.Request.Context(), auth.RegisterInput{
@@ -176,7 +159,7 @@ func (s *Server) login(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if c.ShouldBindJSON(&in) != nil || in.Login == "" || in.Password == "" {
-		fail(c, http.StatusBadRequest, "bad_request", "Некорректный запрос")
+		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
 	sess, err := s.svc.Login(c.Request.Context(), in.Login, in.Password)
@@ -190,7 +173,7 @@ func (s *Server) login(c *gin.Context) {
 func (s *Server) refresh(c *gin.Context) {
 	raw, err := c.Cookie(s.cookieName)
 	if err != nil || raw == "" {
-		fail(c, http.StatusUnauthorized, "unauthorized", auth.ErrInvalidToken.Error())
+		fail(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	sess, err := s.svc.Refresh(c.Request.Context(), raw)
@@ -243,8 +226,7 @@ func (s *Server) createInvite(c *gin.Context) {
 		in.TTLHours = 24 * 7
 	}
 	if in.TTLHours < 1 || in.TTLHours > 24*30 {
-		fail(c, http.StatusUnprocessableEntity, "validation",
-			"Срок инвайта: от 1 до "+strconv.Itoa(24*30)+" часов")
+		fail(c, http.StatusUnprocessableEntity, "invite_ttl", 24*30)
 		return
 	}
 	inv, err := s.svc.CreateInvite(c.Request.Context(), c.GetInt64("uid"), time.Duration(in.TTLHours)*time.Hour)

@@ -40,7 +40,7 @@ test-front: ## Фронтенд: типы, линтер, тесты
 
 e2e: db-up ## Сквозные тесты в браузере (Playwright + настоящий бэкенд)
 	cd backend && go build -o ../bin/vladhost ./cmd/vladhost
-	cd frontend && npm run e2e
+	cd frontend && npm run build && npm run e2e
 
 test: test-back test-front ## Всё быстрое (без e2e)
 

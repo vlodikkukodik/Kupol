@@ -13,11 +13,12 @@ type ftpSite struct {
 		ID         int64 `json:"id"`
 		FTPEnabled bool  `json:"ftp_enabled"`
 		FTP        struct {
-			Available bool   `json:"available"`
-			Enabled   bool   `json:"enabled"`
-			Host      string `json:"host"`
-			Port      int    `json:"port"`
-			Username  string `json:"username"`
+			Available  bool   `json:"available"`
+			AllowPlain bool   `json:"allow_plain"`
+			Enabled    bool   `json:"enabled"`
+			Host       string `json:"host"`
+			Port       int    `json:"port"`
+			Username   string `json:"username"`
 		} `json:"ftp"`
 	} `json:"site"`
 	Password string `json:"password"`
@@ -26,7 +27,7 @@ type ftpSite struct {
 func (e *env) withFTP() {
 	e.r = httpapi.New(e.svc, e.sites, config.Config{
 		JWTSecret: []byte(strings.Repeat("s", 32)), AuthPerMinute: 10000, AuthBurst: 10000,
-		FTP: config.FTPConfig{Addr: ":2121", Host: "ftp.vladinc.ru"},
+		FTP: config.FTPConfig{Addr: ":2121", Host: "ftp.vladinc.ru", AllowPlain: true},
 	})
 }
 

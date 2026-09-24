@@ -23,7 +23,9 @@ import (
 	ftpserver "github.com/fclairamb/ftpserverlib"
 	"github.com/spf13/afero"
 
+	"vladhost/internal/apperr"
 	"vladhost/internal/config"
+	"vladhost/internal/i18n"
 	"vladhost/internal/sites"
 )
 
@@ -59,7 +61,7 @@ type failRecord struct {
 func New(svc *sites.Service, cfg config.FTPConfig) (*Server, error) {
 	s := &Server{svc: svc, cfg: cfg, failures: map[string]*failRecord{}, conns: map[string]int{}, sessions: map[uint32]*sites.FTPSession{}}
 	if _, err := s.certificate(); err != nil {
-		return nil, fmt.Errorf("сертификат FTP: %w", err)
+		return nil, fmt.Errorf("ftp certificate: %w", err)
 	}
 	s.srv = ftpserver.NewFtpServer(s)
 	return s, nil
@@ -86,8 +88,8 @@ func (s *Server) GetSettings() (*ftpserver.Settings, error) {
 		Banner:              "Vladhost FTP",
 		IdleTimeout:         idleTimeout,
 		ConnectionTimeout:   30,
-		TLSRequired:         ftpserver.MandatoryEncryption, // пароль и данные только по TLS
-		DisableActiveMode:   true,                          // активный режим открывает соединения на адрес клиента
+		TLSRequired:         s.tlsRequirement(),
+		DisableActiveMode:   true, // активный режим открывает соединения на адрес клиента
 		DisableSite:         true,
 		DisableMFMT:         true,
 		DefaultTransferType: ftpserver.TransferTypeBinary,
@@ -103,10 +105,13 @@ func (s *Server) ClientConnected(cc ftpserver.ClientContext) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.conns[ip] >= maxPerIPConn {
-		return "", errors.New("слишком много соединений с вашего адреса")
+		return "", errors.New(i18n.Bi("ftp.too_many_conns"))
 	}
 	s.conns[ip]++
-	return "Vladhost FTP. Только FTPS (явный TLS).", nil
+	if s.cfg.AllowPlain {
+		return i18n.Bi("ftp.banner_plain"), nil
+	}
+	return i18n.Bi("ftp.banner"), nil
 }
 
 func (s *Server) ClientDisconnected(cc ftpserver.ClientContext) {
@@ -131,7 +136,7 @@ func (s *Server) ClientDisconnected(cc ftpserver.ClientContext) {
 func (s *Server) AuthUser(cc ftpserver.ClientContext, user, pass string) (ftpserver.ClientDriver, error) {
 	ip := remoteIP(cc)
 	if s.blocked(ip) {
-		return nil, errors.New("слишком много неудачных попыток, подождите")
+		return nil, errors.New(i18n.Bi("ftp.too_many_failures"))
 	}
 	sess, err := s.svc.FTPLogin(context.Background(), user, pass)
 	if err != nil {
@@ -139,9 +144,9 @@ func (s *Server) AuthUser(cc ftpserver.ClientContext, user, pass string) (ftpser
 			s.fail(ip)
 		} else {
 			log.Printf("ftp: вход %q: %v", user, err)
-			err = errors.New("внутренняя ошибка")
+			err = apperr.New(0, "internal", "internal error")
 		}
-		return nil, err
+		return nil, wrap(err)
 	}
 	s.reset(ip)
 	s.mu.Lock()
@@ -158,6 +163,14 @@ func (s *Server) GetTLSConfig() (*tls.Config, error) {
 		MinVersion:     tls.VersionTLS12,
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return s.certificate() },
 	}, nil
+}
+
+// tlsRequirement: FTPS всегда доступен; обычный FTP принимается, если это не запрещено настройкой.
+func (s *Server) tlsRequirement() ftpserver.TLSRequirement {
+	if s.cfg.AllowPlain {
+		return ftpserver.ClearOrEncrypted
+	}
+	return ftpserver.MandatoryEncryption
 }
 
 // --- защита от подбора ---
@@ -269,7 +282,7 @@ type driver struct{ sess *sites.FTPSession }
 func rel(name string) (string, error) {
 	c, err := sites.CleanPath(strings.TrimPrefix(name, "/"))
 	if err != nil {
-		return "", err
+		return "", wrap(err)
 	}
 	if c == "" {
 		return ".", nil
@@ -277,12 +290,18 @@ func rel(name string) (string, error) {
 	return c, nil
 }
 
-// wrap переводит ошибку домена в ту, которую понимает библиотека (код ответа FTP).
+// wrap переводит ошибку домена в ту, которую понимает библиотека (код ответа FTP), с текстом на двух языках:
+// у FTP нет заголовка Accept-Language, поэтому язык клиента неизвестен.
 func wrap(err error) error {
-	if errors.Is(err, sites.ErrQuota) {
-		return fmt.Errorf("%w: %v", ftpserver.ErrStorageExceeded, err)
+	ae, ok := errors.AsType[*apperr.Error](err)
+	if !ok {
+		return err
 	}
-	return err
+	msg := i18n.Bi("err."+ae.Code, ae.Args...)
+	if errors.Is(err, sites.ErrQuota) {
+		return fmt.Errorf("%w: %s", ftpserver.ErrStorageExceeded, msg)
+	}
+	return errors.New(msg)
 }
 
 func (d *driver) Stat(name string) (os.FileInfo, error) {
@@ -306,7 +325,7 @@ func (d *driver) ReadDir(name string) ([]os.FileInfo, error) {
 func (d *driver) GetHandle(name string, flags int, offset int64) (ftpserver.FileTransfer, error) {
 	p, err := rel(name)
 	if err != nil || p == "." {
-		return nil, errors.Join(err, sites.ErrBadPath)
+		return nil, wrap(sites.ErrBadPath)
 	}
 	var h sites.Handle
 	if flags&(os.O_WRONLY|os.O_RDWR) != 0 {
@@ -356,7 +375,7 @@ func (d *driver) MkdirAll(name string, perm os.FileMode) error {
 func (d *driver) Remove(name string) error {
 	p, err := rel(name)
 	if err != nil || p == "." {
-		return errors.Join(err, sites.ErrBadPath)
+		return wrap(sites.ErrBadPath)
 	}
 	return wrap(d.sess.Remove(p))
 }
@@ -364,7 +383,7 @@ func (d *driver) Remove(name string) error {
 func (d *driver) RemoveDir(name string) error {
 	p, err := rel(name)
 	if err != nil || p == "." {
-		return errors.Join(err, sites.ErrBadPath)
+		return wrap(sites.ErrBadPath)
 	}
 	return wrap(d.sess.RemoveDir(p))
 }
@@ -380,13 +399,13 @@ func (d *driver) Rename(oldname, newname string) error {
 		return err
 	}
 	if from == "." || to == "." {
-		return sites.ErrBadPath
+		return wrap(sites.ErrBadPath)
 	}
 	return wrap(d.sess.Rename(from, to))
 }
 
 // Управление правами, владельцем и временем файлов не поддерживается: каталог сайта общий для веб-сервера.
-var errNotSupported = errors.New("операция не поддерживается")
+var errNotSupported = errors.New(i18n.Bi("err.not_supported"))
 
 func (d *driver) Chmod(string, os.FileMode) error            { return errNotSupported }
 func (d *driver) Chown(string, int, int) error               { return errNotSupported }

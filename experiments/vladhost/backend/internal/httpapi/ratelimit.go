@@ -55,7 +55,7 @@ func (l *ipLimiter) middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !l.allow(c.ClientIP()) {
 			c.Header("Retry-After", "60")
-			fail(c, 429, "too_many_requests", "Слишком много попыток, подождите минуту")
+			fail(c, 429, "too_many_requests")
 			return
 		}
 		c.Next()

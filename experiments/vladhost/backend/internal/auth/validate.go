@@ -1,26 +1,21 @@
 package auth
 
 import (
-	"errors"
+	"net/http"
 	"net/mail"
 	"regexp"
 	"strings"
+
+	"vladhost/internal/apperr"
 )
 
-// ValidationError — ошибка ввода с кодом поля, чтобы фронт показал её у нужного поля.
-type ValidationError struct {
-	Field   string
-	Message string
-}
-
-func (e *ValidationError) Error() string { return e.Field + ": " + e.Message }
-
+// Ошибки домена. Текст для пользователя берётся из каталога i18n по коду.
 var (
-	ErrInvalidInvite      = errors.New("инвайт недействителен или уже использован")
-	ErrEmailTaken         = errors.New("этот email уже зарегистрирован")
-	ErrUsernameTaken      = errors.New("это имя уже занято")
-	ErrInvalidCredentials = errors.New("неверный логин или пароль")
-	ErrInvalidToken       = errors.New("сессия недействительна")
+	ErrInvalidInvite      = apperr.New(http.StatusUnprocessableEntity, "invalid_invite", "invite is invalid or already used")
+	ErrEmailTaken         = apperr.New(http.StatusConflict, "email_taken", "email already registered").OnField("email")
+	ErrUsernameTaken      = apperr.New(http.StatusConflict, "username_taken", "username already taken").OnField("username")
+	ErrInvalidCredentials = apperr.New(http.StatusUnauthorized, "invalid_credentials", "invalid login or password")
+	ErrInvalidToken       = apperr.New(http.StatusUnauthorized, "unauthorized", "session is invalid")
 )
 
 // Имя пользователя становится DNS-меткой в {site}.{user}.vladinc.ru.
@@ -43,7 +38,7 @@ func normalizeEmail(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	addr, err := mail.ParseAddress(raw)
 	if err != nil || addr.Address != raw || len(raw) > 254 {
-		return "", &ValidationError{"email", "некорректный email"}
+		return "", apperr.Validation("email", "email", "invalid email")
 	}
 	return strings.ToLower(raw), nil
 }
@@ -51,23 +46,23 @@ func normalizeEmail(raw string) (string, error) {
 func normalizeUsername(raw string) (string, error) {
 	name := strings.ToLower(strings.TrimSpace(raw))
 	if !usernameRe.MatchString(name) {
-		return "", &ValidationError{"username", "3–32 символа: латиница, цифры и дефис, не с дефиса и не на дефис"}
+		return "", apperr.Validation("username", "username_format", "invalid username format")
 	}
 	if strings.Contains(name, "--") {
-		return "", &ValidationError{"username", "два дефиса подряд недопустимы"}
+		return "", apperr.Validation("username", "username_dashes", "username has consecutive dashes")
 	}
 	if reservedUsernames[name] {
-		return "", &ValidationError{"username", "это имя зарезервировано"}
+		return "", apperr.Validation("username", "username_reserved", "username is reserved")
 	}
 	return name, nil
 }
 
 func validatePassword(pw string) error {
 	if len(pw) < minPasswordLen {
-		return &ValidationError{"password", "пароль короче 8 символов"}
+		return apperr.Validation("password", "password_short", "password is too short")
 	}
 	if len(pw) > maxPasswordLen {
-		return &ValidationError{"password", "пароль длиннее 72 байт"}
+		return apperr.Validation("password", "password_long", "password is too long")
 	}
 	return nil
 }

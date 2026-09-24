@@ -1,4 +1,5 @@
 import type { z } from 'zod'
+import { getLocale, t } from '@/i18n'
 import { apiErrorSchema, sessionSchema } from './schemas'
 
 export class ApiError extends Error {
@@ -27,7 +28,8 @@ export function onUnauthorized(handler: () => void) {
 }
 
 async function send(path: string, method: string, body: unknown, token: string | null): Promise<Response> {
-  const headers: Record<string, string> = {}
+  // Язык выбран пользователем в шапке: сервер отвечает на нём (тексты ошибок).
+  const headers: Record<string, string> = { 'Accept-Language': getLocale() }
   const isForm = body instanceof FormData
   // Для multipart Content-Type с границей выставляет сам браузер.
   if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
@@ -46,7 +48,7 @@ async function toError(res: Response): Promise<ApiError> {
     const e = parsed.data.error
     return new ApiError(res.status, e.code, e.message, e.field)
   }
-  return new ApiError(res.status, 'unknown', `Ошибка сервера (${res.status})`)
+  return new ApiError(res.status, 'unknown', t('errors.server', { status: res.status }))
 }
 
 /** Обновляет access-токен по refresh-cookie. Параллельные вызовы делят один запрос. */
@@ -87,7 +89,7 @@ export async function api<S extends z.ZodType>(path: string, opts: Options<S> = 
   try {
     res = await send(path, method, body, auth ? accessToken : null)
   } catch {
-    throw new ApiError(0, 'network', 'Нет связи с сервером')
+    throw new ApiError(0, 'network', t('errors.network'))
   }
   if (res.status === 401 && auth) {
     if (await refreshSession()) {
@@ -101,6 +103,6 @@ export async function api<S extends z.ZodType>(path: string, opts: Options<S> = 
   if (!res.ok) throw await toError(res)
   if (res.status === 204 || !schema) return undefined as z.infer<S>
   const parsed = schema.safeParse(await res.json())
-  if (!parsed.success) throw new ApiError(res.status, 'bad_response', 'Сервер вернул неожиданный ответ')
+  if (!parsed.success) throw new ApiError(res.status, 'bad_response', t('errors.badResponse'))
   return parsed.data
 }

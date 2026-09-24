@@ -24,6 +24,8 @@ type ftpBlock struct {
 	Host      string `json:"host,omitempty"`
 	Port      int    `json:"port,omitempty"`
 	Username  string `json:"username,omitempty"`
+	// AllowPlain — сервер принимает и обычный FTP без шифрования (интерфейс тогда предупреждает и рекомендует FTPS).
+	AllowPlain bool `json:"allow_plain"`
 }
 
 func (s *Server) toJSON(st sites.Site) siteJSON {
@@ -31,7 +33,7 @@ func (s *Server) toJSON(st sites.Site) siteJSON {
 	if s.cfg.FTP.Addr != "" {
 		_, port, _ := net.SplitHostPort(s.cfg.FTP.Addr)
 		p, _ := strconv.Atoi(port)
-		out.FTP = ftpBlock{Available: true, Enabled: st.FTPEnabled, Host: s.cfg.FTP.Host, Port: p, Username: s.sites.FTPUsername(st.Host)}
+		out.FTP = ftpBlock{Available: true, Enabled: st.FTPEnabled, Host: s.cfg.FTP.Host, Port: p, Username: s.sites.FTPUsername(st.Host), AllowPlain: s.cfg.FTP.AllowPlain}
 	}
 	return out
 }
@@ -58,7 +60,7 @@ func (s *Server) createSite(c *gin.Context) {
 		Slug string `json:"slug"`
 	}
 	if c.ShouldBindJSON(&in) != nil {
-		fail(c, http.StatusBadRequest, "bad_request", "Некорректный запрос")
+		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
 	u, err := s.svc.UserByID(c.Request.Context(), c.GetInt64("uid"))
@@ -94,7 +96,7 @@ func (s *Server) enableFTP(c *gin.Context) {
 		return
 	}
 	if s.cfg.FTP.Addr == "" {
-		fail(c, http.StatusConflict, "ftp_unavailable", "FTP на сервере не включён")
+		fail(c, http.StatusConflict, "ftp_unavailable")
 		return
 	}
 	site, password, err := s.sites.EnableFTP(c.Request.Context(), c.GetInt64("uid"), id)
@@ -141,10 +143,10 @@ func (s *Server) deploySite(c *gin.Context) {
 	fh, err := c.FormFile("file")
 	if err != nil {
 		if _, tooBig := errors.AsType[*http.MaxBytesError](err); tooBig {
-			fail(c, http.StatusRequestEntityTooLarge, "quota_exceeded", sites.ErrQuota.Error())
+			failErr(c, sites.ErrQuota)
 			return
 		}
-		fail(c, http.StatusBadRequest, "bad_request", "Приложите zip-архив в поле file")
+		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
 	f, err := fh.Open()
@@ -164,7 +166,7 @@ func (s *Server) deploySite(c *gin.Context) {
 func siteID(c *gin.Context) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
-		fail(c, http.StatusNotFound, "not_found", sites.ErrNotFound.Error())
+		failErr(c, sites.ErrNotFound)
 		return 0, false
 	}
 	return id, true

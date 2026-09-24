@@ -40,7 +40,7 @@ SSHPASS='…' ./deploy/deploy.sh      # или без SSHPASS, если наст
 
 ## FTP
 
-Встроенный FTPS-сервер панели: `ftp.vladinc.ru:2121`, только явный TLS, пассивный режим, порты данных 50000–50100
+Встроенный FTP-сервер панели: `ftp.vladinc.ru:2121`, принимает FTPS (явный TLS, рекомендуется) и обычный FTP без шифрования (`VLADHOST_FTP_ALLOW_PLAIN=false` оставит только FTPS), пассивный режим, порты данных 50000–50100
 (порт 21 занят стоковым proftpd, который мы не трогаем). Логин — `slug.username`, пароль отдельный на сайт.
 
 - Сертификат `ftp.vladinc.ru` выпускается certbot'ом (webroot); deploy-hook `cert-hook.sh` кладёт копию в

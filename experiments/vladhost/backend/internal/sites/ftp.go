@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"math/big"
+	"net/http"
 	"os"
 	"regexp"
 	"slices"
@@ -16,11 +17,14 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+
+	"vladhost/internal/apperr"
 )
 
 var (
-	ErrFTPAuth    = errors.New("неверное имя или пароль FTP")
-	ErrFTPRevoked = errors.New("доступ по FTP отозван")
+	ErrFTPAuth    = apperr.New(http.StatusUnauthorized, "ftp_auth", "invalid FTP login or password")
+	ErrFTPRevoked = apperr.New(http.StatusForbidden, "ftp_revoked", "FTP access revoked")
+	errBadOffset  = apperr.New(http.StatusUnprocessableEntity, "bad_offset", "offset is beyond the file size")
 )
 
 // Алфавит без похожих символов (0/O, 1/l/I): пароль читают глазами и вводят руками.
@@ -367,7 +371,7 @@ func (f *FTPSession) OpenWrite(rel string, flags int, offset int64) (Handle, err
 		case offset == 0:
 			openFlags |= os.O_TRUNC
 		case offset > oldSize:
-			return errors.New("смещение больше размера файла")
+			return errBadOffset
 		}
 		file, err := r.OpenFile(rel, openFlags, 0o644)
 		if err != nil {

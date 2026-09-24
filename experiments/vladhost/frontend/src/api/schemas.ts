@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import type { MessageKey } from '@/i18n'
+
+// Тексты проверок форм — ключи каталога i18n (тип не даст указать несуществующий).
+const key = (k: MessageKey): MessageKey => k
 
 export const userSchema = z.object({
   id: z.number(),
@@ -45,6 +49,7 @@ export const siteSchema = z.object({
   cert_error: z.string(),
   ftp: z.object({
     available: z.boolean(), // FTP включён на сервере
+    allow_plain: z.boolean(), // принимается ли и обычный FTP без шифрования
     enabled: z.boolean(), // у сайта выдан доступ
     host: z.string().optional(),
     port: z.number().optional(),
@@ -66,34 +71,35 @@ export const siteForm = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .regex(/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/, '2–32 символа: латиница, цифры и дефис, не с дефиса и не на дефис')
-    .refine((v) => !v.includes('--'), 'Два дефиса подряд недопустимы'),
+    .regex(/^[a-z0-9][a-z0-9-]{0,30}[a-z0-9]$/, key('validation.slug'))
+    .refine((v) => !v.includes('--'), key('validation.slug')),
 })
 
 export const apiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string(), field: z.string().optional() }),
 })
 
-// Проверки форм повторяют серверные правила, чтобы ошибки видны до отправки.
-// Источник истины — сервер (backend/internal/auth/validate.go).
+// Проверки форм повторяют серверные правила, чтобы ошибки были видны до отправки.
+// Источник истины — сервер (backend/internal/auth/validate.go). Сообщения — ключи каталога i18n:
+// в интерфейсе их переводит resolveMessage, поэтому язык меняется без пересоздания схем.
 export const loginForm = z.object({
-  login: z.string().trim().min(1, 'Введите email или имя'),
-  password: z.string().min(1, 'Введите пароль'),
+  login: z.string().trim().min(1, key('validation.identityRequired')),
+  password: z.string().min(1, key('validation.passwordRequired')),
 })
 
 export const registerForm = z.object({
-  invite: z.string().trim().min(1, 'Введите код инвайта'),
-  email: z.string().trim().pipe(z.email('Некорректный email')),
+  invite: z.string().trim().min(1, key('validation.inviteRequired')),
+  email: z.string().trim().pipe(z.email(key('validation.email'))),
   username: z
     .string()
     .trim()
     .toLowerCase()
-    .regex(/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/, '3–32 символа: латиница, цифры и дефис, не с дефиса и не на дефис')
-    .refine((v) => !v.includes('--'), 'Два дефиса подряд недопустимы'),
+    .regex(/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/, key('validation.usernameFormat'))
+    .refine((v) => !v.includes('--'), key('validation.usernameDashes')),
   password: z
     .string()
-    .min(8, 'Пароль короче 8 символов')
-    .refine((v) => new TextEncoder().encode(v).length <= 72, 'Пароль длиннее 72 байт'),
+    .min(8, key('validation.passwordShort'))
+    .refine((v) => new TextEncoder().encode(v).length <= 72, key('validation.passwordLong')),
 })
 
 /** Первая ошибка по каждому полю формы. */

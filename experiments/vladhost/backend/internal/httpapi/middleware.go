@@ -14,7 +14,7 @@ import (
 // Запросы без Origin (не браузер) проходят: им cookie всё равно взять негде.
 func (s *Server) checkOrigin(c *gin.Context) {
 	if o := c.GetHeader("Origin"); s.cfg.PanelOrigin != "" && o != "" && o != s.cfg.PanelOrigin {
-		fail(c, http.StatusForbidden, "forbidden_origin", "Запрос с чужого источника")
+		fail(c, http.StatusForbidden, "forbidden_origin")
 		return
 	}
 	c.Next()
@@ -24,12 +24,12 @@ func (s *Server) requireAuth(c *gin.Context) {
 	h := c.GetHeader("Authorization")
 	token, ok := strings.CutPrefix(h, "Bearer ")
 	if !ok || token == "" {
-		fail(c, http.StatusUnauthorized, "unauthorized", auth.ErrInvalidToken.Error())
+		fail(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	claims, err := s.svc.ParseAccess(token)
 	if err != nil {
-		fail(c, http.StatusUnauthorized, "unauthorized", err.Error())
+		fail(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	c.Set("uid", claims.UserID)
@@ -39,7 +39,7 @@ func (s *Server) requireAuth(c *gin.Context) {
 
 func (s *Server) requireAdmin(c *gin.Context) {
 	if c.GetString("role") != string(auth.RoleAdmin) {
-		fail(c, http.StatusForbidden, "forbidden", "Недостаточно прав")
+		fail(c, http.StatusForbidden, "forbidden")
 		return
 	}
 	c.Next()

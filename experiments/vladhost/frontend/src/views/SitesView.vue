@@ -1,12 +1,25 @@
 <script setup lang="ts">
-import { NAlert, NButton, NCard, NEmpty, NForm, NFormItem, NInput, NModal, NPopconfirm, NProgress, NSpace, NTag, useMessage } from 'naive-ui'
+import {
+  AddOutline,
+  CloudUploadOutline,
+  CopyOutline,
+  FolderOpenOutline,
+  GlobeOutline,
+  KeyOutline,
+  RefreshOutline,
+  TrashOutline,
+} from '@vicons/ionicons5'
+import { NAlert, NButton, NForm, NFormItem, NIcon, NInput, NModal, NPopconfirm, NSpace, useMessage } from 'naive-ui'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '@/api/client'
 import { fieldErrors, ftpGrantSchema, siteForm, siteResponseSchema, sitesSchema, type Site } from '@/api/schemas'
-import { formatBytes } from '@/lib/format'
+import EmptyState from '@/components/EmptyState.vue'
+import StatusChip from '@/components/StatusChip.vue'
+import { formatBytes, formatDateTime, resolveMessage, useI18n } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 
+const { t, locale } = useI18n()
 const auth = useAuthStore()
 const message = useMessage()
 const router = useRouter()
@@ -26,9 +39,8 @@ const used = computed(() => sites.value.reduce((sum, s) => sum + s.disk_bytes, 0
 const usedPercent = computed(() =>
   limits.value.disk_quota_bytes ? Math.min(100, Math.round((used.value / limits.value.disk_quota_bytes) * 100)) : 0,
 )
-const hostPreview = computed(() => `${form.slug.trim().toLowerCase() || 'сайт'}.${auth.user?.username}.vladinc.ru`)
+const hostPreview = computed(() => `${form.slug.trim().toLowerCase() || '…'}.${auth.user?.username}.vladinc.ru`)
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleString('ru-RU')
 const errText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback)
 
 async function load() {
@@ -38,7 +50,7 @@ async function load() {
     sites.value = r.sites
     limits.value = r.limits
   } catch (e) {
-    loadError.value = errText(e, 'Не удалось загрузить сайты')
+    loadError.value = errText(e, t('sites.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -55,7 +67,7 @@ async function create() {
     await load()
   } catch (e) {
     if (e instanceof ApiError && e.field) errors.value = { [e.field]: e.message }
-    else message.error(errText(e, 'Не удалось создать сайт'))
+    else message.error(errText(e, t('sites.createFailed')))
   } finally {
     creating.value = false
   }
@@ -64,7 +76,7 @@ async function create() {
 async function deploy(site: Site, file: File | undefined) {
   if (!file) return
   if (!file.name.toLowerCase().endsWith('.zip')) {
-    message.error('Нужен архив в формате .zip')
+    message.error(t('sites.zipOnly'))
     return
   }
   busyId.value = site.id
@@ -72,10 +84,10 @@ async function deploy(site: Site, file: File | undefined) {
     const body = new FormData()
     body.append('file', file)
     await api(`/api/sites/${site.id}/deploy`, { method: 'POST', body, schema: siteResponseSchema })
-    message.success('Сайт обновлён')
+    message.success(t('sites.deployed'))
     await load()
   } catch (e) {
-    message.error(errText(e, 'Не удалось загрузить сайт'))
+    message.error(errText(e, t('sites.deployFailed')))
   } finally {
     busyId.value = null
   }
@@ -93,7 +105,7 @@ async function retryCert(site: Site) {
     await api(`/api/sites/${site.id}/cert/retry`, { method: 'POST', schema: siteResponseSchema })
     await load()
   } catch (e) {
-    message.error(errText(e, 'Не удалось повторить выпуск'))
+    message.error(errText(e, t('sites.cert.retryFailed')))
   } finally {
     busyId.value = null
   }
@@ -109,7 +121,7 @@ async function enableFtp(site: Site) {
     grant.value = { site: r.site, password: r.password }
     await load()
   } catch (e) {
-    message.error(errText(e, 'Не удалось включить FTP'))
+    message.error(errText(e, t('sites.ftp.enableFailed')))
   } finally {
     busyId.value = null
   }
@@ -121,7 +133,7 @@ async function disableFtp(site: Site) {
     await api(`/api/sites/${site.id}/ftp`, { method: 'DELETE', schema: siteResponseSchema })
     await load()
   } catch (e) {
-    message.error(errText(e, 'Не удалось отключить FTP'))
+    message.error(errText(e, t('sites.ftp.disableFailed')))
   } finally {
     busyId.value = null
   }
@@ -130,9 +142,9 @@ async function disableFtp(site: Site) {
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text)
-    message.success('Скопировано')
+    message.success(t('common.copied'))
   } catch {
-    message.error('Не удалось скопировать — выделите текст вручную')
+    message.error(t('common.copyFailed'))
   }
 }
 
@@ -142,7 +154,7 @@ async function remove(site: Site) {
     await api(`/api/sites/${site.id}`, { method: 'DELETE' })
     await load()
   } catch (e) {
-    message.error(errText(e, 'Не удалось удалить сайт'))
+    message.error(errText(e, t('sites.deleteFailed')))
   } finally {
     busyId.value = null
   }
@@ -161,127 +173,370 @@ onBeforeUnmount(() => clearInterval(poll))
 
 <template>
   <div class="page">
-    <h2>Сайты</h2>
+    <header class="head rise">
+      <div>
+        <h1>{{ t('sites.title') }}</h1>
+        <p>{{ t('sites.subtitle') }}</p>
+      </div>
+    </header>
 
     <n-alert v-if="loadError" type="error" :show-icon="false" class="gap">
-      {{ loadError }} <n-button size="tiny" @click="load">Повторить</n-button>
+      {{ loadError }} <n-button size="tiny" @click="load">{{ t('common.retry') }}</n-button>
     </n-alert>
 
-    <n-card size="small" class="gap" title="Диск">
-      <n-progress type="line" :percentage="usedPercent" :show-indicator="false" />
-      <div class="muted">{{ formatBytes(used) }} из {{ formatBytes(limits.disk_quota_bytes) }}</div>
-    </n-card>
-
-    <n-card v-for="s in sites" :key="s.id" size="small" class="gap">
-      <template #header>
-        <!-- Пока сертификата нет, адрес открыть нельзя: http перенаправляет на https. -->
-        <a v-if="s.cert_status === 'active' || s.cert_status === 'none'" :href="s.url" target="_blank" rel="noopener">{{ s.host }}</a>
-        <span v-else>{{ s.host }}</span>
-      </template>
-      <template #header-extra>
-        <n-space :size="6">
-          <n-tag v-if="s.cert_status === 'pending'" type="info" size="small" round>HTTPS выпускается…</n-tag>
-          <n-tag v-else-if="s.cert_status === 'failed'" type="error" size="small" round>HTTPS не выпущен</n-tag>
-          <n-tag :type="s.status === 'live' ? 'success' : 'default'" size="small" round>
-            {{ s.status === 'live' ? 'опубликован' : 'пустой' }}
-          </n-tag>
-        </n-space>
-      </template>
-      <n-alert v-if="s.cert_status === 'failed'" type="error" :show-icon="false" class="gap">
-        Не удалось выпустить сертификат: {{ s.cert_error || 'неизвестная ошибка' }}
-        <n-button size="tiny" :loading="busyId === s.id" @click="retryCert(s)">Повторить</n-button>
-      </n-alert>
-      <div class="muted">
-        <template v-if="s.deployed_at">Обновлён {{ fmtDate(s.deployed_at) }}, {{ formatBytes(s.disk_bytes) }}</template>
-        <template v-else>Загрузите zip с index.html в корне архива</template>
+    <section class="disk glass rise" style="--i: 1">
+      <div class="disk-top">
+        <span class="disk-title">{{ t('sites.disk') }}</span>
+        <span class="disk-val">{{ t('sites.diskUsed', { used: formatBytes(used, locale), total: formatBytes(limits.disk_quota_bytes, locale) }) }}</span>
       </div>
-      <div v-if="s.ftp.available" class="ftp">
-        <template v-if="s.ftp.enabled">
-          <div class="muted">
-            FTPS: <code>{{ s.ftp.host }}</code>, порт <code>{{ s.ftp.port }}</code>, логин <code>{{ s.ftp.username }}</code>
+      <div class="meter"><span :style="{ width: `${Math.max(usedPercent, used > 0 ? 2 : 0)}%` }" /></div>
+    </section>
+
+    <div v-if="loading" class="skeletons">
+      <div class="skeleton" style="height: 168px" />
+    </div>
+
+    <transition-group v-else name="list" tag="div" class="sites">
+      <article v-for="s in sites" :key="s.id" class="site glass lift">
+        <div class="site-head">
+          <span class="globe"><n-icon :size="22" :component="GlobeOutline" /></span>
+          <div class="titles">
+            <!-- Пока сертификата нет, адрес открыть нельзя: http перенаправляет на https. -->
+            <a v-if="s.cert_status === 'active' || s.cert_status === 'none'" :href="s.url" target="_blank" rel="noopener" class="host">{{ s.host }}</a>
+            <span v-else class="host">{{ s.host }}</span>
+            <div class="meta">
+              <template v-if="s.deployed_at">
+                {{ t('sites.updated', { date: formatDateTime(s.deployed_at, locale), size: formatBytes(s.disk_bytes, locale) }) }}
+              </template>
+              <template v-else>{{ t('sites.uploadHint') }}</template>
+            </div>
           </div>
-          <n-space class="actions">
+          <div class="chips">
+            <status-chip v-if="s.cert_status === 'pending'" tone="amber" pulse>{{ t('sites.cert.pending') }}</status-chip>
+            <status-chip v-else-if="s.cert_status === 'failed'" tone="rose">{{ t('sites.cert.failed') }}</status-chip>
+            <status-chip v-else-if="s.cert_status === 'active'" tone="cyan">{{ t('sites.cert.active') }}</status-chip>
+            <status-chip :tone="s.status === 'live' ? 'emerald' : 'slate'">
+              {{ s.status === 'live' ? t('sites.status.live') : t('sites.status.empty') }}
+            </status-chip>
+          </div>
+        </div>
+
+        <n-alert v-if="s.cert_status === 'failed'" type="error" :show-icon="false" class="gap">
+          {{ t('sites.cert.failedBody', { reason: s.cert_error || t('sites.cert.unknownReason') }) }}
+          <n-button size="tiny" :loading="busyId === s.id" @click="retryCert(s)">
+            <template #icon><n-icon :component="RefreshOutline" /></template>
+            {{ t('common.retry') }}
+          </n-button>
+        </n-alert>
+
+        <div v-if="s.ftp.available" class="ftp">
+          <span class="ftp-ic"><n-icon :size="18" :component="KeyOutline" /></span>
+          <div class="ftp-body">
+            <strong>{{ t('sites.ftp.title') }}</strong>
+            <span v-if="s.ftp.enabled" class="ftp-line">
+              {{ t('sites.ftp.connection', { host: s.ftp.host ?? '', port: s.ftp.port ?? 0, user: s.ftp.username ?? '' }) }}
+            </span>
+          </div>
+          <n-space v-if="s.ftp.enabled" :size="8">
             <n-popconfirm @positive-click="enableFtp(s)">
               <template #trigger>
-                <n-button size="tiny" :disabled="busyId === s.id">Новый FTP-пароль</n-button>
+                <n-button size="small" class="tint-violet" :disabled="busyId === s.id">{{ t('sites.ftp.newPassword') }}</n-button>
               </template>
-              Выдать новый пароль? Старый перестанет работать, открытые FTP-сессии закроются.
+              {{ t('sites.ftp.newPasswordConfirm') }}
             </n-popconfirm>
-            <n-button size="tiny" quaternary type="error" :disabled="busyId === s.id" @click="disableFtp(s)">Отключить FTP</n-button>
+            <n-button size="small" class="tint-rose" :disabled="busyId === s.id" @click="disableFtp(s)">{{ t('sites.ftp.disable') }}</n-button>
           </n-space>
-        </template>
-        <n-button v-else size="tiny" :loading="busyId === s.id" @click="enableFtp(s)">Включить FTP</n-button>
-      </div>
-      <n-space class="actions">
-        <n-button size="small" type="primary" :loading="busyId === s.id" tag="label">
-          Загрузить zip
-          <input type="file" accept=".zip,application/zip" class="file" @change="onPick(s, $event)">
-        </n-button>
-        <n-button size="small" @click="router.push({ name: 'files', params: { id: s.id } })">Файлы</n-button>
-        <n-popconfirm @positive-click="remove(s)">
-          <template #trigger>
-            <n-button size="small" quaternary type="error" :disabled="busyId === s.id">Удалить</n-button>
-          </template>
-          Удалить сайт {{ s.host }} и все его файлы?
-        </n-popconfirm>
-      </n-space>
-    </n-card>
+          <n-button v-else size="small" class="tint-violet" :loading="busyId === s.id" @click="enableFtp(s)">{{ t('sites.ftp.enable') }}</n-button>
+        </div>
 
-    <n-modal :show="grant !== null" preset="card" title="Доступ по FTP" style="max-width: 460px" @update:show="grant = null">
-      <template v-if="grant">
-        <p class="note">Пароль показывается один раз — сохраните его сейчас. Потерянный пароль можно заменить новым.</p>
-        <dl class="creds">
-          <dt>Сервер</dt>
-          <dd><code>{{ grant.site.ftp.host }}</code></dd>
-          <dt>Порт</dt>
-          <dd><code>{{ grant.site.ftp.port }}</code></dd>
-          <dt>Логин</dt>
-          <dd>
-            <code>{{ grant.site.ftp.username }}</code>
-            <n-button size="tiny" quaternary @click="copyText(grant.site.ftp.username ?? '')">Копировать</n-button>
-          </dd>
-          <dt>Пароль</dt>
-          <dd>
-            <code data-testid="ftp-password">{{ grant.password }}</code>
-            <n-button size="tiny" quaternary @click="copyText(grant.password)">Копировать</n-button>
-          </dd>
-        </dl>
-        <p class="note">
-          Подключение: FTPS (явный TLS, «FTP поверх TLS»), пассивный режим. Обычный FTP без шифрования сервер не принимает.
-        </p>
-      </template>
-    </n-modal>
+        <n-space class="actions" :size="10">
+          <n-button type="primary" :loading="busyId === s.id" tag="label">
+            <template #icon><n-icon :component="CloudUploadOutline" /></template>
+            {{ t('sites.uploadZip') }}
+            <input type="file" accept=".zip,application/zip" class="file" @change="onPick(s, $event)">
+          </n-button>
+          <n-button class="tint-cyan" @click="router.push({ name: 'files', params: { id: s.id } })">
+            <template #icon><n-icon :component="FolderOpenOutline" /></template>
+            {{ t('sites.files') }}
+          </n-button>
+          <n-popconfirm @positive-click="remove(s)">
+            <template #trigger>
+              <n-button class="tint-rose" :disabled="busyId === s.id">
+                <template #icon><n-icon :component="TrashOutline" /></template>
+                {{ t('sites.deleteSite') }}
+              </n-button>
+            </template>
+            {{ t('sites.deleteConfirm', { host: s.host }) }}
+          </n-popconfirm>
+        </n-space>
+      </article>
+    </transition-group>
 
-    <n-empty v-if="!loading && !sites.length" description="Сайтов пока нет" class="gap" />
+    <empty-state v-if="!loading && !sites.length" :title="t('sites.emptyTitle')" :hint="t('sites.emptyHint')" class="glass" />
 
-    <n-card v-if="canCreate" title="Новый сайт" size="small">
+    <section v-if="canCreate && !loading" class="new glass rise">
+      <h3>{{ t('sites.newTitle') }}</h3>
       <n-form @submit.prevent="create">
         <n-form-item
-          label="Имя сайта"
+          :label="t('sites.name')"
           :validation-status="errors.slug ? 'error' : undefined"
-          :feedback="errors.slug ?? `Адрес: ${hostPreview}`"
+          :feedback="errors.slug ? resolveMessage(errors.slug) : t('sites.addressPreview', { host: hostPreview })"
         >
-          <n-input v-model:value="form.slug" placeholder="blog" autocomplete="off" :input-props="{ 'aria-label': 'Имя сайта' }" />
+          <n-input v-model:value="form.slug" size="large" :placeholder="t('sites.namePlaceholder')" autocomplete="off" :input-props="{ 'aria-label': t('sites.name') }" />
         </n-form-item>
-        <n-button type="primary" attr-type="submit" :loading="creating">Создать</n-button>
+        <n-button type="primary" size="large" attr-type="submit" :loading="creating">
+          <template #icon><n-icon :component="AddOutline" /></template>
+          {{ t('common.create') }}
+        </n-button>
       </n-form>
-    </n-card>
-    <n-alert v-else-if="!loading" type="info" :show-icon="false">
-      Достигнут лимит: сайтов на аккаунт — {{ limits.max_sites }}.
+    </section>
+    <n-alert v-else-if="!loading && sites.length" type="info" :show-icon="false">
+      {{ t('sites.limitReached', { max: limits.max_sites }) }}
     </n-alert>
+
+    <n-modal :show="grant !== null" preset="card" :title="t('sites.ftp.dialogTitle')" style="max-width: 480px" @update:show="grant = null">
+      <template v-if="grant">
+        <p class="note">{{ t('sites.ftp.once') }}</p>
+        <dl class="creds">
+          <dt>{{ t('sites.ftp.server') }}</dt>
+          <dd><code>{{ grant.site.ftp.host }}</code></dd>
+          <dt>{{ t('sites.ftp.port') }}</dt>
+          <dd><code>{{ grant.site.ftp.port }}</code></dd>
+          <dt>{{ t('sites.ftp.login') }}</dt>
+          <dd>
+            <code>{{ grant.site.ftp.username }}</code>
+            <n-button size="tiny" class="tint-violet" @click="copyText(grant.site.ftp.username ?? '')">
+              <template #icon><n-icon :component="CopyOutline" /></template>
+              {{ t('common.copy') }}
+            </n-button>
+          </dd>
+          <dt>{{ t('sites.ftp.password') }}</dt>
+          <dd>
+            <code data-testid="ftp-password" class="pw">{{ grant.password }}</code>
+            <n-button size="tiny" class="tint-violet" @click="copyText(grant.password)">
+              <template #icon><n-icon :component="CopyOutline" /></template>
+              {{ t('common.copy') }}
+            </n-button>
+          </dd>
+        </dl>
+        <p class="note">{{ t(grant.site.ftp.allow_plain ? 'sites.ftp.howTo' : 'sites.ftp.howToSecure') }}</p>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <style scoped>
-.page { max-width: 720px; }
-h2 { margin: 0 0 16px; }
-.gap { margin-bottom: 16px; }
-.muted { opacity: 0.7; font-size: 13px; margin-top: 8px; }
-.actions { margin-top: 12px; }
-.ftp { margin-top: 12px; }
-.note { font-size: 13px; opacity: 0.8; }
-.creds { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 12px 0; }
-.creds dt { opacity: 0.7; }
-.creds dd { margin: 0; display: flex; align-items: center; gap: 8px; word-break: break-all; }
-.file { display: none; }
+.page {
+  display: grid;
+  gap: 18px;
+  max-width: 1080px;
+}
+
+.head h1 {
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 800;
+}
+
+.head p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+}
+
+.gap {
+  margin-bottom: 4px;
+}
+
+.disk {
+  padding: 18px 22px;
+}
+
+.disk-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-weight: 650;
+}
+
+.disk-val {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.meter {
+  height: 9px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--grad-primary);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.75);
+  transition: width 0.9s var(--ease);
+}
+
+.sites {
+  position: relative;
+  display: grid;
+  gap: 18px;
+}
+
+.site {
+  position: relative;
+  padding: 22px 24px 20px;
+  overflow: hidden;
+}
+
+/* Цветная полоска слева — фирменный акцент карточки */
+.site::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--grad-primary);
+}
+
+.site-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.globe {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 15px;
+  color: #fff;
+  background: var(--grad-cyan);
+  box-shadow: 0 12px 26px -10px rgba(6, 182, 212, 0.9);
+  transition: transform 0.4s var(--ease);
+}
+
+.site:hover .globe {
+  transform: rotate(-10deg) scale(1.08);
+}
+
+.titles {
+  flex: 1;
+  min-width: 200px;
+}
+
+.host {
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+span.host {
+  color: var(--text);
+}
+
+.meta {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ftp {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.22);
+}
+
+.ftp-ic {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;
+  background: var(--grad-violet);
+}
+
+.ftp-body {
+  flex: 1;
+  min-width: 180px;
+  display: grid;
+}
+
+.ftp-line {
+  color: var(--text-dim);
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.actions {
+  margin-top: 16px;
+}
+
+.file {
+  display: none;
+}
+
+.new {
+  padding: 22px 24px;
+}
+
+.new h3 {
+  margin-bottom: 14px;
+  font-size: 17px;
+}
+
+.note {
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.creds {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 16px;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+}
+
+.creds dt {
+  color: var(--text-faint);
+}
+
+.creds dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  word-break: break-all;
+}
+
+.pw {
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: #fde68a;
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.35);
+}
 </style>
