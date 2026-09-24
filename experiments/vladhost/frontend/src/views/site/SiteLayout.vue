@@ -1,17 +1,28 @@
 <script setup lang="ts">
-import { ChevronDown, GlobeOutline, GridOutline, LogOutOutline, SettingsOutline } from '@vicons/ionicons5'
+import {
+  ArrowBack,
+  FolderOpenOutline,
+  GlobeOutline,
+  KeyOutline,
+  LinkOutline,
+  LogOutOutline,
+  SettingsOutline,
+  SpeedometerOutline,
+} from '@vicons/ionicons5'
 import { NDropdown, NIcon } from 'naive-ui'
-import { computed, h, type Component } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import BrandLogo from '@/components/BrandLogo.vue'
 import LangSwitch from '@/components/LangSwitch.vue'
 import StatusChip from '@/components/StatusChip.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { useI18n, type MessageKey } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useSitesStore } from '@/stores/sites'
 
+// Отдельный «кабинет» выбранного сайта: свой каркас, своё меню, никакого общего меню панели.
 const { t } = useI18n()
 const auth = useAuthStore()
+const store = useSitesStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -23,14 +34,16 @@ interface NavItem {
 }
 
 const items: NavItem[] = [
-  { name: 'dashboard', label: 'nav.dashboard', icon: GridOutline, grad: 'var(--grad-primary)' },
-  { name: 'sites', label: 'nav.sites', icon: GlobeOutline, grad: 'var(--grad-cyan)' },
-  { name: 'settings', label: 'nav.settings', icon: SettingsOutline, grad: 'var(--grad-amber)' },
+  { name: 'site-overview', label: 'siteArea.overview', icon: SpeedometerOutline, grad: 'var(--grad-primary)' },
+  { name: 'files', label: 'siteArea.files', icon: FolderOpenOutline, grad: 'var(--grad-cyan)' },
+  { name: 'site-domains', label: 'siteArea.domains', icon: LinkOutline, grad: 'var(--grad-emerald)' },
+  { name: 'site-ftp', label: 'siteArea.ftp', icon: KeyOutline, grad: 'var(--grad-violet)' },
+  { name: 'site-settings', label: 'siteArea.settings', icon: SettingsOutline, grad: 'var(--grad-amber)' },
 ]
 
-const active = computed(() => String(route.name ?? ''))
-
-const current = computed(() => items.find((i) => i.name === active.value) ?? items[0]!)
+const siteId = computed(() => Number(route.params.id))
+const site = computed(() => store.byId(siteId.value))
+const current = computed(() => items.find((i) => i.name === route.name) ?? items[0]!)
 
 const userMenu = computed(() => [
   { label: t('nav.logout'), key: 'logout', icon: () => h(NIcon, null, { default: () => h(LogOutOutline) }) },
@@ -42,19 +55,43 @@ async function onSelect(key: string) {
     await router.push({ name: 'login' })
   }
 }
+
+// Пока выпускается сертификат, обновляем данные сами.
+let poll: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  void store.load(t('sites.loadFailed'))
+  poll = setInterval(() => {
+    if (store.waiting) void store.load(t('sites.loadFailed'))
+  }, 5000)
+})
+onBeforeUnmount(() => clearInterval(poll))
 </script>
 
 <template>
   <div class="shell">
     <aside class="side glass">
-      <router-link to="/" class="logo plain"><brand-logo /></router-link>
-      <nav class="nav" :aria-label="t('nav.mainMenu')">
+      <router-link :to="{ name: 'sites' }" class="back plain">
+        <span class="ic"><n-icon :size="18" :component="ArrowBack" /></span>
+        <span>{{ t('siteArea.allSites') }}</span>
+      </router-link>
+
+      <div class="who">
+        <span class="globe"><n-icon :size="22" :component="GlobeOutline" /></span>
+        <div class="who-text">
+          <strong class="host">{{ site?.host ?? '…' }}</strong>
+          <status-chip v-if="site" :tone="site.status === 'live' ? 'emerald' : 'slate'">
+            {{ site.status === 'live' ? t('sites.status.live') : t('sites.status.empty') }}
+          </status-chip>
+        </div>
+      </div>
+
+      <nav class="nav" :aria-label="t('siteArea.menu')">
         <router-link
           v-for="it in items"
           :key="it.name"
-          :to="{ name: it.name }"
+          :to="{ name: it.name, params: { id: siteId } }"
           class="item plain"
-          :class="{ on: active === it.name }"
+          :class="{ on: route.name === it.name }"
           :style="{ '--g': it.grad }"
         >
           <span class="ic"><n-icon :size="19" :component="it.icon" /></span>
@@ -66,7 +103,10 @@ async function onSelect(key: string) {
     <div class="main">
       <header class="bar glass">
         <div class="bar-left">
-          <brand-logo class="bar-logo" :size="30" :wordmark="false" />
+          <router-link :to="{ name: 'sites' }" class="crumb-link plain">{{ t('nav.sites') }}</router-link>
+          <span class="sep">/</span>
+          <span class="crumb-site">{{ site?.host ?? '…' }}</span>
+          <span class="sep">/</span>
           <span class="crumb">{{ t(current.label) }}</span>
         </div>
         <div class="bar-right">
@@ -75,17 +115,16 @@ async function onSelect(key: string) {
             <button type="button" class="user">
               <user-avatar :name="auth.user?.username ?? '?'" :size="34" />
               <span class="uname">{{ auth.user?.username }}</span>
-              <status-chip v-if="auth.isAdmin" tone="violet">{{ t('nav.admin') }}</status-chip>
-              <n-icon :size="16" :component="ChevronDown" class="chev" />
             </button>
           </n-dropdown>
         </div>
       </header>
 
       <main class="content">
-        <router-view v-slot="{ Component: view, route: r }">
+        <div v-if="!store.loading && !site" class="glass missing">{{ t('siteArea.notFound') }}</div>
+        <router-view v-else-if="site" v-slot="{ Component: view, route: r }">
           <transition name="page" mode="out-in">
-            <component :is="view" :key="String(r.name)" />
+            <component :is="view" :key="String(r.name)" :site="site" />
           </transition>
         </router-view>
       </main>
@@ -96,7 +135,7 @@ async function onSelect(key: string) {
 <style scoped>
 .shell {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 18px;
   min-height: 100vh;
   padding: 18px;
@@ -107,14 +146,71 @@ async function onSelect(key: string) {
   top: 18px;
   align-self: start;
   height: calc(100vh - 36px);
-  padding: 22px 14px;
+  padding: 18px 14px;
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 18px;
 }
 
-.logo {
-  padding: 0 8px;
+.back {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+  transition:
+    background 0.25s,
+    color 0.25s;
+}
+
+.back:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.back .ic {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+}
+
+.globe {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 13px;
+  color: #fff;
+  background: var(--grad-cyan);
+  box-shadow: 0 10px 22px -10px rgba(6, 182, 212, 0.9);
+}
+
+.who-text {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  justify-items: start;
+}
+
+.host {
+  font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .nav {
@@ -128,29 +224,25 @@ async function onSelect(key: string) {
   display: flex;
   align-items: center;
   gap: 13px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border-radius: 14px;
   color: var(--text-dim);
   font-weight: 600;
   transition:
     background 0.25s,
-    color 0.25s,
-    transform 0.25s var(--ease);
+    color 0.25s;
 }
 
 .item .ic {
   display: inline-grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 11px;
-  color: var(--text-dim);
   background: rgba(255, 255, 255, 0.06);
   transition:
     background 0.3s,
-    color 0.3s,
-    box-shadow 0.3s,
-    transform 0.3s var(--ease);
+    box-shadow 0.3s;
 }
 
 .item:hover {
@@ -194,6 +286,7 @@ async function onSelect(key: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 10px 14px 10px 18px;
   border-radius: 20px !important;
 }
@@ -201,19 +294,21 @@ async function onSelect(key: string) {
 .bar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
+  font-weight: 650;
 }
 
-.crumb {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+.crumb-link,
+.sep,
+.crumb-site {
   color: var(--text-dim);
 }
 
-.bar-logo {
-  display: none;
+.crumb-site {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bar-right {
@@ -235,19 +330,6 @@ async function onSelect(key: string) {
   font: inherit;
   font-weight: 650;
   cursor: pointer;
-  transition:
-    background 0.25s,
-    border-color 0.25s,
-    transform 0.25s var(--ease);
-}
-
-.user:hover {
-  background: rgba(167, 139, 250, 0.16);
-  border-color: rgba(167, 139, 250, 0.5);
-}
-
-.chev {
-  opacity: 0.6;
 }
 
 .content {
@@ -255,7 +337,11 @@ async function onSelect(key: string) {
   padding-bottom: 24px;
 }
 
-/* Телефон: боковая панель становится нижней навигацией */
+.missing {
+  padding: 24px;
+}
+
+/* Телефон: меню сайта — нижняя панель */
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
@@ -266,16 +352,19 @@ async function onSelect(key: string) {
   .side {
     position: fixed;
     inset: auto 12px 12px 12px;
-    top: auto;
     z-index: 30;
     height: auto;
     padding: 8px;
-    flex-direction: row;
-    justify-content: center;
     border-radius: 22px !important;
+    background: rgba(14, 16, 36, 0.88) !important;
   }
 
-  .logo {
+  .back span:not(.ic),
+  .who {
+    display: none;
+  }
+
+  .back {
     display: none;
   }
 
@@ -288,42 +377,22 @@ async function onSelect(key: string) {
   .item {
     flex-direction: column;
     gap: 3px;
-    padding: 6px 10px;
-    font-size: 11.5px;
+    padding: 6px 8px;
+    font-size: 11px;
   }
 
   .item.on::before {
     display: none;
   }
 
-  .item:hover {
-    transform: none;
-  }
-
   .bar {
     top: 12px;
   }
 
-  .bar-logo {
-    display: inline-flex;
-  }
-
+  .crumb-site,
   .uname,
-  .user :deep(.chip),
-  .chev {
+  .sep:first-of-type {
     display: none;
-  }
-
-  .user {
-    padding: 3px;
-  }
-
-  .crumb {
-    display: none;
-  }
-
-  .side {
-    background: rgba(14, 16, 36, 0.88) !important;
   }
 }
 </style>

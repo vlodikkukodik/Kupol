@@ -38,17 +38,20 @@ for (const loc of ['ru', 'it'] as const) {
 
     await nav.locator('a').nth(1).click() // сайты
     await page.waitForTimeout(600)
-    // Сценарий можно гонять повторно: у админа лимит в один сайт, поэтому старый убираем.
-    const del = page.getByRole('button', { name: /Удалить|Elimina/ })
-    if (await del.count()) {
-      await del.first().click()
+    // Сценарий можно гонять повторно: у админа лимит в один сайт, поэтому старый убираем через его кабинет.
+    const old = page.locator('a.site')
+    if (await old.count()) {
+      await old.first().click()
+      await page.getByRole('navigation').last().getByText(/Настройки|Impostazioni/).click()
+      await page.getByRole('button', { name: /Удалить|Elimina/ }).first().click()
       await page.locator('.n-popconfirm__action .n-button--primary-type').click()
+      await page.waitForURL(/\/sites$/)
       await page.waitForTimeout(600)
     }
     await page.locator('input[type=text]').first().fill(`demo${loc}`)
     await page.getByRole('button', { name: /Создать|Crea/ }).last().click()
-    await page.waitForTimeout(500)
-    await shot(page, `${loc}-4-sites-new`)
+    await page.waitForTimeout(700)
+    await shot(page, `${loc}-4-site-overview`)
 
     await page.locator('input[type=file]').first().setInputFiles({
       name: 'site.zip',
@@ -56,18 +59,21 @@ for (const loc of ['ru', 'it'] as const) {
       buffer: makeZip({ 'index.html': '<h1>Demo</h1>', 'css/style.css': 'body{margin:0}', 'js/app.js': 'console.log(1)', 'logo.svg': '<svg/>', 'data.json': '{}' }),
     })
     await page.waitForTimeout(800)
+    await shot(page, `${loc}-6-site-live`)
+    const menu = page.getByRole('navigation').last()
+    await menu.getByText('FTP', { exact: true }).click()
     await page.getByRole('button', { name: /Включить FTP|Attiva FTP/ }).click()
     await page.waitForTimeout(700)
     await shot(page, `${loc}-5-ftp-dialog`)
     await page.keyboard.press('Escape')
-    await shot(page, `${loc}-6-sites-live`)
 
-    await page.getByRole('button', { name: /Файлы|File/ }).first().click()
+    await menu.getByText(/Файлы|File/).click()
     await page.waitForTimeout(500)
     await page.getByRole('link', { name: 'index.html' }).click()
     await page.waitForTimeout(600)
     await shot(page, `${loc}-7-files-editor`)
 
+    await page.goto('/')
     await nav.locator('a').nth(0).click()
     await shot(page, `${loc}-8-dashboard-data`)
     await nav.locator('a').nth(2).click()

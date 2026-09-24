@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   AddOutline,
-  ArrowBack,
   ArrowUpOutline,
   ChevronForward,
   CloudUploadOutline,
@@ -273,11 +272,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 <template>
   <div class="page">
     <header class="head rise">
-      <n-button class="tint-cyan" @click="router.push({ name: 'sites' })">
-        <template #icon><n-icon :component="ArrowBack" /></template>
-        {{ t('files.back') }}
-      </n-button>
-      <h1>{{ site?.host ?? t('files.rootFallback') }}</h1>
+      <h1>{{ t('siteArea.files') }}</h1>
     </header>
 
     <n-alert v-if="!loading && !site" type="error" :show-icon="false">{{ t('files.notFound') }}</n-alert>

@@ -69,8 +69,15 @@ test('приглашение → регистрация → сайт → деп�
   await p.getByLabel('Имя сайта').fill('blog')
   await p.getByRole('button', { name: 'Создать', exact: true }).click()
   const host = `blog.${user}.vladinc.ru`
+  // После создания открывается отдельный кабинет сайта со своим меню, без общего меню панели.
+  const siteMenu = p.getByRole('navigation', { name: 'Меню сайта' })
+  await expect(siteMenu).toBeVisible()
+  await expect(nav(p)).toHaveCount(0)
   await expect(p.getByRole('link', { name: host })).toBeVisible()
+  await p.getByRole('link', { name: 'Все сайты' }).click()
   await expect(p.getByText('Достигнут лимит')).toBeVisible()
+  await p.getByRole('link', { name: host }).click() // сайт выбирается из списка
+  await expect(siteMenu).toBeVisible()
 
   // Деплой zip.
   await p.locator('input[type=file]').setInputFiles({
@@ -78,11 +85,12 @@ test('приглашение → регистрация → сайт → деп�
     mimeType: 'application/zip',
     buffer: makeZip({ 'index.html': '<h1>Привет</h1>', 'css/a.css': 'body{}', '.htaccess': 'Options -Indexes\nphp_value memory_limit 64M\n' }),
   })
-  await expect(p.getByText('опубликован')).toBeVisible()
+  await expect(p.getByRole('main').getByText('опубликован')).toBeVisible()
   const pub = `/tmp/vh-e2e-sites/${host}/public`
   expect(readFileSync(`${pub}/index.html`, 'utf8')).toBe('<h1>Привет</h1>')
 
   // FTP: выдача пароля (виден один раз), смена, отключение.
+  await siteMenu.getByText('FTP', { exact: true }).click()
   await p.getByRole('button', { name: 'Включить FTP' }).click()
   const dialog = p.getByRole('dialog')
   await expect(dialog.getByText('Доступ по FTP')).toBeVisible()
@@ -103,6 +111,7 @@ test('приглашение → регистрация → сайт → деп�
   await expect(p.getByRole('button', { name: 'Включить FTP' })).toBeVisible()
 
   // Свои домены: инструкция с IP сервера, проверка ввода, отвязка.
+  await siteMenu.getByText('Домены').click()
   const domain = `vh-${Date.now().toString(36)}.example.net`
   await p.getByLabel('Домен').fill('это не домен')
   await p.getByRole('button', { name: 'Подключить' }).click()
@@ -120,7 +129,7 @@ test('приглашение → регистрация → сайт → деп�
   await expect(p.getByText('Своих доменов пока нет')).toBeVisible()
 
   // Файлы: открыть index.html и изменить в CodeMirror.
-  await p.getByRole('button', { name: 'Файлы' }).click()
+  await siteMenu.getByText('Файлы').click()
   await expect(p.getByRole('link', { name: 'css' })).toBeVisible()
 
   // Проверка .htaccess: неподдерживаемая директива показана с номером строки.
@@ -152,8 +161,8 @@ test('приглашение → регистрация → сайт → деп�
   await expect(p.getByText('Папка пуста')).toBeVisible()
 
   // Обычный пользователь не видит инвайтов.
-  await nav(p).getByText('Настройки').click()
-  await expect(p.getByText('Приглашения')).toHaveCount(0)
+  await p.goto('/settings')
+  await expect(p.getByRole('heading', { name: 'Приглашения' })).toHaveCount(0)
 
   // Смена пароля: проверки на клиенте и на сервере, затем вход с новым паролем.
   await p.getByLabel('Текущий пароль').fill('password-123')

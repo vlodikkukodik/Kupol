@@ -13,8 +13,20 @@ export const router = createRouter({
       children: [
         { path: '', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
         { path: 'sites', name: 'sites', component: () => import('@/views/SitesView.vue') },
-        { path: 'sites/:id(\\d+)/files', name: 'files', component: () => import('@/views/FilesView.vue') },
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
+      ],
+    },
+    // Кабинет выбранного сайта: свой каркас (SiteLayout) вместо общего меню панели.
+    {
+      path: '/sites/:id(\\d+)',
+      component: () => import('@/views/site/SiteLayout.vue'),
+      meta: { auth: true },
+      children: [
+        { path: '', name: 'site-overview', component: () => import('@/views/site/SiteOverview.vue') },
+        { path: 'files', name: 'files', component: () => import('@/views/FilesView.vue') },
+        { path: 'domains', name: 'site-domains', component: () => import('@/views/site/SiteDomains.vue') },
+        { path: 'ftp', name: 'site-ftp', component: () => import('@/views/site/SiteFtp.vue') },
+        { path: 'settings', name: 'site-settings', component: () => import('@/views/site/SiteSettings.vue') },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
