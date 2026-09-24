@@ -38,6 +38,36 @@ SSHPASS='…' ./deploy/deploy.sh      # или без SSHPASS, если наст
 
 Удаление сайта → заявка `delete-{host}` → `certbot delete` и удаление копии.
 
+## Веб-шлюз сайтов
+
+Сайты пользователей отдаёт не nginx, а служба `vladhost-web` (`vladhost web`, `127.0.0.1:8091`): она понимает `.htaccess`
+и сама показывает страницы «пустой сайт», 403, 404 и другие ошибки (их нет в папке пользователя). nginx держит TLS,
+сжатие и показывает `/opt/vladhost/pages/__vh_down.html`, если шлюз недоступен. Служба работает под пользователем
+`vladhost-web` без доступа к БД и секретам (`ProtectSystem=strict`, `InaccessiblePaths=/etc/vladhost …`, `MemoryMax=384M`).
+
+```bash
+systemctl status vladhost-web        # состояние
+journalctl -u vladhost-web -f        # журнал
+curl -s -H 'Host: blog.john.vladinc.ru' http://127.0.0.1:8091/   # проверка в обход nginx
+```
+
+Список поддерживаемых директив `.htaccess` и защиты — в `plan.md`, §16.
+
+## Свои домены
+
+Пользователь направляет A-запись домена на IP сервера; панель проверяет DNS, выпускатель создаёт
+`/etc/nginx/vladhost-domains/{домен}.conf` и сертификат. Привязка домена к сайту — файл `/data/vladhost/domains/{домен}`.
+Настройки: `VLADHOST_SERVER_IPS` и `VLADHOST_DOMAINS_DIR` в `/etc/vladhost/env`, `SERVER_IPS` в `/etc/vladhost/certs.conf`
+(`deploy/prepare.sh` создаёт их; при необходимости `VLADHOST_SERVER_IP=… bash prepare.sh`).
+
+```bash
+ls /etc/nginx/vladhost-domains/          # server-блоки своих доменов
+journalctl -u vladhost-certs -n 50       # выпуск/удаление
+make test-deploy                         # тест скриптов на подменённых certbot/nginx (локально)
+```
+
+Подробности и защита — `plan.md`, §17.
+
 ## FTP
 
 Встроенный FTP-сервер панели: `ftp.vladinc.ru:2121`, принимает FTPS (явный TLS, рекомендуется) и обычный FTP без шифрования (`VLADHOST_FTP_ALLOW_PLAIN=false` оставит только FTPS), пассивный режим, порты данных 50000–50100

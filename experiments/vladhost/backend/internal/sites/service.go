@@ -70,6 +70,8 @@ type Service struct {
 	limits     Limits
 	locks      sync.Map // host -> *sync.Mutex: один деплой на сайт за раз
 
+	domains *DomainConfig // свои домены; nil — не настроены
+
 	ftpMu      sync.Mutex
 	ftpUsage   map[int64]*siteUsage // счётчик занятого места у сайтов с открытыми FTP-сессиями
 	ftpRevoked map[int64]time.Time  // когда у сайта последний раз отозвали или сменили FTP-пароль
@@ -157,11 +159,18 @@ func (s *Service) Delete(ctx context.Context, userID, id int64) error {
 	mu := s.lock(site.Host)
 	mu.Lock()
 	defer mu.Unlock()
+	var domains []Domain
+	if err := s.db.WithContext(ctx).Where("site_id = ?", site.ID).Find(&domains).Error; err != nil {
+		return err
+	}
 	if err := os.RemoveAll(s.siteDir(site.Host)); err != nil {
 		return err
 	}
-	if err := s.db.WithContext(ctx).Delete(&Site{}, site.ID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Delete(&Site{}, site.ID).Error; err != nil { // домены удаляются каскадом
 		return err
+	}
+	for _, d := range domains {
+		s.releaseDomain(d.Host) // привязка в шлюзе, сертификат и настройка nginx
 	}
 	if s.certsEnabled() {
 		// Сертификат больше не нужен; ошибка здесь не должна мешать удалению — заявку можно повторить вручную.

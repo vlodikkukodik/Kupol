@@ -6,6 +6,7 @@ import {
   FolderOpenOutline,
   GlobeOutline,
   KeyOutline,
+  LinkOutline,
   RefreshOutline,
   TrashOutline,
 } from '@vicons/ionicons5'
@@ -13,7 +14,9 @@ import { NAlert, NButton, NForm, NFormItem, NIcon, NInput, NModal, NPopconfirm, 
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError } from '@/api/client'
-import { fieldErrors, ftpGrantSchema, siteForm, siteResponseSchema, sitesSchema, type Site } from '@/api/schemas'
+import {
+  domainForm, domainResponseSchema, fieldErrors, ftpGrantSchema, siteForm, siteResponseSchema, sitesSchema, type Domain, type Site,
+} from '@/api/schemas'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusChip from '@/components/StatusChip.vue'
 import { formatBytes, formatDateTime, resolveMessage, useI18n } from '@/i18n'
@@ -26,6 +29,7 @@ const router = useRouter()
 
 const sites = ref<Site[]>([])
 const limits = ref({ max_sites: 1, disk_quota_bytes: 0 })
+const domainConfig = ref({ available: false, server_ips: [] as string[], per_site: 0 })
 const loading = ref(true)
 const loadError = ref('')
 
@@ -49,6 +53,7 @@ async function load() {
     const r = await api('/api/sites', { schema: sitesSchema })
     sites.value = r.sites
     limits.value = r.limits
+    domainConfig.value = r.domain_config
   } catch (e) {
     loadError.value = errText(e, t('sites.loadFailed'))
   } finally {
@@ -111,6 +116,77 @@ async function retryCert(site: Site) {
   }
 }
 
+// --- свои домены ---
+const newDomain = reactive<Record<number, string>>({})
+const domainErrors = ref<Record<number, string>>({})
+const serverIp = computed(() => domainConfig.value.server_ips.join(', '))
+
+async function addDomain(site: Site) {
+  const parsed = domainForm.safeParse({ host: newDomain[site.id] ?? '' })
+  if (!parsed.success) {
+    domainErrors.value = { ...domainErrors.value, [site.id]: fieldErrors(parsed.error).host ?? '' }
+    return
+  }
+  domainErrors.value = { ...domainErrors.value, [site.id]: '' }
+  busyId.value = site.id
+  try {
+    await api(`/api/sites/${site.id}/domains`, { method: 'POST', body: { host: parsed.data.host }, schema: domainResponseSchema })
+    newDomain[site.id] = ''
+    message.success(t('sites.domains.added'))
+    await load()
+  } catch (e) {
+    if (e instanceof ApiError && e.field === 'host') domainErrors.value = { ...domainErrors.value, [site.id]: e.message }
+    else message.error(errText(e, t('sites.domains.addFailed')))
+  } finally {
+    busyId.value = null
+  }
+}
+
+const domainBusy = ref<number | null>(null)
+
+async function checkDomain(site: Site, d: Domain) {
+  domainBusy.value = d.id
+  try {
+    await api(`/api/sites/${site.id}/domains/${d.id}/check`, { method: 'POST', schema: domainResponseSchema })
+    await load()
+  } catch (e) {
+    message.error(errText(e, t('sites.domains.checkFailed')))
+  } finally {
+    domainBusy.value = null
+  }
+}
+
+async function removeDomain(site: Site, d: Domain) {
+  domainBusy.value = d.id
+  try {
+    await api(`/api/sites/${site.id}/domains/${d.id}`, { method: 'DELETE' })
+    await load()
+  } catch (e) {
+    message.error(errText(e, t('sites.domains.removeFailed')))
+  } finally {
+    domainBusy.value = null
+  }
+}
+
+const domainTone = { pending_dns: 'amber', pending_cert: 'cyan', active: 'emerald', failed: 'rose' } as const
+const domainStatusKey = {
+  pending_dns: 'sites.domains.status.pendingDns',
+  pending_cert: 'sites.domains.status.pendingCert',
+  active: 'sites.domains.status.active',
+  failed: 'sites.domains.status.failed',
+} as const
+const problemKey = {
+  no_a: 'sites.domains.problem.noA',
+  wrong_ip: 'sites.domains.problem.wrongIp',
+  has_aaaa: 'sites.domains.problem.hasAaaa',
+  lookup: 'sites.domains.problem.lookup',
+} as const
+
+function domainProblem(d: Domain): string {
+  const key = problemKey[d.problem as keyof typeof problemKey]
+  return key ? t(key, { found: d.found.join(', '), ip: serverIp.value }) : ''
+}
+
 // Выданный FTP-пароль: показывается один раз, на сервере остаётся только хеш.
 const grant = ref<{ site: Site; password: string } | null>(null)
 
@@ -165,7 +241,10 @@ let poll: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   void load()
   poll = setInterval(() => {
-    if (sites.value.some((s) => s.cert_status === 'pending')) void load()
+    const waiting = sites.value.some(
+      (s) => s.cert_status === 'pending' || s.domains.some((d) => d.status === 'pending_dns' || d.status === 'pending_cert'),
+    )
+    if (waiting) void load()
   }, 5000)
 })
 onBeforeUnmount(() => clearInterval(poll))
@@ -247,6 +326,64 @@ onBeforeUnmount(() => clearInterval(poll))
             <n-button size="small" class="tint-rose" :disabled="busyId === s.id" @click="disableFtp(s)">{{ t('sites.ftp.disable') }}</n-button>
           </n-space>
           <n-button v-else size="small" class="tint-violet" :loading="busyId === s.id" @click="enableFtp(s)">{{ t('sites.ftp.enable') }}</n-button>
+        </div>
+
+        <div v-if="domainConfig.available" class="domains">
+          <div class="dom-head">
+            <span class="dom-ic"><n-icon :size="18" :component="LinkOutline" /></span>
+            <strong>{{ t('sites.domains.title') }}</strong>
+          </div>
+          <p class="note">{{ t('sites.domains.hint', { ip: serverIp }) }}</p>
+
+          <ul v-if="s.domains.length" class="dom-list">
+            <li v-for="d in s.domains" :key="d.id" class="dom-row">
+              <div class="dom-main">
+                <a v-if="d.status === 'active'" :href="`https://${d.host}`" target="_blank" rel="noopener" class="dom-host">{{ d.host }}</a>
+                <span v-else class="dom-host">{{ d.host }}</span>
+                <status-chip :tone="domainTone[d.status]" :pulse="d.status === 'pending_dns' || d.status === 'pending_cert'">
+                  {{ t(domainStatusKey[d.status]) }}
+                </status-chip>
+                <span class="grow" />
+                <n-button v-if="d.status === 'pending_dns' || d.status === 'failed'" size="small" class="tint-cyan" :loading="domainBusy === d.id" @click="checkDomain(s, d)">
+                  <template #icon><n-icon :component="RefreshOutline" /></template>
+                  {{ t('sites.domains.check') }}
+                </n-button>
+                <n-popconfirm @positive-click="removeDomain(s, d)">
+                  <template #trigger>
+                    <n-button size="small" class="tint-rose" :disabled="domainBusy === d.id">{{ t('sites.domains.remove') }}</n-button>
+                  </template>
+                  {{ t('sites.domains.removeConfirm', { host: d.host }) }}
+                </n-popconfirm>
+              </div>
+              <template v-if="d.status === 'pending_dns'">
+                <div class="dom-todo">
+                  <code>{{ t('sites.domains.instruction', { host: d.host, ip: serverIp }) }}</code>
+                  <n-button size="tiny" class="tint-violet" @click="copyText(domainConfig.server_ips[0] ?? '')">
+                    <template #icon><n-icon :component="CopyOutline" /></template>
+                    {{ t('sites.domains.copyIp') }}
+                  </n-button>
+                </div>
+                <p v-if="domainProblem(d)" class="dom-problem">{{ domainProblem(d) }}</p>
+                <p class="note">{{ t('sites.domains.ttlNote') }}</p>
+              </template>
+              <p v-else-if="d.status === 'failed'" class="dom-problem">{{ t('sites.domains.problem.failedBody', { reason: d.error || t('sites.cert.unknownReason') }) }}</p>
+            </li>
+          </ul>
+          <p v-else class="note">{{ t('sites.domains.empty') }}</p>
+
+          <n-form class="dom-form" @submit.prevent="addDomain(s)">
+            <n-form-item
+              :label="t('sites.domains.label')"
+              :validation-status="domainErrors[s.id] ? 'error' : undefined"
+              :feedback="domainErrors[s.id] ? resolveMessage(domainErrors[s.id] ?? '') : t('sites.domains.wwwHint')"
+            >
+              <n-input v-model:value="newDomain[s.id]" :placeholder="t('sites.domains.placeholder')" autocomplete="off" :input-props="{ 'aria-label': t('sites.domains.label') }" />
+            </n-form-item>
+            <n-button type="primary" attr-type="submit" :loading="busyId === s.id && !!newDomain[s.id]">
+              <template #icon><n-icon :component="AddOutline" /></template>
+              {{ t('sites.domains.add') }}
+            </n-button>
+          </n-form>
         </div>
 
         <n-space class="actions" :size="10">
@@ -420,10 +557,6 @@ onBeforeUnmount(() => clearInterval(poll))
   transition: transform 0.4s var(--ease);
 }
 
-.site:hover .globe {
-  transform: rotate(-10deg) scale(1.08);
-}
-
 .titles {
   flex: 1;
   min-width: 200px;
@@ -488,6 +621,80 @@ span.host {
 
 .actions {
   margin-top: 16px;
+}
+
+.domains {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(34, 211, 238, 0.06);
+  border: 1px solid rgba(34, 211, 238, 0.22);
+}
+
+.dom-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dom-ic {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;
+  background: var(--grad-cyan);
+}
+
+.dom-list {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.dom-row {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+}
+
+.dom-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dom-host {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.grow {
+  flex: 1;
+}
+
+.dom-todo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.dom-problem {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  color: #fcd34d;
+}
+
+.dom-form {
+  margin-top: 8px;
+  max-width: 420px;
 }
 
 .file {

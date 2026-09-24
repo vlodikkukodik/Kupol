@@ -24,6 +24,20 @@ func (s *Server) listFiles(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"entries": entries})
 }
 
+// checkHtaccess показывает, какие директивы .htaccess сайта не поддерживаются шлюзом.
+func (s *Server) checkHtaccess(c *gin.Context) {
+	id, ok := siteID(c)
+	if !ok {
+		return
+	}
+	files, err := s.sites.CheckHtaccess(c.Request.Context(), c.GetInt64("uid"), id)
+	if err != nil {
+		failErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"files": files})
+}
+
 func (s *Server) readFile(c *gin.Context) {
 	id, ok := siteID(c)
 	if !ok {

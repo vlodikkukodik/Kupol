@@ -28,6 +28,8 @@ export default defineConfig({
         VLADHOST_COOKIE_SECURE: 'false',
         VLADHOST_FTP_ADDR: '127.0.0.1:2121',
         VLADHOST_FTP_PASSIVE_PORTS: '42300-42310',
+        VLADHOST_SERVER_IPS: '203.0.113.10',
+        VLADHOST_DOMAINS_DIR: '/tmp/vh-e2e-domains',
       },
     },
     { command: 'npm run dev -- --host 127.0.0.1', url: DEV, reuseExistingServer: false },

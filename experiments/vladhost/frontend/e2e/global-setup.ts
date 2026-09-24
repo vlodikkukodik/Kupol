@@ -4,6 +4,7 @@ import { rmSync } from 'node:fs'
 // Заводит свежего администратора на каждый прогон и чистит каталог сайтов.
 export default function globalSetup() {
   rmSync('/tmp/vh-e2e-sites', { recursive: true, force: true })
+  rmSync('/tmp/vh-e2e-domains', { recursive: true, force: true })
   const id = Date.now().toString(36)
   const admin = { username: `adm${id}`, email: `adm${id}@example.com`, password: 'e2e-password-1' }
   execFileSync('../bin/vladhost', ['admin', 'create', '--email', admin.email, '--username', admin.username], {

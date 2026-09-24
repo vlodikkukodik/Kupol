@@ -1,0 +1,39 @@
+[Unit]
+Description=Vladhost — веб-шлюз сайтов пользователей (статика, .htaccess, страницы по умолчанию)
+After=network.target
+
+[Service]
+# Отдельный пользователь без БД, без секретов панели и без записи куда-либо: шлюз только читает каталог сайтов.
+User=vladhost-web
+Group=vladhost-web
+Environment=VLADHOST_WEB_ADDR=127.0.0.1:8091
+Environment=VLADHOST_SITES_ROOT=/data/vladhost/sites
+Environment=VLADHOST_BASE_DOMAIN=vladinc.ru
+Environment=VLADHOST_DOMAINS_DIR=/data/vladhost/domains
+ExecStart=/opt/vladhost/bin/vladhost web
+Restart=always
+RestartSec=2
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadOnlyPaths=/data/vladhost
+InaccessiblePaths=/etc/vladhost /var/lib/vladhost /etc/letsencrypt
+# Один шумный сайт не должен съесть память сервера, на котором живут и другие проекты.
+MemoryMax=384M
+TasksMax=256
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target

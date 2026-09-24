@@ -13,8 +13,9 @@ import (
 
 type siteJSON struct {
 	sites.Site
-	URL string   `json:"url"`
-	FTP ftpBlock `json:"ftp"`
+	URL     string       `json:"url"`
+	FTP     ftpBlock     `json:"ftp"`
+	Domains []domainJSON `json:"domains"`
 }
 
 // ftpBlock — сведения для подключения по FTP. Пароль сюда не попадает: он показывается один раз при выдаче.
@@ -28,8 +29,10 @@ type ftpBlock struct {
 	AllowPlain bool `json:"allow_plain"`
 }
 
-func (s *Server) toJSON(st sites.Site) siteJSON {
-	out := siteJSON{Site: st, URL: "https://" + st.Host}
+func (s *Server) toJSON(st sites.Site) siteJSON { return s.toJSONWith(st, nil) }
+
+func (s *Server) toJSONWith(st sites.Site, domains []sites.Domain) siteJSON {
+	out := siteJSON{Site: st, URL: "https://" + st.Host, Domains: toDomainsJSON(domains)}
 	if s.cfg.FTP.Addr != "" {
 		_, port, _ := net.SplitHostPort(s.cfg.FTP.Addr)
 		p, _ := strconv.Atoi(port)
@@ -44,14 +47,20 @@ func (s *Server) listSites(c *gin.Context) {
 		failErr(c, err)
 		return
 	}
+	domains, err := s.sites.DomainsByUser(c.Request.Context(), c.GetInt64("uid"))
+	if err != nil {
+		failErr(c, err)
+		return
+	}
 	out := make([]siteJSON, 0, len(list))
 	for _, st := range list {
-		out = append(out, s.toJSON(st))
+		out = append(out, s.toJSONWith(st, domains[st.ID]))
 	}
 	lim := s.sites.Limits()
 	c.JSON(http.StatusOK, gin.H{
-		"sites":  out,
-		"limits": gin.H{"max_sites": lim.MaxSites, "disk_quota_bytes": lim.DiskQuotaBytes},
+		"sites":         out,
+		"limits":        gin.H{"max_sites": lim.MaxSites, "disk_quota_bytes": lim.DiskQuotaBytes},
+		"domain_config": s.domainConfig(),
 	})
 }
 

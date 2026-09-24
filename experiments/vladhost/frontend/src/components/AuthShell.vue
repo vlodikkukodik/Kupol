@@ -115,10 +115,6 @@ const { t } = useI18n()
   transition: transform 0.3s var(--ease);
 }
 
-.points li:hover .ic {
-  transform: translateY(-3px) rotate(-6deg);
-}
-
 .card {
   padding: clamp(22px, 3vw, 34px);
 }

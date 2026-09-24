@@ -34,6 +34,17 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = s.user
   }
 
+  /** Смена пароля: сервер закрывает остальные сессии и выдаёт новую для этого устройства. */
+  async function changePassword(currentPassword: string, newPassword: string) {
+    const s = await api('/api/me/password', {
+      method: 'POST',
+      body: { current_password: currentPassword, new_password: newPassword },
+      schema: sessionSchema,
+    })
+    setAccessToken(s.access_token)
+    user.value = s.user
+  }
+
   async function logout() {
     try {
       await api('/api/auth/logout', { method: 'POST', auth: false })
@@ -47,5 +58,5 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, ready, isAdmin, init, login, register, logout, clear }
+  return { user, ready, isAdmin, init, login, register, changePassword, logout, clear }
 })

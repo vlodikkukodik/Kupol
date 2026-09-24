@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"vladhost/internal/auth"
 	"vladhost/internal/config"
@@ -26,6 +27,7 @@ type env struct {
 	root  string // корень файлов сайтов
 	certs string // каталог обмена с выпускателем сертификатов
 	sites *sites.Service
+	db    *gorm.DB
 }
 
 func newEnv(t *testing.T) *env {
@@ -46,7 +48,7 @@ func newEnvQuota(t *testing.T, quota int64, perMinute, burst int) *env {
 	certs := t.TempDir()
 	siteSvc := sites.NewService(db, root, "vladinc.ru", certs, sites.Limits{MaxSites: 1, DiskQuotaBytes: quota})
 	cfg := config.Config{JWTSecret: secret, CookieSecure: false, AuthPerMinute: perMinute, AuthBurst: burst}
-	return &env{t: t, r: httpapi.New(svc, siteSvc, cfg), svc: svc, root: root, certs: certs, sites: siteSvc}
+	return &env{t: t, r: httpapi.New(svc, siteSvc, cfg), svc: svc, root: root, certs: certs, sites: siteSvc, db: db}
 }
 
 func (e *env) do(method, path string, body any, token string, cookies ...*http.Cookie) *httptest.ResponseRecorder {

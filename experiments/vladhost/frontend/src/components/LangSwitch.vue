@@ -88,7 +88,4 @@ const pick = (l: Locale) => setLocale(l)
   transition: transform 0.3s var(--ease);
 }
 
-.opt:hover .flag {
-  transform: rotate(-12deg) scale(1.12);
-}
 </style>

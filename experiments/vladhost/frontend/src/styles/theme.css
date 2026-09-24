@@ -146,7 +146,6 @@ a.plain,
 
 .glass.lift:hover,
 .n-card.lift:hover {
-  transform: translateY(-3px);
   border-color: var(--border-strong) !important;
   box-shadow:
     0 26px 60px -22px rgba(0, 0, 0, 0.8),
@@ -179,16 +178,13 @@ a.plain,
   font-weight: 600;
   letter-spacing: -0.005em;
   transition:
-    transform 0.2s var(--ease),
     box-shadow 0.25s,
     background-color 0.25s,
     border-color 0.25s,
     filter 0.25s !important;
 }
 
-.n-button:not(.n-button--disabled):active {
-  transform: scale(0.97);
-}
+/* Кнопки не двигаются, не вращаются и не меняют размер: цель клика должна оставаться на месте под курсором. */
 
 /* Основная: градиент с мягким свечением, при наведении градиент «переливается» */
 .n-button.n-button--primary-type:not(.n-button--disabled) {
@@ -198,14 +194,12 @@ a.plain,
   color: #fff;
   box-shadow: var(--glow);
   transition:
-    transform 0.2s var(--ease),
     box-shadow 0.3s,
     background-position 0.5s var(--ease) !important;
 }
 
 .n-button.n-button--primary-type:not(.n-button--disabled):hover {
   background-position: 100% 0;
-  transform: translateY(-2px);
   box-shadow: 0 14px 36px -8px rgba(236, 72, 153, 0.6);
 }
 
@@ -224,7 +218,6 @@ a.plain,
 .n-button.n-button--default-type:not(.n-button--disabled):hover {
   background: rgba(167, 139, 250, 0.18);
   color: #fff;
-  transform: translateY(-1px);
 }
 
 /* Цветные варианты: класс tint-* задаёт оттенок (тонированный фон + рамка + цвет текста + свечение) */
@@ -255,7 +248,6 @@ a.plain,
   background: rgb(var(--tint) / 0.26);
   border-color: rgb(var(--tint) / 0.75);
   box-shadow: 0 10px 28px -10px rgb(var(--tint) / 0.75);
-  transform: translateY(-2px);
 }
 
 .n-button .n-button__border,

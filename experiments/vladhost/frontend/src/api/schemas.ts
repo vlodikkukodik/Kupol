@@ -35,6 +35,19 @@ export type Invite = z.infer<typeof inviteSchema>
 export const invitesSchema = z.object({ invites: z.array(inviteSchema) })
 export const createdInviteSchema = z.object({ invite: inviteSchema })
 
+export const domainSchema = z.object({
+  id: z.number(),
+  host: z.string(),
+  status: z.enum(['pending_dns', 'pending_cert', 'active', 'failed']),
+  problem: z.string(), // '' | no_a | wrong_ip | has_aaaa | lookup
+  found: z.array(z.string()),
+  error: z.string(),
+  verified_at: z.string().nullable(),
+  created_at: z.string(),
+})
+export type Domain = z.infer<typeof domainSchema>
+export const domainResponseSchema = z.object({ domain: domainSchema })
+
 export const siteSchema = z.object({
   id: z.number(),
   slug: z.string(),
@@ -47,6 +60,7 @@ export const siteSchema = z.object({
   // none — выпуск сертификатов выключен (локальная разработка).
   cert_status: z.enum(['none', 'pending', 'active', 'failed']),
   cert_error: z.string(),
+  domains: z.array(domainSchema),
   ftp: z.object({
     available: z.boolean(), // FTP включён на сервере
     allow_plain: z.boolean(), // принимается ли и обычный FTP без шифрования
@@ -61,10 +75,20 @@ export type Site = z.infer<typeof siteSchema>
 export const sitesSchema = z.object({
   sites: z.array(siteSchema),
   limits: z.object({ max_sites: z.number(), disk_quota_bytes: z.number() }),
+  domain_config: z.object({ available: z.boolean(), server_ips: z.array(z.string()), per_site: z.number() }),
 })
 export const siteResponseSchema = z.object({ site: siteSchema })
 // Ответ выдачи FTP: пароль есть только здесь и показывается один раз.
 export const ftpGrantSchema = z.object({ site: siteSchema, password: z.string() })
+
+export const domainForm = z.object({
+  host: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, key('sites.domains.required'))
+    .regex(/^([a-z0-9-]{1,63}\.)+[a-z0-9-]{2,63}$/, key('sites.domains.invalid')),
+})
 
 export const siteForm = z.object({
   slug: z
@@ -101,6 +125,18 @@ export const registerForm = z.object({
     .min(8, key('validation.passwordShort'))
     .refine((v) => new TextEncoder().encode(v).length <= 72, key('validation.passwordLong')),
 })
+
+export const passwordForm = z
+  .object({
+    current: z.string().min(1, key('settings.password.currentRequired')),
+    next: z
+      .string()
+      .min(8, key('validation.passwordShort'))
+      .refine((v) => new TextEncoder().encode(v).length <= 72, key('validation.passwordLong')),
+    repeat: z.string(),
+  })
+  .refine((v) => v.next === v.repeat, { path: ['repeat'], message: key('settings.password.mismatch') })
+  .refine((v) => v.next !== v.current, { path: ['next'], message: key('settings.password.same') })
 
 /** Первая ошибка по каждому полю формы. */
 export function fieldErrors(err: z.ZodError): Record<string, string> {

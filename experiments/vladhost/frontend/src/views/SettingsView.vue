@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { AddOutline, CheckmarkCircleOutline, CopyOutline } from '@vicons/ionicons5'
-import { NButton, NDataTable, NIcon, useMessage, type DataTableColumns } from 'naive-ui'
-import { computed, h, onMounted, ref } from 'vue'
+import { AddOutline, CheckmarkCircleOutline, CopyOutline, LockClosedOutline } from '@vicons/ionicons5'
+import { NButton, NDataTable, NForm, NFormItem, NIcon, NInput, useMessage, type DataTableColumns } from 'naive-ui'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '@/api/client'
-import { createdInviteSchema, invitesSchema, type Invite } from '@/api/schemas'
+import { createdInviteSchema, fieldErrors, invitesSchema, passwordForm, type Invite } from '@/api/schemas'
 import EmptyState from '@/components/EmptyState.vue'
 import FlagIcon from '@/components/FlagIcon.vue'
 import StatusChip from '@/components/StatusChip.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
-import { formatDateTime, LOCALES, useI18n } from '@/i18n'
+import { formatDateTime, LOCALES, resolveMessage, useI18n } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const { t, locale, auto, setLocale } = useI18n()
@@ -78,6 +78,30 @@ async function create() {
   }
 }
 
+// Смена пароля
+const pw = reactive({ current: '', next: '', repeat: '' })
+const pwErrors = ref<Record<string, string>>({})
+const pwBusy = ref(false)
+// Имена полей сервера → поля формы
+const serverField: Record<string, string> = { current_password: 'current', new_password: 'next' }
+
+async function changePassword() {
+  const parsed = passwordForm.safeParse(pw)
+  pwErrors.value = parsed.success ? {} : fieldErrors(parsed.error)
+  if (!parsed.success) return
+  pwBusy.value = true
+  try {
+    await auth.changePassword(pw.current, pw.next)
+    pw.current = pw.next = pw.repeat = ''
+    message.success(t('settings.password.changed'))
+  } catch (e) {
+    if (e instanceof ApiError && e.field && serverField[e.field]) pwErrors.value = { [serverField[e.field] as string]: e.message }
+    else message.error(e instanceof ApiError ? e.message : t('settings.password.failed'))
+  } finally {
+    pwBusy.value = false
+  }
+}
+
 onMounted(() => {
   if (auth.isAdmin) void load()
 })
@@ -122,7 +146,42 @@ onMounted(() => {
       <p v-if="auto" class="hint">{{ t('lang.autoHint') }}</p>
     </section>
 
-    <section v-if="auth.isAdmin" class="invites glass rise" style="--i: 3">
+    <section class="security glass rise" style="--i: 3">
+      <h3>{{ t('settings.password.title') }}</h3>
+      <p class="hint">{{ t('settings.password.hint') }}</p>
+      <n-form class="pwform" @submit.prevent="changePassword">
+        <n-form-item
+          :label="t('settings.password.current')"
+          :validation-status="pwErrors.current ? 'error' : undefined"
+          :feedback="pwErrors.current ? resolveMessage(pwErrors.current) : undefined"
+        >
+          <n-input v-model:value="pw.current" type="password" show-password-on="click" autocomplete="current-password" :input-props="{ 'aria-label': t('settings.password.current') }">
+            <template #prefix><n-icon :component="LockClosedOutline" /></template>
+          </n-input>
+        </n-form-item>
+        <n-form-item
+          :label="t('settings.password.next')"
+          :validation-status="pwErrors.next ? 'error' : undefined"
+          :feedback="pwErrors.next ? resolveMessage(pwErrors.next) : undefined"
+        >
+          <n-input v-model:value="pw.next" type="password" show-password-on="click" autocomplete="new-password" :input-props="{ 'aria-label': t('settings.password.next') }">
+            <template #prefix><n-icon :component="LockClosedOutline" /></template>
+          </n-input>
+        </n-form-item>
+        <n-form-item
+          :label="t('settings.password.repeat')"
+          :validation-status="pwErrors.repeat ? 'error' : undefined"
+          :feedback="pwErrors.repeat ? resolveMessage(pwErrors.repeat) : undefined"
+        >
+          <n-input v-model:value="pw.repeat" type="password" show-password-on="click" autocomplete="new-password" :input-props="{ 'aria-label': t('settings.password.repeat') }">
+            <template #prefix><n-icon :component="LockClosedOutline" /></template>
+          </n-input>
+        </n-form-item>
+        <n-button type="primary" attr-type="submit" :loading="pwBusy">{{ t('settings.password.submit') }}</n-button>
+      </n-form>
+    </section>
+
+    <section v-if="auth.isAdmin" class="invites glass rise" style="--i: 4">
       <div class="inv-head">
         <div>
           <h3>{{ t('settings.invites.title') }}</h3>
@@ -179,6 +238,7 @@ onMounted(() => {
 }
 
 .lang,
+.security,
 .invites {
   padding: 22px 26px;
 }
@@ -214,7 +274,6 @@ h3 {
 }
 
 .tile:hover {
-  transform: translateY(-3px);
   background: rgba(167, 139, 250, 0.12);
   border-color: rgba(167, 139, 250, 0.5);
 }
@@ -239,6 +298,11 @@ h3 {
   margin: 12px 0 0;
   font-size: 13.5px;
   color: var(--text-dim);
+}
+
+.pwform {
+  max-width: 420px;
+  margin-top: 12px;
 }
 
 .inv-head {

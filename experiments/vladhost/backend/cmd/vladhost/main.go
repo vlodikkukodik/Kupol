@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"vladhost/internal/ftpd"
 	"vladhost/internal/httpapi"
 	"vladhost/internal/sites"
+	"vladhost/internal/webgw"
 )
 
 func main() {
@@ -22,6 +24,21 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ошибка:", err)
 		os.Exit(1)
 	}
+}
+
+// runWeb запускает веб-шлюз сайтов пользователей (отдельная служба, читает только каталог сайтов).
+func runWeb(cfg config.WebConfig) error {
+	srv := &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           webgw.New(webgw.Options{Root: cfg.SitesRoot, BaseDomain: cfg.BaseDomain, DomainsDir: cfg.DomainsDir}),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      2 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    32 << 10,
+	}
+	fmt.Println("веб-шлюз слушает", cfg.Addr, "каталог сайтов", cfg.SitesRoot)
+	return srv.ListenAndServe()
 }
 
 func startFTP(svc *sites.Service, cfg config.FTPConfig) error {
@@ -43,7 +60,10 @@ func startFTP(svc *sites.Service, cfg config.FTPConfig) error {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("использование: vladhost serve | migrate up | admin create --email E --username U")
+		return fmt.Errorf("использование: vladhost serve | web | migrate up | admin create --email E --username U")
+	}
+	if args[0] == "web" {
+		return runWeb(config.LoadWeb()) // шлюзу не нужны ни БД, ни секреты панели
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -66,6 +86,10 @@ func run(args []string) error {
 		siteSvc := sites.NewService(db, cfg.SitesRoot, cfg.BaseDomain, cfg.CertsDir,
 			sites.Limits{MaxSites: cfg.MaxSites, DiskQuotaBytes: cfg.DiskQuotaBytes})
 		go siteSvc.WatchCerts(context.Background(), 5*time.Second)
+		if len(cfg.ServerIPs) > 0 {
+			siteSvc.ConfigureDomains(sites.DomainConfig{ServerIPs: cfg.ServerIPs, MappingDir: cfg.DomainsDir})
+			go siteSvc.WatchDomains(context.Background(), 30*time.Second)
+		}
 		if cfg.FTP.Addr != "" {
 			// FTP необязателен для панели: если он не запустился (нет сертификата, порт занят), панель
 			// продолжает работать, а в интерфейсе FTP показывается как недоступный.

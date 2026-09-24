@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -23,10 +24,12 @@ type Config struct {
 	SitesRoot      string // где лежат файлы сайтов: {SitesRoot}/{host}/public
 	BaseDomain     string // сайты живут на {site}.{user}.{BaseDomain}
 	FTP            FTPConfig
-	CertsDir       string // обмен с выпускателем сертификатов (queue/ и status/); пусто — выключено
-	PanelOrigin    string // https://app.vladinc.ru — для проверки Origin у cookie-эндпоинтов; пусто — не проверять
-	MaxSites       int    // сайтов на пользователя
-	DiskQuotaBytes int64  // диск на пользователя (все его сайты вместе)
+	ServerIPs      []string // IP сервера: на него пользователь направляет A-запись своего домена; пусто — свои домены выключены
+	DomainsDir     string   // {домен} → адрес сайта; эту папку читает веб-шлюз
+	CertsDir       string   // обмен с выпускателем сертификатов (queue/ и status/); пусто — выключено
+	PanelOrigin    string   // https://app.vladinc.ru — для проверки Origin у cookie-эндпоинтов; пусто — не проверять
+	MaxSites       int      // сайтов на пользователя
+	DiskQuotaBytes int64    // диск на пользователя (все его сайты вместе)
 }
 
 const minSecretLen = 32
@@ -56,6 +59,7 @@ func Load() (Config, error) {
 		SitesRoot:      env("VLADHOST_SITES_ROOT", "/data/vladhost/sites"),
 		BaseDomain:     env("VLADHOST_BASE_DOMAIN", "vladinc.ru"),
 		CertsDir:       os.Getenv("VLADHOST_CERTS_DIR"),
+		DomainsDir:     env("VLADHOST_DOMAINS_DIR", "/data/vladhost/domains"),
 		PanelOrigin:    os.Getenv("VLADHOST_PANEL_ORIGIN"),
 		MaxSites:       1,
 		DiskQuotaBytes: 500 << 20,
@@ -65,6 +69,14 @@ func Load() (Config, error) {
 	}
 	if len(cfg.JWTSecret) < minSecretLen {
 		return cfg, fmt.Errorf("VLADHOST_JWT_SECRET должен быть не короче %d символов", minSecretLen)
+	}
+	for _, ip := range strings.Split(os.Getenv("VLADHOST_SERVER_IPS"), ",") {
+		if ip = strings.TrimSpace(ip); ip != "" {
+			if _, err := netip.ParseAddr(ip); err != nil {
+				return cfg, fmt.Errorf("VLADHOST_SERVER_IPS: %q не похож на IP-адрес", ip)
+			}
+			cfg.ServerIPs = append(cfg.ServerIPs, ip)
+		}
 	}
 	if err := loadFTP(&cfg.FTP); err != nil {
 		return cfg, err
@@ -77,6 +89,23 @@ func Load() (Config, error) {
 		cfg.AccessTTL = time.Duration(n) * time.Minute
 	}
 	return cfg, nil
+}
+
+// WebConfig — настройки веб-шлюза сайтов. Ему не нужны ни БД, ни секреты: только каталог сайтов.
+type WebConfig struct {
+	Addr       string
+	SitesRoot  string
+	BaseDomain string
+	DomainsDir string // {домен} → адрес сайта (свои домены); пусто — не используется
+}
+
+func LoadWeb() WebConfig {
+	return WebConfig{
+		Addr:       env("VLADHOST_WEB_ADDR", "127.0.0.1:8091"),
+		SitesRoot:  env("VLADHOST_SITES_ROOT", "/data/vladhost/sites"),
+		BaseDomain: env("VLADHOST_BASE_DOMAIN", "vladinc.ru"),
+		DomainsDir: env("VLADHOST_DOMAINS_DIR", "/data/vladhost/domains"),
+	}
 }
 
 func loadFTP(f *FTPConfig) error {

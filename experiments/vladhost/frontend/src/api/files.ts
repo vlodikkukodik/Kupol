@@ -9,6 +9,16 @@ export const entrySchema = z.object({
 })
 export type FileEntry = z.infer<typeof entrySchema>
 
+const htaccessSchema = z.object({
+  files: z.array(
+    z.object({
+      path: z.string(),
+      diags: z.array(z.object({ line: z.number(), directive: z.string(), code: z.string(), detail: z.string().optional() })),
+    }),
+  ),
+})
+export type HtaccessReport = z.infer<typeof htaccessSchema>['files']
+
 const listSchema = z.object({ entries: z.array(entrySchema) })
 const contentSchema = z.object({ content: z.string(), size: z.number() })
 
@@ -18,6 +28,9 @@ const base = (siteId: number) => `/api/sites/${siteId}`
 export const filesApi = {
   async list(siteId: number, dir: string): Promise<FileEntry[]> {
     return (await api(`${base(siteId)}/files${q(dir)}`, { schema: listSchema })).entries
+  },
+  async htaccess(siteId: number): Promise<HtaccessReport> {
+    return (await api(`${base(siteId)}/htaccess`, { schema: htaccessSchema })).files
   },
   async read(siteId: number, path: string): Promise<string> {
     return (await api(`${base(siteId)}/file${q(path)}`, { schema: contentSchema })).content

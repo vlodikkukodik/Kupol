@@ -157,11 +157,6 @@ async function onSelect(key: string) {
 .item:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
-  transform: translateX(3px);
-}
-
-.item:hover .ic {
-  transform: rotate(-8deg) scale(1.08);
 }
 
 .item.on {
@@ -250,7 +245,6 @@ async function onSelect(key: string) {
 .user:hover {
   background: rgba(167, 139, 250, 0.16);
   border-color: rgba(167, 139, 250, 0.5);
-  transform: translateY(-1px);
 }
 
 .chev {

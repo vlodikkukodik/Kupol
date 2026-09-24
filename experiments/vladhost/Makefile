@@ -42,6 +42,9 @@ e2e: db-up ## Сквозные тесты в браузере (Playwright + на
 	cd backend && go build -o ../bin/vladhost ./cmd/vladhost
 	cd frontend && npm run build && npm run e2e
 
-test: test-back test-front ## Всё быстрое (без e2e)
+test-deploy: ## Скрипты выкладки (выпускатель сертификатов) на подменённых certbot/nginx
+	bash deploy/test/certs_test.sh
 
-.PHONY: help env db-up db-down migrate dev-back dev-front build test-back test-front e2e test
+test: test-back test-front test-deploy ## Всё быстрое (без e2e)
+
+.PHONY: help env db-up db-down migrate dev-back dev-front build test-back test-front test-deploy e2e test

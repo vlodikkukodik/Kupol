@@ -52,13 +52,19 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Eng
 	limited.POST("/refresh", s.refresh)
 	api.POST("/auth/logout", s.checkOrigin, s.logout)
 
+	// Смена пароля — тоже место для подбора текущего пароля, поэтому лимит на IP такой же, как у входа.
+	pwLimiter := newIPLimiter(perMinute, burst)
 	authed := api.Group("", s.requireAuth)
 	authed.GET("/me", s.me)
+	authed.POST("/me/password", s.checkOrigin, pwLimiter.middleware(), s.changePassword)
 	authed.GET("/sites", s.listSites)
 	authed.POST("/sites", s.createSite)
 	authed.DELETE("/sites/:id", s.deleteSite)
 	authed.POST("/sites/:id/deploy", s.deploySite)
 	authed.POST("/sites/:id/cert/retry", s.retryCert)
+	authed.POST("/sites/:id/domains", s.addDomain)
+	authed.POST("/sites/:id/domains/:did/check", s.checkDomain)
+	authed.DELETE("/sites/:id/domains/:did", s.removeDomain)
 	authed.POST("/sites/:id/ftp", s.enableFTP)
 	authed.DELETE("/sites/:id/ftp", s.disableFTP)
 	authed.GET("/sites/:id/files", s.listFiles)
@@ -66,6 +72,7 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Eng
 	authed.POST("/sites/:id/files/mkdir", s.mkdir)
 	authed.POST("/sites/:id/files/rename", s.renameFile)
 	authed.POST("/sites/:id/files/upload", s.uploadFile)
+	authed.GET("/sites/:id/htaccess", s.checkHtaccess)
 	authed.GET("/sites/:id/file", s.readFile)
 	authed.PUT("/sites/:id/file", s.saveFile)
 
@@ -205,6 +212,23 @@ func (s *Server) me(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"user": u})
+}
+
+func (s *Server) changePassword(c *gin.Context) {
+	var in struct {
+		Current string `json:"current_password"`
+		New     string `json:"new_password"`
+	}
+	if c.ShouldBindJSON(&in) != nil || in.Current == "" || in.New == "" {
+		fail(c, http.StatusBadRequest, "bad_request")
+		return
+	}
+	sess, err := s.svc.ChangePassword(c.Request.Context(), c.GetInt64("uid"), in.Current, in.New)
+	if err != nil {
+		failErr(c, err)
+		return
+	}
+	s.respondSession(c, sess)
 }
 
 func (s *Server) listInvites(c *gin.Context) {

@@ -99,9 +99,14 @@ func (s *Service) reconcileCerts(ctx context.Context) error {
 // readCertStatus учитывает только результат, полученный после последней заявки:
 // файл, оставшийся от прошлой попытки, не должен закрыть новую.
 func (s *Service) readCertStatus(site Site) (status, msg string, ok bool) {
-	path := filepath.Join(s.certsDir, "status", site.Host)
+	return s.readHostStatus(site.Host, site.CertRequestedAt)
+}
+
+// readHostStatus читает результат выпускателя для любого хоста (адрес сайта или свой домен).
+func (s *Service) readHostStatus(host string, requestedAt *time.Time) (status, msg string, ok bool) {
+	path := filepath.Join(s.certsDir, "status", host)
 	fi, err := os.Stat(path)
-	if err != nil || (site.CertRequestedAt != nil && !fi.ModTime().After(*site.CertRequestedAt)) {
+	if err != nil || (requestedAt != nil && !fi.ModTime().After(*requestedAt)) {
 		return "", "", false
 	}
 	data, err := os.ReadFile(path)

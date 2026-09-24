@@ -38,6 +38,7 @@ const SAME_IN_BOTH = new Set([
   'sites.ftp.title',
   'sites.cert.active',
   'sites.namePlaceholder',
+  'sites.domains.placeholder', // пример домена не переводится
   'lang.ru', // эндонимы: название языка пишется на нём самом
   'lang.it',
 ])

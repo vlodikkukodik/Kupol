@@ -9,19 +9,20 @@ import {
   DocumentTextOutline,
   FolderOutline,
   SaveOutline,
+  ShieldCheckmarkOutline,
   TrashOutline,
 } from '@vicons/ionicons5'
 import { NAlert, NButton, NDataTable, NIcon, NInput, NModal, NPopconfirm, NSpace, useDialog, useMessage, type DataTableColumns } from 'naive-ui'
 import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, api } from '@/api/client'
-import { filesApi, type FileEntry } from '@/api/files'
+import { filesApi, type FileEntry, type HtaccessReport } from '@/api/files'
 import { sitesSchema, type Site } from '@/api/schemas'
 import CodeEditor from '@/components/CodeEditor.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import FileTypeIcon from '@/components/FileTypeIcon.vue'
 import StatusChip from '@/components/StatusChip.vue'
-import { formatBytes, formatDateTime, resolveMessage, useI18n } from '@/i18n'
+import { formatBytes, formatDateTime, resolveMessage, useI18n, type MessageKey } from '@/i18n'
 import { baseName, breadcrumbs, joinPath, parentPath, validateName } from '@/lib/paths'
 
 const { t, locale } = useI18n()
@@ -36,6 +37,25 @@ const dir = ref(typeof route.query.path === 'string' ? route.query.path : '')
 const entries = ref<FileEntry[]>([])
 const loading = ref(true)
 const loadError = ref('')
+
+// Проверка .htaccess: шлюз выполняет только часть директив Apache, остальные молча игнорируются.
+const hasHtaccess = computed(() => entries.value.some((e) => e.name === '.htaccess' && !e.is_dir))
+const htaccessReport = ref<HtaccessReport | null>(null)
+const diagKey: Record<string, MessageKey> = {
+  unsupported: 'files.htaccess.unsupported',
+  syntax: 'files.htaccess.syntax',
+  regex: 'files.htaccess.regex',
+  too_big: 'files.htaccess.tooBig',
+  too_many: 'files.htaccess.tooMany',
+}
+
+async function checkHtaccess() {
+  try {
+    htaccessReport.value = await filesApi.htaccess(siteId.value)
+  } catch (e) {
+    message.error(errText(e, t('files.htaccess.loadFailed')))
+  }
+}
 
 // Открытый в редакторе файл.
 const openPath = ref<string | null>(null)
@@ -307,6 +327,10 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
               <template #icon><n-icon :component="FolderOutline" /></template>
               {{ t('files.newFolder') }}
             </n-button>
+            <n-button v-if="hasHtaccess" size="small" class="tint-pink" @click="checkHtaccess">
+              <template #icon><n-icon :component="ShieldCheckmarkOutline" /></template>
+              {{ t('files.htaccess.button') }}
+            </n-button>
             <n-button size="small" type="primary" @click="fileInput?.click()">
               <template #icon><n-icon :component="CloudUploadOutline" /></template>
               {{ t('files.upload') }}
@@ -319,6 +343,25 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         <empty-state v-else-if="!loading" :title="t('files.empty')" :hint="t('files.emptyHint')" />
       </section>
     </template>
+
+    <n-modal :show="htaccessReport !== null" preset="card" :title="t('files.htaccess.title')" style="max-width: 620px" @update:show="htaccessReport = null">
+      <template v-if="htaccessReport">
+        <p class="note">{{ t('files.htaccess.hint') }}</p>
+        <p v-if="!htaccessReport.length" class="note">{{ t('files.htaccess.none') }}</p>
+        <div v-for="f in htaccessReport" :key="f.path" class="hta-file">
+          <div class="hta-head">
+            <code>{{ f.path }}</code>
+            <status-chip v-if="!f.diags.length" tone="emerald">{{ t('files.htaccess.ok') }}</status-chip>
+          </div>
+          <ul v-if="f.diags.length" class="hta-list">
+            <li v-for="(d, i) in f.diags" :key="i">
+              <status-chip tone="amber">{{ d.line ? t('files.htaccess.line', { line: d.line }) : '—' }}</status-chip>
+              {{ t(diagKey[d.code] ?? 'files.htaccess.unsupported', { directive: d.directive }) }}
+            </li>
+          </ul>
+        </div>
+      </template>
+    </n-modal>
 
     <n-modal :show="prompt !== null" preset="card" :title="prompt?.title" style="max-width: 420px" @update:show="prompt = null">
       <template v-if="prompt">
@@ -459,6 +502,35 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
 .modal-actions {
   margin-top: 18px;
+}
+
+.note {
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.hta-file {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+}
+
+.hta-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hta-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
 }
 
 :deep(.namecell) {

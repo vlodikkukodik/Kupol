@@ -63,11 +63,5 @@ const look = computed<Look>(() => {
   color: rgb(var(--c));
   background: rgb(var(--c) / 0.14);
   border: 1px solid rgb(var(--c) / 0.3);
-  transition: transform 0.25s var(--ease);
-}
-
-:global(tr:hover) .tile,
-.tile:hover {
-  transform: scale(1.1) rotate(-4deg);
 }
 </style>

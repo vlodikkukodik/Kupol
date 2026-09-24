@@ -76,7 +76,7 @@ test('приглашение → регистрация → сайт → деп�
   await p.locator('input[type=file]').setInputFiles({
     name: 'site.zip',
     mimeType: 'application/zip',
-    buffer: makeZip({ 'index.html': '<h1>Привет</h1>', 'css/a.css': 'body{}' }),
+    buffer: makeZip({ 'index.html': '<h1>Привет</h1>', 'css/a.css': 'body{}', '.htaccess': 'Options -Indexes\nphp_value memory_limit 64M\n' }),
   })
   await expect(p.getByText('опубликован')).toBeVisible()
   const pub = `/tmp/vh-e2e-sites/${host}/public`
@@ -102,9 +102,34 @@ test('приглашение → регистрация → сайт → деп�
   await p.getByRole('button', { name: 'Отключить FTP' }).click()
   await expect(p.getByRole('button', { name: 'Включить FTP' })).toBeVisible()
 
+  // Свои домены: инструкция с IP сервера, проверка ввода, отвязка.
+  const domain = `vh-${Date.now().toString(36)}.example.net`
+  await p.getByLabel('Домен').fill('это не домен')
+  await p.getByRole('button', { name: 'Подключить' }).click()
+  await expect(p.getByText('Введите домен вида example.com')).toBeVisible()
+  await p.getByLabel('Домен').fill(domain.toUpperCase())
+  await p.getByRole('button', { name: 'Подключить' }).click()
+  await expect(p.locator('.dom-host', { hasText: domain })).toBeVisible()
+  await expect(p.getByText('ждём A-запись')).toBeVisible()
+  await expect(p.getByText(`A-запись: ${domain} → 203.0.113.10`)).toBeVisible()
+  await p.getByLabel('Домен').fill(domain)
+  await p.getByRole('button', { name: 'Подключить' }).click()
+  await expect(p.getByText('Этот домен уже подключён к сайту')).toBeVisible()
+  await p.getByRole('button', { name: 'Отвязать' }).click()
+  await p.getByRole('button', { name: 'Подтвердить' }).click()
+  await expect(p.getByText('Своих доменов пока нет')).toBeVisible()
+
   // Файлы: открыть index.html и изменить в CodeMirror.
   await p.getByRole('button', { name: 'Файлы' }).click()
   await expect(p.getByRole('link', { name: 'css' })).toBeVisible()
+
+  // Проверка .htaccess: неподдерживаемая директива показана с номером строки.
+  await p.getByRole('button', { name: 'Проверить .htaccess' }).click()
+  const hta = p.getByRole('dialog')
+  await expect(hta.getByText('Директива php_value не поддерживается и будет проигнорирована')).toBeVisible()
+  await expect(hta.getByText('строка 2')).toBeVisible()
+  await p.keyboard.press('Escape')
+  await expect(hta).toHaveCount(0)
   await p.getByRole('link', { name: 'index.html' }).click()
   const editor = p.locator('.cm-content')
   await expect(editor).toContainText('<h1>Привет</h1>')
@@ -130,12 +155,33 @@ test('приглашение → регистрация → сайт → деп�
   await nav(p).getByText('Настройки').click()
   await expect(p.getByText('Приглашения')).toHaveCount(0)
 
+  // Смена пароля: проверки на клиенте и на сервере, затем вход с новым паролем.
+  await p.getByLabel('Текущий пароль').fill('password-123')
+  await p.getByLabel('Новый пароль', { exact: true }).fill('new-password-456')
+  await p.getByLabel('Повторите новый пароль').fill('другой-пароль')
+  await p.getByRole('button', { name: 'Сменить пароль' }).click()
+  await expect(p.getByText('Пароли не совпадают')).toBeVisible()
+  await p.getByLabel('Текущий пароль').fill('неверный-текущий')
+  await p.getByLabel('Повторите новый пароль').fill('new-password-456')
+  await p.getByRole('button', { name: 'Сменить пароль' }).click()
+  await expect(p.getByText('Текущий пароль указан неверно')).toBeVisible()
+  await p.getByLabel('Текущий пароль').fill('password-123')
+  await p.getByRole('button', { name: 'Сменить пароль' }).click()
+  await expect(p.getByText('Пароль изменён, остальные сессии закрыты')).toBeVisible()
+  await p.reload() // сессия этого устройства осталась рабочей
+  await expect(p.getByRole('heading', { name: 'Настройки' })).toBeVisible()
+
   // Выход закрывает сессию: перезагрузка ведёт на вход.
   await p.locator('button.user').click()
   await p.getByText('Выйти').click()
   await expect(p.getByRole('heading', { name: 'С возвращением' })).toBeVisible()
   await p.goto('/')
   await expect(p.getByRole('heading', { name: 'С возвращением' })).toBeVisible()
+  // Старый пароль не работает, новый — да.
+  await login(p, user, 'password-123')
+  await expect(p.getByText('Неверный логин или пароль')).toBeVisible()
+  await login(p, user, 'new-password-456')
+  await expect(p.getByText(`Здравствуйте, ${user}`)).toBeVisible()
   await ctx.close()
 })
 

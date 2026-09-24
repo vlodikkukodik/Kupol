@@ -15,7 +15,7 @@ import (
 
 // Пакеты, тексты которых видит пользователь: русских строк в них быть не должно, только ключи каталога.
 // Исключены пакеты для оператора (конфигурация, миграции, CLI): их сообщения не уходят пользователю.
-var userFacing = []string{"httpapi", "sites", "auth", "ftpd", "apperr"}
+var userFacing = []string{"httpapi", "sites", "auth", "ftpd", "apperr", "webgw", "webgw/htaccess"}
 
 func sourceFiles(t *testing.T, pkgs ...string) []string {
 	t.Helper()
@@ -71,6 +71,9 @@ var (
 	reArchive    = regexp.MustCompile(`badArchive\("([a-z_]+)"`)
 	reFail       = regexp.MustCompile(`fail\(c,\s*[^,]+,\s*"([^"]+)"`)
 	reKey        = regexp.MustCompile(`i18n\.(?:T|Bi)\((?:[a-zA-Z.]+,\s*)?"([^"]+)"`)
+	// Ключ, записанный строковым литералом в таблице (например, "web.err.404.title"): такие ключи собираются
+	// в код динамически, поэтому вызов T() с литералом их не покажет.
+	reLit = regexp.MustCompile(`"((?:web|ftp)\.[a-z0-9_]+(?:\.[a-z0-9_]+)*)"`)
 )
 
 // usedKeys собирает ключи каталога, к которым обращается код (по шаблонам вызовов).
@@ -96,6 +99,7 @@ func usedKeys(t *testing.T) map[string]string {
 		add(reArchive, "err.archive.")
 		add(reFail, "err.")
 		add(reKey, "")
+		add(reLit, "")
 	}
 	return used
 }

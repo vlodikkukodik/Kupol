@@ -16,6 +16,8 @@ var (
 	ErrUsernameTaken      = apperr.New(http.StatusConflict, "username_taken", "username already taken").OnField("username")
 	ErrInvalidCredentials = apperr.New(http.StatusUnauthorized, "invalid_credentials", "invalid login or password")
 	ErrInvalidToken       = apperr.New(http.StatusUnauthorized, "unauthorized", "session is invalid")
+	ErrWrongPassword      = apperr.New(http.StatusUnprocessableEntity, "wrong_password", "current password is wrong").OnField("current_password")
+	ErrPasswordSame       = apperr.New(http.StatusUnprocessableEntity, "password_same", "new password equals the current one").OnField("new_password")
 )
 
 // Имя пользователя становится DNS-меткой в {site}.{user}.vladinc.ru.
@@ -33,6 +35,14 @@ const (
 	minPasswordLen = 8
 	maxPasswordLen = 72 // предел bcrypt
 )
+
+// applyField привязывает ошибку проверки к другому полю формы (при смене пароля поле называется new_password).
+func applyField(err error, field string) error {
+	if ae, ok := err.(*apperr.Error); ok {
+		return ae.OnField(field)
+	}
+	return err
+}
 
 func normalizeEmail(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)

@@ -19,12 +19,29 @@ mv /opt/vladhost/frontend.new /opt/vladhost/frontend
 rm -rf /opt/vladhost/frontend.old
 
 # --- выпускатель сертификатов и systemd ---
+install -d -m 0755 /etc/nginx/snippets /etc/nginx/vladhost-domains
+install -m 0644 "$SRC/deploy/nginx/vladhost-site-proxy.conf" /etc/nginx/snippets/vladhost-site-proxy.conf
 install -m 0755 "$SRC/deploy/bin/certs.sh" "$SRC/deploy/bin/cert-hook.sh" /usr/local/lib/vladhost/
 install -m 0644 "$SRC"/deploy/systemd/* /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now vladhost-certs.path >/dev/null 2>&1
-systemctl enable vladhost.service >/dev/null 2>&1
+systemctl enable vladhost.service vladhost-web.service >/dev/null 2>&1
 systemctl restart vladhost.service
+
+# --- веб-шлюз сайтов: поднимаем и проверяем до перезагрузки nginx, иначе сайты на миг получат 502 ---
+install -d -m 0755 /opt/vladhost/pages
+install -m 0644 "$SRC/deploy/pages/__vh_down.html" /opt/vladhost/pages/__vh_down.html
+systemctl restart vladhost-web.service
+gw_ok=0
+for _ in $(seq 1 20); do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: probe.probe.vladinc.ru' http://127.0.0.1:8091/)" = 404 ] && { gw_ok=1; break; }
+    sleep 1
+done
+if [ "$gw_ok" != 1 ]; then
+    echo "веб-шлюз не ответил на проверку:" >&2
+    journalctl -u vladhost-web.service -n 30 --no-pager >&2
+    exit 1
+fi
 
 # --- nginx: чужие конфиги не трогаем, добавляем только свои ---
 added=()
@@ -36,6 +53,7 @@ enable_conf() { # имя
     fi
 }
 enable_conf vladhost-http.conf
+enable_conf vladhost-domains.conf
 # https-часть включаем только когда есть сертификат панели, иначе nginx -t не пройдёт.
 if [ -f /etc/letsencrypt/live/app.vladinc.ru/fullchain.pem ]; then
     enable_conf vladhost-https.conf

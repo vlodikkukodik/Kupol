@@ -209,11 +209,6 @@ const tiles = [
   transition: transform 0.35s var(--ease);
 }
 
-.stat:hover .ic,
-.tile:hover .ic {
-  transform: rotate(-8deg) scale(1.1);
-}
-
 .body {
   min-width: 0;
   flex: 1;

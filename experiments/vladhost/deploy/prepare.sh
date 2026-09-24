@@ -16,9 +16,14 @@ sysctl -q -p /etc/sysctl.d/99-vladhost-swap.conf
 
 # --- пользователь и каталоги ---
 id vladhost >/dev/null 2>&1 || useradd --system --home-dir /opt/vladhost --shell /usr/sbin/nologin vladhost
+# Веб-шлюз сайтов работает под отдельным пользователем: только чтение каталога сайтов, без доступа к секретам панели.
+id vladhost-web >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin vladhost-web
 
-install -d -m 0755 /opt/vladhost /opt/vladhost/bin /opt/vladhost/frontend /usr/local/lib/vladhost /var/www/vladhost-acme
+install -d -m 0755 /opt/vladhost /opt/vladhost/bin /opt/vladhost/frontend /opt/vladhost/pages /usr/local/lib/vladhost /var/www/vladhost-acme
 install -d -o vladhost -g vladhost -m 0755 /data/vladhost /data/vladhost/sites
+# Привязки своих доменов ({домен} → адрес сайта): пишет панель, читает веб-шлюз.
+install -d -o vladhost -g vladhost -m 0755 /data/vladhost/domains
+install -d -m 0755 /etc/nginx/snippets /etc/nginx/vladhost-domains
 # Обмен с выпускателем сертификатов: queue пишет панель, status пишет только root (защита от подмены симлинком).
 install -d -m 0755 /var/lib/vladhost /var/lib/vladhost/certs /var/lib/vladhost/certs/status
 install -d -o vladhost -g vladhost -m 0755 /var/lib/vladhost/certs/queue
@@ -62,5 +67,14 @@ VLADHOST_FTP_PASSIVE_PORTS=50000-50100
 VLADHOST_FTP_CERT=/etc/vladhost/ftp/fullchain.pem
 VLADHOST_FTP_KEY=/etc/vladhost/ftp/privkey.pem
 EOF
+
+# --- свои домены (добавлено позже): IP сервера для проверки DNS и для выпускателя сертификатов ---
+server_ip=$(curl -fsS --max-time 10 https://api.ipify.org 2>/dev/null || true)
+[ -n "${VLADHOST_SERVER_IP:-}" ] && server_ip=$VLADHOST_SERVER_IP
+if [ -n "$server_ip" ]; then
+    [ -f /etc/vladhost/certs.conf ] || echo "SERVER_IPS=\"$server_ip\"" >/etc/vladhost/certs.conf
+    grep -q '^VLADHOST_SERVER_IPS=' /etc/vladhost/env || echo "VLADHOST_SERVER_IPS=$server_ip" >>/etc/vladhost/env
+fi
+grep -q '^VLADHOST_DOMAINS_DIR=' /etc/vladhost/env || echo 'VLADHOST_DOMAINS_DIR=/data/vladhost/domains' >>/etc/vladhost/env
 
 echo "готово: swap=$(swapon --show --noheadings | awk '{print $3}' | tr '\n' ' ') env=$(stat -c '%a %U:%G' /etc/vladhost/env)"

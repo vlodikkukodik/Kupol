@@ -161,6 +161,45 @@ func (s *Service) Refresh(ctx context.Context, raw string) (*Session, error) {
 	return sess, err
 }
 
+// ChangePassword меняет пароль после проверки текущего. Все прежние сессии (refresh-токены) закрываются —
+// если пароль подобрали или украли, вход по старым сессиям не сохранится, — и текущему устройству выдаётся новая.
+func (s *Service) ChangePassword(ctx context.Context, userID int64, current, next string) (*Session, error) {
+	if err := validatePassword(next); err != nil {
+		return nil, applyField(err, "new_password")
+	}
+	var u User
+	if err := s.db.WithContext(ctx).First(&u, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrInvalidToken
+		}
+		return nil, err
+	}
+	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(current)) != nil {
+		return nil, ErrWrongPassword
+	}
+	if current == next {
+		return nil, ErrPasswordSame
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(next), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	var sess *Session
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&u).Update("password_hash", string(hash)).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&RefreshToken{}).Where("user_id = ? AND revoked_at IS NULL", u.ID).
+			Update("revoked_at", s.now()).Error; err != nil {
+			return err
+		}
+		u.PasswordHash = string(hash)
+		sess, err = s.issue(ctx, tx, u)
+		return err
+	})
+	return sess, err
+}
+
 func (s *Service) Logout(ctx context.Context, raw string) error {
 	return s.db.WithContext(ctx).Model(&RefreshToken{}).
 		Where("token_hash = ? AND revoked_at IS NULL", hashToken(raw)).Update("revoked_at", s.now()).Error
