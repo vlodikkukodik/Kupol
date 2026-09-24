@@ -27,16 +27,20 @@ type ftpBlock struct {
 	Username  string `json:"username,omitempty"`
 	// AllowPlain — сервер принимает и обычный FTP без шифрования (интерфейс тогда предупреждает и рекомендует FTPS).
 	AllowPlain bool `json:"allow_plain"`
+	// Дополнительные аккаунты сайта. В ответах на одиночные действия над сайтом список пуст: полный список отдаёт GET /sites.
+	Accounts      []ftpAccountJSON `json:"accounts"`
+	AccountsLimit int              `json:"accounts_limit"`
 }
 
-func (s *Server) toJSON(st sites.Site) siteJSON { return s.toJSONWith(st, nil) }
+func (s *Server) toJSON(st sites.Site) siteJSON { return s.toJSONWith(st, nil, nil) }
 
-func (s *Server) toJSONWith(st sites.Site, domains []sites.Domain) siteJSON {
-	out := siteJSON{Site: st, URL: "https://" + st.Host, Domains: toDomainsJSON(domains)}
+func (s *Server) toJSONWith(st sites.Site, domains []sites.Domain, accounts []sites.FTPAccount) siteJSON {
+	out := siteJSON{Site: st, URL: "https://" + st.Host, Domains: toDomainsJSON(domains), FTP: ftpBlock{Accounts: []ftpAccountJSON{}}}
 	if s.cfg.FTP.Addr != "" {
 		_, port, _ := net.SplitHostPort(s.cfg.FTP.Addr)
 		p, _ := strconv.Atoi(port)
-		out.FTP = ftpBlock{Available: true, Enabled: st.FTPEnabled, Host: s.cfg.FTP.Host, Port: p, Username: s.sites.FTPUsername(st.Host), AllowPlain: s.cfg.FTP.AllowPlain}
+		out.FTP = ftpBlock{Available: true, Enabled: st.FTPEnabled, Host: s.cfg.FTP.Host, Port: p, Username: s.sites.FTPUsername(st.Host), AllowPlain: s.cfg.FTP.AllowPlain,
+			Accounts: s.toAccountsJSON(st, accounts), AccountsLimit: sites.MaxFTPAccounts}
 	}
 	return out
 }
@@ -52,9 +56,14 @@ func (s *Server) listSites(c *gin.Context) {
 		failErr(c, err)
 		return
 	}
+	accounts, err := s.sites.FTPAccountsByUser(c.Request.Context(), c.GetInt64("uid"))
+	if err != nil {
+		failErr(c, err)
+		return
+	}
 	out := make([]siteJSON, 0, len(list))
 	for _, st := range list {
-		out = append(out, s.toJSONWith(st, domains[st.ID]))
+		out = append(out, s.toJSONWith(st, domains[st.ID], accounts[st.ID]))
 	}
 	lim := s.sites.Limits()
 	c.JSON(http.StatusOK, gin.H{

@@ -26,7 +26,7 @@ const site = (over: Partial<Site>): Site => ({
   cert_status: 'active',
   cert_error: '',
   domains: [],
-  ftp: { available: true, allow_plain: false, enabled: false },
+  ftp: { available: true, allow_plain: false, enabled: false, accounts: [], accounts_limit: 5 },
   ...over,
 })
 

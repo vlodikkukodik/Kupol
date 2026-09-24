@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { makeZip } from './zip'
 
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Основное меню' })
@@ -115,6 +115,54 @@ test('приглашение → регистрация → сайт → деп�
   await p.keyboard.press('Escape')
   await p.getByRole('button', { name: 'Отключить FTP' }).click()
   await expect(p.getByRole('button', { name: 'Включить FTP' })).toBeVisible()
+
+  // Дополнительные FTP-аккаунты: свой логин, папка, режим «только чтение», отключение, новый пароль, удаление.
+  await expect(p.getByText('Дополнительных аккаунтов пока нет')).toBeVisible()
+  await p.getByLabel('Имя аккаунта').fill('a.b')
+  await p.getByRole('button', { name: 'Создать аккаунт' }).click()
+  await expect(p.getByText('Имя: 1–24 символа')).toBeVisible()
+  await p.getByLabel('Имя аккаунта').fill('Deploy')
+  await expect(p.getByText(`Логин: deploy.blog.${user}`)).toBeVisible()
+  await p.getByLabel('Папка').fill('../x')
+  await p.getByRole('button', { name: 'Создать аккаунт' }).click()
+  await expect(p.getByText('Недопустимая папка')).toBeVisible() // ошибку сервера видно у поля
+  await p.getByLabel('Папка').fill('app/dist')
+  await p.getByRole('button', { name: 'Создать аккаунт' }).click()
+  const acctDialog = p.getByRole('dialog')
+  await expect(acctDialog.locator('code', { hasText: `deploy.blog.${user}` }).first()).toBeVisible()
+  const acctPassword = (await acctDialog.getByTestId('ftp-password').innerText()).trim()
+  expect(acctPassword).toMatch(/^[A-Za-z0-9]{20}$/)
+  await p.keyboard.press('Escape')
+  await expect(p.getByText(acctPassword)).toHaveCount(0)
+  expect(existsSync(`/tmp/vh-e2e-sites/${host}/public/app/dist`)).toBe(true) // папка аккаунта создана
+  const acct = p.locator('.acc', { hasText: `deploy.blog.${user}` })
+  await expect(acct).toContainText('папка app/dist')
+  await expect(acct).toContainText('чтение и запись')
+
+  await acct.getByRole('button', { name: 'Изменить' }).click()
+  await p.getByRole('dialog').getByLabel('Папка').fill('docs')
+  await p.getByRole('dialog').getByRole('switch', { name: 'Только чтение' }).click()
+  await p.getByRole('dialog').getByRole('button', { name: 'Сохранить' }).click()
+  await expect(acct).toContainText('папка docs')
+  await expect(acct).toContainText('только чтение')
+
+  await acct.getByRole('switch').click() // отключить
+  await expect(acct).toContainText('отключён')
+  await acct.getByRole('switch').click() // включить обратно
+  await expect(acct).not.toContainText('отключён')
+
+  await acct.getByRole('button', { name: 'Новый пароль' }).click()
+  await p.getByRole('button', { name: 'Подтвердить' }).click()
+  const acctPassword2 = (await p.getByRole('dialog').getByTestId('ftp-password').innerText()).trim()
+  expect(acctPassword2).not.toBe(acctPassword)
+  await p.keyboard.press('Escape')
+
+  await p.reload() // список аккаунтов приходит с сервера, пароля в нём нет
+  await expect(p.getByText(acctPassword2)).toHaveCount(0)
+  await expect(p.locator('.acc', { hasText: `deploy.blog.${user}` })).toContainText('папка docs')
+  await p.locator('.acc', { hasText: `deploy.blog.${user}` }).getByRole('button', { name: 'Удалить' }).click()
+  await p.getByRole('button', { name: 'Подтвердить' }).click()
+  await expect(p.getByText('Дополнительных аккаунтов пока нет')).toBeVisible()
 
   // Журналы: шлюз в этом стенде не запущен, поэтому кладём в каталог журналов то, что записал бы он.
   const at = (s: number) => new Date(Date.now() + s * 1000).toISOString()

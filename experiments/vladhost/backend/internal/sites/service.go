@@ -76,12 +76,14 @@ type Service struct {
 	ftpMu      sync.Mutex
 	ftpUsage   map[int64]*siteUsage // счётчик занятого места у сайтов с открытыми FTP-сессиями
 	ftpRevoked map[int64]time.Time  // когда у сайта последний раз отозвали или сменили FTP-пароль
+	// Когда у дополнительного аккаунта последний раз меняли пароль, режим, папку или отключали его: сессии старше закрываются.
+	ftpAcctRevoked map[int64]time.Time
 }
 
 func NewService(db *gorm.DB, root, baseDomain, certsDir string, limits Limits) *Service {
 	return &Service{
 		db: db, root: root, baseDomain: baseDomain, certsDir: certsDir, limits: limits,
-		ftpUsage: map[int64]*siteUsage{}, ftpRevoked: map[int64]time.Time{},
+		ftpUsage: map[int64]*siteUsage{}, ftpRevoked: map[int64]time.Time{}, ftpAcctRevoked: map[int64]time.Time{},
 	}
 }
 
@@ -164,11 +166,19 @@ func (s *Service) Delete(ctx context.Context, userID, id int64) error {
 	if err := s.db.WithContext(ctx).Where("site_id = ?", site.ID).Find(&domains).Error; err != nil {
 		return err
 	}
+	var acctIDs []int64
+	if err := s.db.WithContext(ctx).Model(&FTPAccount{}).Where("site_id = ?", site.ID).Pluck("id", &acctIDs).Error; err != nil {
+		return err
+	}
 	if err := os.RemoveAll(s.siteDir(site.Host)); err != nil {
 		return err
 	}
-	if err := s.db.WithContext(ctx).Delete(&Site{}, site.ID).Error; err != nil { // домены удаляются каскадом
+	if err := s.db.WithContext(ctx).Delete(&Site{}, site.ID).Error; err != nil { // домены и FTP-аккаунты удаляются каскадом
 		return err
+	}
+	s.revokeFTP(site.ID)
+	for _, id := range acctIDs {
+		s.revokeFTPAccount(id) // открытые FTP-сессии удалённого сайта закрываются
 	}
 	for _, d := range domains {
 		s.releaseDomain(d.Host) // привязка в шлюзе, сертификат и настройка nginx

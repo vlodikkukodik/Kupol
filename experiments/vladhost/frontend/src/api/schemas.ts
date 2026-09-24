@@ -48,6 +48,29 @@ export const domainSchema = z.object({
 export type Domain = z.infer<typeof domainSchema>
 export const domainResponseSchema = z.object({ domain: domainSchema })
 
+// Дополнительный FTP-аккаунт сайта. Пароль в списках не приходит: он есть только в ответе на выдачу.
+export const ftpAccountSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  username: z.string(), // полный логин для FTP-клиента
+  dir: z.string(), // папка сайта, которой ограничен аккаунт; '' — весь сайт
+  read_only: z.boolean(),
+  enabled: z.boolean(),
+  last_login_at: z.string().nullable(),
+  created_at: z.string(),
+})
+export type FtpAccount = z.infer<typeof ftpAccountSchema>
+export const ftpAccountResponseSchema = z.object({ account: ftpAccountSchema })
+export const ftpAccountGrantSchema = z.object({ account: ftpAccountSchema, password: z.string() })
+
+export const ftpAccountForm = z.object({
+  name: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9]([a-z0-9-]{0,22}[a-z0-9])?$/, key('ftpAccounts.nameInvalid')),
+})
+
 export const siteSchema = z.object({
   id: z.number(),
   slug: z.string(),
@@ -68,6 +91,8 @@ export const siteSchema = z.object({
     host: z.string().optional(),
     port: z.number().optional(),
     username: z.string().optional(),
+    accounts: z.array(ftpAccountSchema), // в ответах на одиночные действия пуст: полный список отдаёт GET /sites
+    accounts_limit: z.number(),
   }),
 })
 export type Site = z.infer<typeof siteSchema>

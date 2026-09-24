@@ -96,14 +96,22 @@ func (s *Service) revokedSince(siteID int64, t time.Time) bool {
 	return ok && !r.Before(t)
 }
 
-var ftpUserRe = regexp.MustCompile(`^[a-z0-9-]+\.[a-z0-9-]+$`)
+var (
+	ftpUserRe = regexp.MustCompile(`^[a-z0-9-]+\.[a-z0-9-]+$`)
+	// Логин дополнительного аккаунта: {имя}.{сайт}.{пользователь}.
+	ftpAccountUserRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,22}[a-z0-9])?)\.([a-z0-9-]+\.[a-z0-9-]+)$`)
+)
 
 // dummyFTPHash выравнивает время ответа для несуществующих логинов.
 var dummyFTPHash, _ = bcrypt.GenerateFromPassword([]byte("vladhost-ftp-dummy"), bcrypt.DefaultCost)
 
-// FTPLogin проверяет логин и пароль и открывает сессию с доступом только к каталогу этого сайта.
+// FTPLogin проверяет логин и пароль и открывает сессию с доступом только к каталогу этого сайта
+// (для дополнительного аккаунта — только к его подпапке).
 func (s *Service) FTPLogin(ctx context.Context, username, password string) (*FTPSession, error) {
 	username = strings.ToLower(strings.TrimSpace(username))
+	if m := ftpAccountUserRe.FindStringSubmatch(username); m != nil {
+		return s.ftpAccountLogin(ctx, m[1], m[3], password)
+	}
 	var site Site
 	err := gorm.ErrRecordNotFound
 	if ftpUserRe.MatchString(username) {
@@ -205,14 +213,27 @@ type FTPSession struct {
 	usage *siteUsage
 	since time.Time
 	once  sync.Once
+
+	// Дополнительный аккаунт: acctID != 0; сессия видит только подпапку base и, если readOnly, ничего не меняет.
+	acctID   int64
+	base     string
+	readOnly bool
 }
 
 func (f *FTPSession) Site() Site { return f.site }
 
 func (f *FTPSession) Close() { f.once.Do(func() { f.s.releaseUsage(&f.site) }) }
 
+// revoked: доступ отозван после открытия сессии (сменён пароль, аккаунт отключён или изменён, сайт удалён).
+func (f *FTPSession) revoked() bool {
+	if f.acctID != 0 {
+		return f.s.acctRevokedSince(f.acctID, f.since)
+	}
+	return f.s.revokedSince(f.site.ID, f.since)
+}
+
 func (f *FTPSession) withRoot(fn func(*os.Root) error) error {
-	if f.s.revokedSince(f.site.ID, f.since) {
+	if f.revoked() {
 		return ErrFTPRevoked
 	}
 	dir := f.s.publicDir(f.site.Host)
@@ -224,7 +245,28 @@ func (f *FTPSession) withRoot(fn func(*os.Root) error) error {
 		return err
 	}
 	defer func() { _ = root.Close() }()
+	if f.base != "" {
+		// Подпапка аккаунта: после деплоя или удаления через веб её могло не быть — создаём заново.
+		// OpenRoot внутри Root не выпускает наружу ни «..», ни ссылки.
+		if err := root.MkdirAll(f.base, 0o755); err != nil {
+			return translate(err)
+		}
+		sub, err := root.OpenRoot(f.base)
+		if err != nil {
+			return translate(err)
+		}
+		defer func() { _ = sub.Close() }()
+		return translate(fn(sub))
+	}
 	return translate(fn(root))
+}
+
+// writable отказывает изменяющим операциям у аккаунта «только чтение».
+func (f *FTPSession) writable() error {
+	if f.readOnly {
+		return ErrFTPReadOnly
+	}
+	return nil
 }
 
 func (f *FTPSession) Stat(rel string) (fs.FileInfo, error) {
@@ -260,11 +302,17 @@ func (f *FTPSession) ReadDir(rel string) ([]fs.FileInfo, error) {
 }
 
 func (f *FTPSession) Mkdir(rel string) error {
+	if err := f.writable(); err != nil {
+		return err
+	}
 	return f.withRoot(func(r *os.Root) error { return r.Mkdir(rel, 0o755) })
 }
 
 // Remove удаляет файл и возвращает его размер в квоту.
 func (f *FTPSession) Remove(rel string) error {
+	if err := f.writable(); err != nil {
+		return err
+	}
 	return f.withRoot(func(r *os.Root) error {
 		fi, err := r.Lstat(rel)
 		if err != nil {
@@ -283,6 +331,9 @@ func (f *FTPSession) Remove(rel string) error {
 
 // RemoveDir удаляет пустую папку (как требует RFC 959; рекурсивно клиенты чистят сами).
 func (f *FTPSession) RemoveDir(rel string) error {
+	if err := f.writable(); err != nil {
+		return err
+	}
 	return f.withRoot(func(r *os.Root) error {
 		fi, err := r.Lstat(rel)
 		if err != nil {
@@ -296,6 +347,9 @@ func (f *FTPSession) RemoveDir(rel string) error {
 }
 
 func (f *FTPSession) Rename(from, to string) error {
+	if err := f.writable(); err != nil {
+		return err
+	}
 	return f.withRoot(func(r *os.Root) error {
 		src, err := r.Lstat(from)
 		if err != nil {
@@ -352,6 +406,9 @@ func (f *FTPSession) OpenRead(rel string, offset int64) (Handle, error) {
 // с offset > 0 продолжается загрузка с этого места (REST). Каждый записанный байт сверх текущего размера
 // резервируется в квоте до записи.
 func (f *FTPSession) OpenWrite(rel string, flags int, offset int64) (Handle, error) {
+	if err := f.writable(); err != nil {
+		return nil, err
+	}
 	var h Handle
 	err := f.withRoot(func(r *os.Root) error {
 		var oldSize int64
@@ -411,7 +468,7 @@ type writeHandle struct {
 func (w *writeHandle) Read([]byte) (int, error) { return 0, fs.ErrPermission }
 
 func (w *writeHandle) Write(p []byte) (int, error) {
-	if w.f.s.revokedSince(w.f.site.ID, w.f.since) {
+	if w.f.revoked() {
 		return 0, ErrFTPRevoked
 	}
 	if w.appendMode {
