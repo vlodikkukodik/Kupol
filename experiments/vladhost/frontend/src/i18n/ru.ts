@@ -104,6 +104,8 @@ export const ru = {
     stats: {
       sites: 'Сайты',
       sitesOf: 'из {max}',
+      domains: 'Домены',
+      domainsActive: 'подключено: {n}',
       disk: 'Диск',
       diskOf: 'из {total}',
       https: 'HTTPS',
@@ -111,6 +113,24 @@ export const ru = {
       httpsPending: 'Сертификат выпускается',
       httpsProblem: 'Нужно внимание',
       httpsNone: 'Пока нет сайтов',
+    },
+    mySites: 'Мои сайты',
+    attention: {
+      title: 'Требует внимания',
+      allGood: 'Всё в порядке, действий не требуется',
+      certFailed: 'HTTPS не выпущен для {host}',
+      domainFailed: 'Домен {domain} не подключился',
+      domainDns: 'Домен {domain} ждёт A-запись',
+      emptySite: 'На {host} ещё не загружены файлы',
+      diskFull: 'Диск заполнен более чем на {percent}%',
+    },
+    events: {
+      title: 'Последние события',
+      empty: 'Событий пока нет',
+      siteCreated: 'Создан сайт {host}',
+      siteDeployed: 'Опубликован сайт {host}',
+      domainAdded: 'Домен {domain} добавлен к {host}',
+      domainActive: 'Домен {domain} подключён к {host}',
     },
     quick: {
       title: 'Быстрый старт',

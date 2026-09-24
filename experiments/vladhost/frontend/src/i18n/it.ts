@@ -105,6 +105,8 @@ export const it: Messages = {
     stats: {
       sites: 'Siti',
       sitesOf: 'su {max}',
+      domains: 'Domini',
+      domainsActive: 'collegati: {n}',
       disk: 'Disco',
       diskOf: 'su {total}',
       https: 'HTTPS',
@@ -112,6 +114,24 @@ export const it: Messages = {
       httpsPending: 'Certificato in emissione',
       httpsProblem: 'Serve attenzione',
       httpsNone: 'Ancora nessun sito',
+    },
+    mySites: 'I miei siti',
+    attention: {
+      title: 'Richiede attenzione',
+      allGood: 'Tutto a posto, non servono azioni',
+      certFailed: 'HTTPS non emesso per {host}',
+      domainFailed: 'Il dominio {domain} non si è collegato',
+      domainDns: 'Il dominio {domain} attende il record A',
+      emptySite: 'Su {host} non sono ancora stati caricati file',
+      diskFull: 'Disco pieno oltre il {percent}%',
+    },
+    events: {
+      title: 'Ultimi eventi',
+      empty: 'Ancora nessun evento',
+      siteCreated: 'Sito {host} creato',
+      siteDeployed: 'Sito {host} pubblicato',
+      domainAdded: 'Dominio {domain} aggiunto a {host}',
+      domainActive: 'Dominio {domain} collegato a {host}',
     },
     quick: {
       title: 'Per iniziare',

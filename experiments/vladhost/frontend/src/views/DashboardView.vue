@@ -1,37 +1,41 @@
 <script setup lang="ts">
-import { ChevronForward, GlobeOutline, RocketOutline, ServerOutline, SettingsOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5'
+import {
+  AlertCircleOutline,
+  CheckmarkCircleOutline,
+  ChevronForward,
+  GlobeOutline,
+  LinkOutline,
+  RocketOutline,
+  ServerOutline,
+  SettingsOutline,
+  ShieldCheckmarkOutline,
+} from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
-import { computed, onMounted, ref } from 'vue'
-import { api } from '@/api/client'
-import { sitesSchema, type Site } from '@/api/schemas'
+import { computed, onMounted } from 'vue'
+import type { RouteLocationRaw } from 'vue-router'
 import StatusChip from '@/components/StatusChip.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
-import { formatBytes, useI18n } from '@/i18n'
+import { formatBytes, formatDateTime, useI18n, type MessageKey } from '@/i18n'
+import { attentionItems, DISK_WARN_PERCENT, recentEvents, type Attention, type EventKind } from '@/lib/summary'
 import { useAuthStore } from '@/stores/auth'
+import { useSitesStore } from '@/stores/sites'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
+const store = useSitesStore()
 
-const sites = ref<Site[]>([])
-const limits = ref({ max_sites: 1, disk_quota_bytes: 0 })
-const loaded = ref(false)
+// Обзор остаётся рабочим и без цифр: ошибку загрузки подробно покажет страница «Сайты».
+onMounted(() => void store.load(t('sites.loadFailed')))
 
-onMounted(async () => {
-  try {
-    const r = await api('/api/sites', { schema: sitesSchema })
-    sites.value = r.sites
-    limits.value = r.limits
-  } catch {
-    // Обзор остаётся рабочим и без цифр: ошибку загрузки подробно покажет страница «Сайты».
-  } finally {
-    loaded.value = true
-  }
-})
-
-const used = computed(() => sites.value.reduce((sum, s) => sum + s.disk_bytes, 0))
+const sites = computed(() => store.sites)
+const limits = computed(() => store.limits)
+const used = computed(() => store.used)
 const percent = computed(() =>
   limits.value.disk_quota_bytes ? Math.min(100, Math.round((used.value / limits.value.disk_quota_bytes) * 100)) : 0,
 )
+
+const domains = computed(() => sites.value.flatMap((s) => s.domains))
+const domainsActive = computed(() => domains.value.filter((d) => d.status === 'active').length)
 
 // Общее состояние HTTPS по всем сайтам: проблема важнее ожидания, ожидание важнее «всё хорошо».
 const https = computed(() => {
@@ -40,6 +44,35 @@ const https = computed(() => {
   if (sites.value.some((s) => s.cert_status === 'pending')) return { tone: 'amber', text: 'dashboard.stats.httpsPending', pulse: true } as const
   return { tone: 'emerald', text: 'dashboard.stats.httpsAllActive', pulse: false } as const
 })
+
+const attentionKey: Record<Attention['kind'], MessageKey> = {
+  cert_failed: 'dashboard.attention.certFailed',
+  domain_failed: 'dashboard.attention.domainFailed',
+  domain_dns: 'dashboard.attention.domainDns',
+  empty_site: 'dashboard.attention.emptySite',
+  disk_full: 'dashboard.attention.diskFull',
+}
+const attention = computed(() =>
+  attentionItems(sites.value, used.value, limits.value.disk_quota_bytes).map((a) => ({
+    a,
+    text: t(attentionKey[a.kind], { host: a.site?.host ?? '', domain: a.host ?? '', percent: DISK_WARN_PERCENT }),
+    to: (a.site ? { name: a.route, params: { id: a.site.id } } : { name: a.route }) as RouteLocationRaw,
+  })),
+)
+
+const eventKey: Record<EventKind, MessageKey> = {
+  site_created: 'dashboard.events.siteCreated',
+  site_deployed: 'dashboard.events.siteDeployed',
+  domain_added: 'dashboard.events.domainAdded',
+  domain_active: 'dashboard.events.domainActive',
+}
+const events = computed(() =>
+  recentEvents(sites.value).map((e) => ({
+    e,
+    text: t(eventKey[e.kind], { host: e.site.host, domain: e.host ?? '' }),
+    when: formatDateTime(e.at, locale.value),
+  })),
+)
 
 const tiles = [
   { to: { name: 'sites' }, icon: RocketOutline, grad: 'var(--grad-primary)', title: 'dashboard.quick.create', hint: 'dashboard.quick.createHint' },
@@ -79,6 +112,15 @@ const tiles = [
       </article>
 
       <article class="stat glass lift rise" style="--i: 3">
+        <span class="ic" style="--g: var(--grad-amber)"><n-icon :size="22" :component="LinkOutline" /></span>
+        <div class="body">
+          <div class="label">{{ t('dashboard.stats.domains') }}</div>
+          <div class="value">{{ domains.length }}</div>
+          <div class="sub">{{ t('dashboard.stats.domainsActive', { n: domainsActive }) }}</div>
+        </div>
+      </article>
+
+      <article class="stat glass lift rise" style="--i: 3">
         <span class="ic" style="--g: var(--grad-emerald)"><n-icon :size="22" :component="ShieldCheckmarkOutline" /></span>
         <div class="body">
           <div class="label">{{ t('dashboard.stats.https') }}</div>
@@ -89,9 +131,57 @@ const tiles = [
       </article>
     </section>
 
-    <h2 class="section rise" style="--i: 4">{{ t('dashboard.quick.title') }}</h2>
+    <div class="two">
+      <section class="panel glass rise" style="--i: 4">
+        <h3>{{ t('dashboard.attention.title') }}</h3>
+        <p v-if="!attention.length" class="ok">
+          <n-icon :size="20" :component="CheckmarkCircleOutline" />
+          {{ t('dashboard.attention.allGood') }}
+        </p>
+        <ul v-else class="list">
+          <li v-for="(it, i) in attention" :key="i">
+            <router-link :to="it.to" class="row plain">
+              <n-icon :size="20" :component="AlertCircleOutline" class="warn" />
+              <span class="row-text">{{ it.text }}</span>
+              <n-icon :size="18" :component="ChevronForward" class="go" />
+            </router-link>
+          </li>
+        </ul>
+      </section>
+
+      <section class="panel glass rise" style="--i: 5">
+        <h3>{{ t('dashboard.events.title') }}</h3>
+        <p v-if="!events.length" class="muted">{{ t('dashboard.events.empty') }}</p>
+        <ul v-else class="list">
+          <li v-for="(ev, i) in events" :key="i" class="row ev">
+            <span class="row-text">{{ ev.text }}</span>
+            <time class="when">{{ ev.when }}</time>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <section v-if="sites.length" class="panel glass rise" style="--i: 6">
+      <h3>{{ t('dashboard.mySites') }}</h3>
+      <ul class="list">
+        <li v-for="s in sites" :key="s.id">
+          <router-link :to="{ name: 'site-overview', params: { id: s.id } }" class="row plain">
+            <n-icon :size="20" :component="GlobeOutline" class="site-ic" />
+            <span class="row-text host">{{ s.host }}</span>
+            <status-chip v-if="s.cert_status === 'pending'" tone="amber" pulse>{{ t('sites.cert.pending') }}</status-chip>
+            <status-chip v-else-if="s.cert_status === 'failed'" tone="rose">{{ t('sites.cert.failed') }}</status-chip>
+            <status-chip :tone="s.status === 'live' ? 'emerald' : 'slate'">
+              {{ s.status === 'live' ? t('sites.status.live') : t('sites.status.empty') }}
+            </status-chip>
+            <n-icon :size="18" :component="ChevronForward" class="go" />
+          </router-link>
+        </li>
+      </ul>
+    </section>
+
+    <h2 class="section rise" style="--i: 7">{{ t('dashboard.quick.title') }}</h2>
     <section class="tiles">
-      <router-link v-for="(tile, i) in tiles" :key="tile.title" :to="tile.to" class="tile glass lift plain rise" :style="{ '--i': 5 + i, '--g': tile.grad }">
+      <router-link v-for="(tile, i) in tiles" :key="tile.title" :to="tile.to" class="tile glass lift plain rise" :style="{ '--i': 8 + i, '--g': tile.grad }">
         <span class="ic"><n-icon :size="24" :component="tile.icon" /></span>
         <span class="tx">
           <strong>{{ t(tile.title) }}</strong>
@@ -101,7 +191,7 @@ const tiles = [
       </router-link>
     </section>
 
-    <section class="account glass rise" style="--i: 8">
+    <section class="account glass rise" style="--i: 9">
       <h3>{{ t('dashboard.account.title') }}</h3>
       <dl>
         <dt>{{ t('dashboard.account.email') }}</dt>
@@ -238,6 +328,10 @@ const tiles = [
   margin-top: 10px;
 }
 
+.chipline :deep(.chip) {
+  white-space: normal;
+}
+
 .meter {
   height: 7px;
   margin-top: 10px;
@@ -306,6 +400,84 @@ const tiles = [
 .tile:hover .go {
   transform: translateX(5px);
   color: #fff;
+}
+
+.two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 18px;
+}
+
+.panel {
+  padding: 20px 22px;
+}
+
+.panel h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  color: var(--text);
+  transition: background 0.25s;
+}
+
+a.row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.row-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.host {
+  font-weight: 650;
+}
+
+.warn {
+  color: #fbbf24;
+}
+
+.site-ic {
+  color: #22d3ee;
+}
+
+.ok {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #6ee7b7;
+}
+
+.muted,
+.when {
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.ev {
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.when {
+  flex: none;
 }
 
 .account {

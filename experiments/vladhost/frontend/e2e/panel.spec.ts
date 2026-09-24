@@ -76,7 +76,13 @@ test('приглашение → регистрация → сайт → деп�
   await expect(p.getByRole('link', { name: host })).toBeVisible()
   await p.getByRole('link', { name: 'Все сайты' }).click()
   await expect(p.getByText('Достигнут лимит')).toBeVisible()
-  await p.getByRole('link', { name: host }).click() // сайт выбирается из списка
+  // Сводка аккаунта: пустой сайт требует внимания, события собраны из данных сайта.
+  await p.getByRole('link', { name: 'Обзор' }).click()
+  await expect(p.getByRole('heading', { name: 'Требует внимания' })).toBeVisible()
+  await expect(p.getByText(`На ${host} ещё не загружены файлы`)).toBeVisible()
+  await expect(p.getByText(`Создан сайт ${host}`)).toBeVisible()
+  await p.getByRole('link', { name: 'Сайты', exact: true }).click()
+  await p.locator('a.site', { hasText: host }).click() // сайт выбирается из списка
   await expect(siteMenu).toBeVisible()
 
   // Деплой zip.
