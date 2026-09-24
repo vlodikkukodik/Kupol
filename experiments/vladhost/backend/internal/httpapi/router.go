@@ -74,6 +74,7 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Eng
 	authed.POST("/sites/:id/files/upload", s.uploadFile)
 	authed.GET("/sites/:id/htaccess", s.checkHtaccess)
 	authed.GET("/sites/:id/logs", s.siteLogs)
+	authed.GET("/sites/:id/stats", s.siteStats)
 	authed.GET("/sites/:id/logs/download", s.downloadSiteLogs)
 	authed.GET("/sites/:id/file", s.readFile)
 	authed.PUT("/sites/:id/file", s.saveFile)

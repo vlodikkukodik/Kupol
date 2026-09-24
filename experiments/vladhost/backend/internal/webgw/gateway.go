@@ -25,6 +25,7 @@ import (
 
 	"vladhost/internal/i18n"
 	"vladhost/internal/sitelog"
+	"vladhost/internal/sitestats"
 	"vladhost/internal/webgw/htaccess"
 )
 
@@ -57,7 +58,8 @@ type Handler struct {
 	authFails map[string]*failure
 	authSem   chan struct{} // ограничивает число одновременных проверок пароля: bcrypt дорог
 
-	logs *sitelog.Writer // nil — журналы не ведутся
+	logs  *sitelog.Writer       // nil — журналы не ведутся
+	stats *sitestats.Aggregator // nil — статистика не ведётся
 }
 
 type failure struct {
@@ -85,6 +87,11 @@ func New(opts Options) *Handler {
 			log.Printf("шлюз: журналы сайтов отключены: %v", err)
 		} else {
 			h.logs = w
+		}
+		if a, err := sitestats.New(opts.LogDir); err != nil {
+			log.Printf("шлюз: статистика сайтов отключена: %v", err)
+		} else {
+			h.stats = a
 		}
 	}
 	return h

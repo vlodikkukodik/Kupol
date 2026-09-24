@@ -25,6 +25,7 @@ export const router = createRouter({
         { path: '', name: 'site-overview', component: () => import('@/views/site/SiteOverview.vue') },
         { path: 'files', name: 'files', component: () => import('@/views/FilesView.vue') },
         { path: 'domains', name: 'site-domains', component: () => import('@/views/site/SiteDomains.vue') },
+        { path: 'stats', name: 'site-stats', component: () => import('@/views/site/SiteStats.vue') },
         { path: 'logs', name: 'site-logs', component: () => import('@/views/site/SiteLogs.vue') },
         { path: 'ftp', name: 'site-ftp', component: () => import('@/views/site/SiteFtp.vue') },
         { path: 'settings', name: 'site-settings', component: () => import('@/views/site/SiteSettings.vue') },

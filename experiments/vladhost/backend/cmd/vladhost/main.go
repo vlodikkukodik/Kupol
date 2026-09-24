@@ -4,10 +4,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"vladhost/internal/auth"
@@ -28,8 +32,13 @@ func main() {
 
 // runWeb запускает веб-шлюз сайтов пользователей (отдельная служба, читает только каталог сайтов).
 func runWeb(cfg config.WebConfig) error {
+	// Остановка по сигналу: дожидаемся, пока счётчики статистики сохранятся на диск.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 	gw := webgw.New(webgw.Options{Root: cfg.SitesRoot, BaseDomain: cfg.BaseDomain, DomainsDir: cfg.DomainsDir, LogDir: cfg.LogDir})
-	go gw.MaintainLogs(context.Background(), time.Hour)
+	var bg sync.WaitGroup
+	bg.Go(func() { gw.MaintainLogs(ctx, time.Hour) })
+	bg.Go(func() { gw.RunStats(ctx.Done(), 30*time.Second) })
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           gw,
@@ -39,8 +48,20 @@ func runWeb(cfg config.WebConfig) error {
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    32 << 10,
 	}
+	go func() {
+		<-ctx.Done()
+		sh, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(sh)
+	}()
 	fmt.Println("веб-шлюз слушает", cfg.Addr, "каталог сайтов", cfg.SitesRoot)
-	return srv.ListenAndServe()
+	err := srv.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		err = nil
+	}
+	stop()
+	bg.Wait()
+	return err
 }
 
 func startFTP(svc *sites.Service, cfg config.FTPConfig) error {

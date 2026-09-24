@@ -140,6 +140,32 @@ test('приглашение → регистрация → сайт → деп�
   const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Скачать' }).click()])
   expect(readFileSync(await dl.path()!, 'utf8')).toContain('[not_found]')
 
+  // Статистика: счётчики за сутки сохраняет шлюз; здесь кладём готовый файл, как это сделал бы он.
+  const today = new Date().toISOString().slice(0, 10)
+  writeFileSync(
+    `/tmp/vh-e2e-logs/${host}/stats.json`,
+    JSON.stringify({
+      salt: 'e2e',
+      days: { [today]: { h: 12, bt: 2, pg: 6, v: 4, b: 2048, s2: 9, s3: 1, s4: 2, s5: 0, paths: { '/': 4, '/pricing.html': 2 }, refs: { 'news.example.org': 3 } } },
+    }),
+  )
+  await siteMenu.getByText('Статистика').click()
+  await expect(p.getByRole('heading', { name: 'Статистика' })).toBeVisible()
+  const tile = (name: string) => p.locator('.tile', { hasText: name })
+  await expect(tile('Посетители')).toContainText('4')
+  await expect(tile('Просмотры страниц')).toContainText('6')
+  await expect(tile('Запросы')).toContainText('из них ботов и программ: 2')
+  await expect(p.getByText('/pricing.html')).toBeVisible()
+  await expect(p.getByText('news.example.org')).toBeVisible()
+  await expect(p.locator('.col')).toHaveCount(30)
+  await p.locator('.col').last().hover() // подсказка столбца показывает все показатели дня
+  await expect(p.getByRole('status')).toContainText('Просмотры страниц')
+  await p.getByRole('button', { name: 'Таблица' }).click()
+  await expect(p.getByRole('cell', { name: today })).toBeVisible()
+  await p.getByText('7 дней', { exact: true }).click()
+  await p.getByRole('button', { name: 'График' }).click()
+  await expect(p.locator('.col')).toHaveCount(7)
+
   // Свои домены: инструкция с IP сервера, проверка ввода, отвязка.
   await siteMenu.getByText('Домены').click()
   const domain = `vh-${Date.now().toString(36)}.example.net`

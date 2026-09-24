@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"vladhost/internal/sitelog"
+	"vladhost/internal/sitestats"
 )
 
 // statusWriter запоминает статус и число отданных байт для журнала доступа.
@@ -61,12 +62,18 @@ func errorCode(status int) string {
 }
 
 func (h *Handler) logAccess(site string, r *http.Request, host string, w *statusWriter, start time.Time) {
-	if h.logs == nil {
-		return
-	}
 	status := w.status
 	if status == 0 {
 		status = http.StatusOK // обработчик ничего не писал: net/http отдаст 200
+	}
+	if h.stats != nil {
+		h.stats.Record(site, sitestats.Hit{
+			T: start, IP: clientIP(r), Method: r.Method, Path: r.URL.Path, Referer: r.Referer(), UA: r.UserAgent(),
+			Host: host, Status: status, Bytes: w.bytes,
+		})
+	}
+	if h.logs == nil {
+		return
 	}
 	h.logs.Write(site, sitelog.KindAccess, sitelog.Entry{
 		T: start.UTC(), IP: clientIP(r), Host: host, Method: r.Method, Path: r.URL.RequestURI(),
@@ -93,10 +100,15 @@ func (h *Handler) MaintainLogs(ctx context.Context, every time.Duration) {
 		if _, err := os.Stat(h.opts.Root); err != nil {
 			return // каталог сайтов недоступен (не смонтирован): по этому признаку ничего не удаляем
 		}
-		h.logs.Sweep(func(site string) bool {
+		gone := h.logs.Sweep(func(site string) bool {
 			_, err := os.Stat(filepath.Join(h.opts.Root, site))
 			return err == nil
 		})
+		if h.stats != nil {
+			for _, site := range gone {
+				h.stats.Forget(site) // иначе очередной сброс счётчиков создал бы каталог удалённого сайта заново
+			}
+		}
 	}
 	sweep()
 	t := time.NewTicker(every)
@@ -109,4 +121,13 @@ func (h *Handler) MaintainLogs(ctx context.Context, every time.Duration) {
 			sweep()
 		}
 	}
+}
+
+// RunStats сохраняет суточные счётчики на диск каждые every и один раз при остановке (done закрыт).
+func (h *Handler) RunStats(done <-chan struct{}, every time.Duration) {
+	if h.stats == nil {
+		<-done
+		return
+	}
+	h.stats.Run(done, every)
 }

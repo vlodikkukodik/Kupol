@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"vladhost/internal/sitelog"
+	"vladhost/internal/sitestats"
 	"vladhost/internal/webgw"
 )
 
@@ -152,5 +153,61 @@ func TestMaintainLogsKeepsEverythingWhenSitesRootIsMissing(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	if _, err := os.Stat(filepath.Join(dir, host, "access.log")); err != nil {
 		t.Fatalf("журналы удалены при недоступном каталоге сайтов: %v", err)
+	}
+}
+
+func TestStatsAreCountedAndSavedForSites(t *testing.T) {
+	f := newSite(t, map[string]string{"index.html": "<h1>hi</h1>", "about.html": "a", "s.css": "b{}"})
+	dir := f.withLogs()
+	human := []string{"User-Agent", "Mozilla/5.0 Firefox/130", "Referer", "https://news.example.org/post"}
+	f.get("/", human...)
+	f.get("/about.html", human...)
+	f.get("/s.css", human...)
+	f.get("/nope", human...)
+	f.get("/", "User-Agent", "Googlebot/2.1")
+
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() { f.h.RunStats(done, time.Hour); close(finished) }()
+	close(done) // при остановке счётчики сохраняются на диск
+	select {
+	case <-finished:
+	case <-time.After(3 * time.Second):
+		t.Fatal("RunStats не завершился")
+	}
+
+	s, err := sitestats.Read(dir, host, 7, time.Now().Add(-time.Hour), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tot := s.Total
+	if tot.Hits != 5 || tot.Bots != 1 || tot.Pages != 2 || tot.Visitors != 1 || tot.S2 != 4 || tot.S4 != 1 {
+		t.Fatalf("итоги: %+v", tot)
+	}
+	if len(s.TopRefs) != 1 || s.TopRefs[0].Key != "news.example.org" {
+		t.Fatalf("источники: %+v", s.TopRefs)
+	}
+	if tot.Bytes < int64(len("<h1>hi</h1>")) {
+		t.Fatalf("трафик: %d", tot.Bytes)
+	}
+}
+
+func TestMaintainLogsForgetsStatsOfGoneSites(t *testing.T) {
+	f := newSite(t, map[string]string{"index.html": "x"})
+	dir := f.withLogs()
+	f.get("/", "User-Agent", "Mozilla/5.0")
+	done := make(chan struct{})
+	go f.h.RunStats(done, 20*time.Millisecond)
+	defer close(done)
+	time.Sleep(100 * time.Millisecond) // счётчики сохранены
+	if err := os.RemoveAll(filepath.Join(f.base, host)); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go f.h.MaintainLogs(ctx, time.Hour)
+	time.Sleep(300 * time.Millisecond) // очистка убрала каталог, а новые сбросы его не воссоздают
+	if _, err := os.Stat(filepath.Join(dir, host)); err == nil {
+		t.Fatal("каталог статистики удалённого сайта остался или воссоздан")
 	}
 }

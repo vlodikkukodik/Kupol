@@ -212,8 +212,8 @@ func TestSweepRemovesOnlyGoneSites(t *testing.T) {
 	w.Write("gone.john.vladinc.ru", KindAccess, acc(1, 200, "/"))
 	w.Write("gone.john.vladinc.ru", KindError, Entry{T: t0, Path: "/", Code: "not_found"})
 	removed := w.Sweep(func(s string) bool { return s == "live.john.vladinc.ru" })
-	if removed != 1 {
-		t.Fatalf("удалено %d", removed)
+	if len(removed) != 1 || removed[0] != "gone.john.vladinc.ru" {
+		t.Fatalf("удалено %v", removed)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "gone.john.vladinc.ru")); err == nil {
 		t.Fatal("журнал ушедшего сайта остался")

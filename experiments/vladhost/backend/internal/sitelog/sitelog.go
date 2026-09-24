@@ -57,6 +57,9 @@ type Entry struct {
 // siteRe: имя каталога журнала — адрес сайта. Строгий шаблон, никаких «..» и слэшей.
 var siteRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$`)
 
+// ValidSite сообщает, годится ли строка как адрес сайта для имени каталога журналов (без «..», слэшей и заглавных).
+func ValidSite(s string) bool { return validSite(s) }
+
 func validSite(s string) bool { return siteRe.MatchString(s) && !strings.Contains(s, "..") }
 
 func validKind(k string) bool { return k == KindAccess || k == KindError }
@@ -200,20 +203,20 @@ func (w *Writer) rotate(site, kind string) {
 	_ = w.root.Rename(base, base+".1")
 }
 
-// Sweep удаляет журналы сайтов, которых больше нет (keep вернул false). Возвращает число удалённых каталогов.
-func (w *Writer) Sweep(keep func(site string) bool) int {
+// Sweep удаляет журналы сайтов, которых больше нет (keep вернул false). Возвращает адреса удалённых сайтов.
+func (w *Writer) Sweep(keep func(site string) bool) []string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	d, err := w.root.Open(".")
 	if err != nil {
-		return 0
+		return nil
 	}
 	entries, err := d.ReadDir(-1)
 	_ = d.Close()
 	if err != nil {
-		return 0
+		return nil
 	}
-	removed := 0
+	var removed []string
 	for _, ent := range entries {
 		name := ent.Name()
 		if !ent.IsDir() || !validSite(name) || keep(name) {
@@ -226,7 +229,7 @@ func (w *Writer) Sweep(keep func(site string) bool) int {
 			}
 		}
 		if w.root.RemoveAll(name) == nil {
-			removed++
+			removed = append(removed, name)
 		}
 	}
 	return removed

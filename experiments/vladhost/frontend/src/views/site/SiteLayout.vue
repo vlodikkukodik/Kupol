@@ -9,6 +9,7 @@ import {
   LogOutOutline,
   SettingsOutline,
   SpeedometerOutline,
+  StatsChartOutline,
 } from '@vicons/ionicons5'
 import { NDropdown, NIcon } from 'naive-ui'
 import { computed, h, onBeforeUnmount, onMounted, type Component } from 'vue'
@@ -38,6 +39,7 @@ const items: NavItem[] = [
   { name: 'site-overview', label: 'siteArea.overview', icon: SpeedometerOutline, grad: 'var(--grad-primary)' },
   { name: 'files', label: 'siteArea.files', icon: FolderOpenOutline, grad: 'var(--grad-cyan)' },
   { name: 'site-domains', label: 'siteArea.domains', icon: LinkOutline, grad: 'var(--grad-emerald)' },
+  { name: 'site-stats', label: 'siteArea.stats', icon: StatsChartOutline, grad: 'var(--grad-emerald)' },
   { name: 'site-logs', label: 'siteArea.logs', icon: DocumentTextOutline, grad: 'var(--grad-cyan)' },
   { name: 'site-ftp', label: 'siteArea.ftp', icon: KeyOutline, grad: 'var(--grad-violet)' },
   { name: 'site-settings', label: 'siteArea.settings', icon: SettingsOutline, grad: 'var(--grad-amber)' },

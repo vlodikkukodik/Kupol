@@ -171,3 +171,29 @@ export function fieldErrors(err: z.ZodError): Record<string, string> {
   }
   return out
 }
+
+export const statsPeriods = [7, 30, 90] as const
+export type StatsPeriod = (typeof statsPeriods)[number]
+
+const statsPointSchema = z.object({
+  date: z.string(), // YYYY-MM-DD по UTC
+  hits: z.number(),
+  pages: z.number(),
+  visitors: z.number(),
+  bots: z.number(),
+  bytes: z.number(),
+  s2: z.number(),
+  s3: z.number(),
+  s4: z.number(),
+  s5: z.number(),
+})
+export type StatsPoint = z.infer<typeof statsPointSchema>
+const statsItemSchema = z.object({ key: z.string(), count: z.number() })
+export type StatsItem = z.infer<typeof statsItemSchema>
+export const statsSchema = z.object({
+  days: z.array(statsPointSchema),
+  total: statsPointSchema.omit({ date: true }),
+  top_pages: z.array(statsItemSchema),
+  top_refs: z.array(statsItemSchema),
+})
+export type Stats = z.infer<typeof statsSchema>
