@@ -65,7 +65,7 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config, opts ...
 		s.cookieName, s.cookiePath = "__Host-vh_refresh", "/"
 	}
 	r := gin.New()
-	r.Use(gin.Recovery(), langMiddleware)
+	r.Use(gin.Recovery(), langMiddleware, clientMiddleware)
 	// Перед Go стоит nginx на этой же машине.
 	_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 
@@ -82,6 +82,7 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config, opts ...
 	limited := api.Group("/auth", s.checkOrigin, newIPLimiter(perMinute, burst).middleware())
 	limited.POST("/register", s.register)
 	limited.POST("/login", s.login)
+	limited.POST("/login/2fa", s.loginSecondFactor)
 	limited.POST("/refresh", s.refresh)
 	limited.POST("/forgot", s.forgotPassword)
 	limited.POST("/reset", s.resetPassword)
@@ -96,6 +97,14 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config, opts ...
 	authed.PATCH("/me", s.checkOrigin, s.updateMe)
 	authed.POST("/me/email/verify", s.checkOrigin, s.resendVerification)
 	authed.POST("/me/password", s.checkOrigin, pwLimiter.middleware(), s.changePassword)
+	authed.GET("/me/2fa", s.twoFactorStatus)
+	authed.POST("/me/2fa/setup", s.checkOrigin, pwLimiter.middleware(), s.twoFactorSetup)
+	authed.POST("/me/2fa/enable", s.checkOrigin, pwLimiter.middleware(), s.twoFactorEnable)
+	authed.POST("/me/2fa/disable", s.checkOrigin, pwLimiter.middleware(), s.twoFactorDisable)
+	authed.POST("/me/2fa/recovery", s.checkOrigin, pwLimiter.middleware(), s.twoFactorRecovery)
+	authed.GET("/me/sessions", s.listSessions)
+	authed.DELETE("/me/sessions/:sid", s.checkOrigin, s.revokeSession)
+	authed.POST("/me/sessions/revoke-others", s.checkOrigin, s.revokeOtherSessions)
 	authed.GET("/sites", s.listSites)
 	authed.POST("/sites", s.createSite)
 	authed.DELETE("/sites/:id", s.deleteSite)
@@ -307,7 +316,7 @@ func (s *Server) login(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
-	sess, err := s.svc.Login(c.Request.Context(), in.Login, in.Password)
+	sess, ticket, err := s.svc.Login(c.Request.Context(), in.Login, in.Password)
 	if err != nil {
 		// Неудачный вход пишется тому, чей аккаунт пытались открыть; ответ от этого не меняется (не выдаём, есть ли такой аккаунт).
 		if errors.Is(err, auth.ErrInvalidCredentials) && s.activity != nil {
@@ -316,6 +325,11 @@ func (s *Server) login(c *gin.Context) {
 			}
 		}
 		failErr(c, err)
+		return
+	}
+	if sess == nil { // пароль верен, нужен код второго фактора: сессии пока нет
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusOK, gin.H{"two_factor": true, "ticket": ticket})
 		return
 	}
 	s.record(c, sess.User.ID, activity.KindLogin, "")
@@ -375,7 +389,7 @@ func (s *Server) changePassword(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "bad_request")
 		return
 	}
-	sess, err := s.svc.ChangePassword(c.Request.Context(), c.GetInt64("uid"), in.Current, in.New)
+	sess, err := s.svc.ChangePassword(c.Request.Context(), c.GetInt64("uid"), c.GetInt64("sid"), in.Current, in.New)
 	if err != nil {
 		failErr(c, err)
 		return

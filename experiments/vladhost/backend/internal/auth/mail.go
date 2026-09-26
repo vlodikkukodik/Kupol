@@ -177,7 +177,7 @@ func (s *Service) ResetPassword(ctx context.Context, raw, password string) (*Use
 		if err := tx.Model(&MailToken{}).Where("user_id = ? AND kind = ? AND used_at IS NULL", u.ID, TokenReset).Update("used_at", now).Error; err != nil {
 			return err
 		}
-		return tx.Model(&RefreshToken{}).Where("user_id = ? AND revoked_at IS NULL", u.ID).Update("revoked_at", now).Error
+		return s.revokeSessions(tx, u.ID, 0, 0)
 	})
 	if err != nil {
 		return nil, err

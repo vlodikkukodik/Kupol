@@ -13,6 +13,7 @@ export const userSchema = z.object({
   email_verified_at: z.string().nullable(), // null — адрес почты ещё не подтверждён
   lang: z.enum(['ru', 'it']), // язык писем
   notify_email: z.boolean(), // писать ли о проблемах (сертификат, диск)
+  two_factor_enabled_at: z.string().nullable().default(null), // null — вход без кода из приложения
 })
 export type User = z.infer<typeof userSchema>
 
@@ -26,6 +27,28 @@ export const sessionSchema = z.object({
   mailhost_enabled: z.boolean().default(false), // включена почта на своих доменах
   dns_enabled: z.boolean().default(false), // включён собственный DNS (ns.vladinc.ru)
 })
+
+// Первый шаг входа при включённом втором факторе: пароль верен, сессии ещё нет — нужен код.
+export const twoFactorChallengeSchema = z.object({ two_factor: z.literal(true), ticket: z.string() })
+export const loginResponseSchema = z.union([twoFactorChallengeSchema, sessionSchema])
+
+export const twoFactorStatusSchema = z.object({ enabled: z.boolean(), enabled_at: z.string().nullable(), recovery_left: z.number() })
+export type TwoFactorStatus = z.infer<typeof twoFactorStatusSchema>
+export const twoFactorSetupSchema = z.object({ secret: z.string(), uri: z.string() })
+export const recoveryCodesSchema = z.object({ recovery_codes: z.array(z.string()) })
+
+export const accountSessionSchema = z.object({
+  id: z.number(),
+  ip: z.string(),
+  user_agent: z.string(),
+  created_at: z.string(),
+  last_seen_at: z.string(),
+  expires_at: z.string(),
+  current: z.boolean(),
+})
+export type AccountSession = z.infer<typeof accountSessionSchema>
+export const accountSessionsSchema = z.object({ sessions: z.array(accountSessionSchema) })
+export const revokedSessionsSchema = z.object({ revoked: z.number() })
 
 export const meSchema = z.object({ user: userSchema, mail_enabled: z.boolean().default(false), databases_enabled: z.boolean().default(false), shell_enabled: z.boolean().default(false), mailhost_enabled: z.boolean().default(false), dns_enabled: z.boolean().default(false) })
 

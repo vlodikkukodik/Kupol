@@ -6,7 +6,9 @@ import { api, ApiError } from '@/api/client'
 import { createdInviteSchema, fieldErrors, invitesSchema, passwordForm, type Invite } from '@/api/schemas'
 import EmptyState from '@/components/EmptyState.vue'
 import FlagIcon from '@/components/FlagIcon.vue'
+import SessionsCard from '@/components/SessionsCard.vue'
 import StatusChip from '@/components/StatusChip.vue'
+import TwoFactorCard from '@/components/TwoFactorCard.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { formatDateTime, LOCALES, resolveMessage, useI18n } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -213,7 +215,10 @@ onMounted(() => {
       </n-form>
     </section>
 
-    <section v-if="auth.isAdmin" class="invites glass rise" style="--i: 4">
+    <two-factor-card />
+    <sessions-card />
+
+    <section v-if="auth.isAdmin" class="invites glass rise" style="--i: 7">
       <div class="inv-head">
         <div>
           <h3>{{ t('settings.invites.title') }}</h3>

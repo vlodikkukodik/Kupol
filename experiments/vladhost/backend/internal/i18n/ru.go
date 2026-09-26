@@ -19,6 +19,13 @@ var ru = map[string]string{
 	"err.wrong_password":      "Текущий пароль указан неверно",
 	"err.password_same":       "Новый пароль совпадает с текущим",
 	"err.invite_ttl":          "Срок инвайта: от 1 до %d часов",
+	"err.two_factor_code":     "Неверный код. Введите 6 цифр из приложения или код восстановления",
+	"err.two_factor_ticket":   "Время на ввод кода вышло. Войдите заново",
+	"err.two_factor_enabled":  "Двухфакторный вход уже включён",
+	"err.two_factor_disabled": "Двухфакторный вход не включён",
+	"err.two_factor_no_setup": "Сначала начните настройку: получите новый ключ",
+	"err.session_not_found":   "Сессия не найдена или уже закрыта",
+	"err.session_current":     "Текущую сессию закрывает кнопка «Выйти»",
 
 	// Проверка введённых данных
 	"err.validation.email":             "Некорректный email",

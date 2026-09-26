@@ -17,16 +17,22 @@ const Skip = "-"
 // RouteKinds — что означает успешный запрос вошедшего пользователя: «метод путь» → событие. Маршрут, которого здесь нет, но который меняет
 // данные, пишется как «other» с шаблоном маршрута в поле «объект»: новые возможности не остаются вне журнала, пока им не подберут имя.
 var RouteKinds = map[string]string{
-	"PATCH /api/me":                   "profile.update",
-	"POST /api/me/email/verify":       "auth.email_verify_sent",
-	"POST /api/me/password":           "auth.password_change",
-	"POST /api/invites":               "admin.invite",
-	"POST /api/sites":                 "site.create",
-	"DELETE /api/sites/:id":           "site.delete",
-	"POST /api/sites/:id/deploy":      "site.deploy",
-	"PUT /api/sites/:id/settings":     "site.settings",
-	"POST /api/sites/:id/cert/retry":  "cert.renew",
-	"POST /api/sites/:id/certs/renew": "cert.renew",
+	"PATCH /api/me":                       "profile.update",
+	"POST /api/me/email/verify":           "auth.email_verify_sent",
+	"POST /api/me/password":               "auth.password_change",
+	"POST /api/me/2fa/setup":              Skip, // только выдача ключа: включение пишется отдельно
+	"POST /api/me/2fa/enable":             "auth.totp_enable",
+	"POST /api/me/2fa/disable":            "auth.totp_disable",
+	"POST /api/me/2fa/recovery":           "auth.totp_recovery",
+	"DELETE /api/me/sessions/:sid":        "auth.session_revoke",
+	"POST /api/me/sessions/revoke-others": "auth.sessions_revoke",
+	"POST /api/invites":                   "admin.invite",
+	"POST /api/sites":                     "site.create",
+	"DELETE /api/sites/:id":               "site.delete",
+	"POST /api/sites/:id/deploy":          "site.deploy",
+	"PUT /api/sites/:id/settings":         "site.settings",
+	"POST /api/sites/:id/cert/retry":      "cert.renew",
+	"POST /api/sites/:id/certs/renew":     "cert.renew",
 
 	"POST /api/sites/:id/domains":                    "domain.add",
 	"PATCH /api/sites/:id/domains/:did":              "domain.update",
