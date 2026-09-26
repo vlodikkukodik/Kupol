@@ -34,6 +34,13 @@ func (s *Server) requireAuth(c *gin.Context) {
 	}
 	c.Set("uid", claims.UserID)
 	c.Set("role", string(claims.Role))
+	c.Set("sid", claims.SessionID)
+	c.Next()
+}
+
+// clientMiddleware кладёт адрес и программу клиента в контекст: при входе они записываются в сессию (список «Активные сессии»).
+func clientMiddleware(c *gin.Context) {
+	c.Request = c.Request.WithContext(auth.WithClient(c.Request.Context(), auth.Client{IP: c.ClientIP(), UserAgent: c.Request.UserAgent()}))
 	c.Next()
 }
 

@@ -18,6 +18,13 @@ var it = map[string]string{
 	"err.wrong_password":      "La password attuale non è corretta",
 	"err.password_same":       "La nuova password coincide con quella attuale",
 	"err.invite_ttl":          "Durata dell'invito: da 1 a %d ore",
+	"err.two_factor_code":     "Codice errato. Inserisci le 6 cifre dell'app o un codice di recupero",
+	"err.two_factor_ticket":   "Il tempo per inserire il codice è scaduto. Accedi di nuovo",
+	"err.two_factor_enabled":  "La verifica in due passaggi è già attiva",
+	"err.two_factor_disabled": "La verifica in due passaggi non è attiva",
+	"err.two_factor_no_setup": "Prima avvia la configurazione: ottieni una nuova chiave",
+	"err.session_not_found":   "Sessione non trovata o già chiusa",
+	"err.session_current":     "La sessione attuale si chiude con il pulsante «Esci»",
 
 	// Validazione dei dati inseriti
 	"err.validation.email":             "Email non valida",

@@ -14,6 +14,8 @@ const (
 	KindVerifyEmail     = "verify_email"
 	KindResetPassword   = "reset_password"
 	KindPasswordChanged = "password_changed"
+	KindTwoFactorOn     = "two_factor_on"  // включён вход с кодом из приложения
+	KindTwoFactorOff    = "two_factor_off" // выключен (пользователем или администратором)
 	KindCertFailed      = "cert_failed"
 	KindCertExpiring    = "cert_expiring"
 	KindDiskFull        = "disk_full"
@@ -77,6 +79,22 @@ var catalog = map[string]map[string]source{
 Пароль от вашего аккаунта Vladhost только что изменён, все остальные сессии закрыты.
 
 Если это были не вы, немедленно восстановите доступ через ссылку «Забыли пароль?» на странице входа и сообщите администратору.`,
+		},
+		KindTwoFactorOn: {
+			"Включена двухфакторная защита — Vladhost",
+			`Здравствуйте, {{.Name}}!
+
+Для входа в ваш аккаунт Vladhost теперь нужен ещё и код из приложения-аутентификатора. Сохраните коды восстановления: они понадобятся, если телефон потеряется.
+
+Если это были не вы, смените пароль и напишите администратору.`,
+		},
+		KindTwoFactorOff: {
+			"Двухфакторная защита выключена — Vladhost",
+			`Здравствуйте, {{.Name}}!
+
+Вход в ваш аккаунт Vladhost больше не требует кода из приложения — только пароль.
+
+Если это были не вы, смените пароль, снова включите защиту в настройках и напишите администратору.`,
 		},
 		KindCertFailed: {
 			"Не удалось выпустить HTTPS для {{.Host}} — Vladhost",
@@ -194,6 +212,22 @@ La password del tuo account Vladhost è appena stata cambiata e tutte le altre s
 
 Se non sei stato tu, recupera subito l'accesso con il link «Password dimenticata?» nella pagina di accesso e avvisa l'amministratore.`,
 		},
+		KindTwoFactorOn: {
+			"Verifica in due passaggi attivata — Vladhost",
+			`Ciao {{.Name}}!
+
+Per accedere al tuo account Vladhost ora serve anche il codice dell'app di autenticazione. Conserva i codici di recupero: ti serviranno se perdi il telefono.
+
+Se non sei stato tu, cambia la password e avvisa l'amministratore.`,
+		},
+		KindTwoFactorOff: {
+			"Verifica in due passaggi disattivata — Vladhost",
+			`Ciao {{.Name}}!
+
+L'accesso al tuo account Vladhost non richiede più il codice dell'app: basta la password.
+
+Se non sei stato tu, cambia la password, riattiva la protezione nelle impostazioni e avvisa l'amministratore.`,
+		},
 		KindCertFailed: {
 			"Impossibile emettere l'HTTPS per {{.Host}} — Vladhost",
 			`Ciao {{.Name}}!
@@ -287,7 +321,7 @@ Leggi la risposta e continua la conversazione:
 
 // Kinds — все виды писем (для проверки, что у каждого есть тексты на обоих языках).
 func Kinds() []string {
-	return []string{KindVerifyEmail, KindResetPassword, KindPasswordChanged, KindCertFailed, KindCertExpiring, KindDiskFull, KindDBFrozen, KindCronFailed, KindMailboxFull, KindTicketNew, KindTicketUserReply, KindTicketReply}
+	return []string{KindVerifyEmail, KindResetPassword, KindPasswordChanged, KindTwoFactorOn, KindTwoFactorOff, KindCertFailed, KindCertExpiring, KindDiskFull, KindDBFrozen, KindCronFailed, KindMailboxFull, KindTicketNew, KindTicketUserReply, KindTicketReply}
 }
 
 func execute(name, src string, d Data) (string, error) {

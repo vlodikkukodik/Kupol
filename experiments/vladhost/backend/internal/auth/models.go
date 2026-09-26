@@ -21,6 +21,11 @@ type User struct {
 	EmailVerifiedAt *time.Time `json:"email_verified_at"`
 	Lang            string     `json:"lang"`
 	NotifyEmail     bool       `json:"notify_email"`
+	// Двухфакторный вход (TOTP): секреты зашифрованы и наружу не отдаются, видно только, включён ли он.
+	TOTPSecret    *string    `gorm:"column:totp_secret" json:"-"`
+	TOTPPending   *string    `gorm:"column:totp_pending" json:"-"`
+	TOTPEnabledAt *time.Time `gorm:"column:totp_enabled_at" json:"two_factor_enabled_at"`
+	TOTPLastStep  int64      `gorm:"column:totp_last_step" json:"-"`
 }
 
 type Invite struct {
@@ -42,6 +47,7 @@ type InviteView struct {
 type RefreshToken struct {
 	ID        int64 `gorm:"primaryKey"`
 	UserID    int64
+	SessionID *int64
 	TokenHash string
 	ExpiresAt time.Time
 	RevokedAt *time.Time
@@ -54,5 +60,6 @@ type Session struct {
 	ExpiresIn      int
 	RefreshToken   string
 	RefreshExpires time.Time
+	SessionID      int64
 	User           User
 }

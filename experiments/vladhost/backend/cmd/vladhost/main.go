@@ -1,5 +1,6 @@
 // Команда vladhost: serve — запустить панель, migrate up — применить миграции,
-// admin create — завести администратора (пароль из VLADHOST_ADMIN_PASSWORD).
+// admin create — завести администратора (пароль из VLADHOST_ADMIN_PASSWORD),
+// admin reset-2fa ЛОГИН — снять двухфакторный вход (пользователь потерял телефон и коды восстановления).
 package main
 
 import (
@@ -335,7 +336,7 @@ func startFTP(svc *sites.Service, cfg config.FTPConfig, onLogin func(userID int6
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("использование: vladhost serve | web | migrate up | mail-test --to ADDR | admin create --email E --username U")
+		return fmt.Errorf("использование: vladhost serve | web | migrate up | mail-test --to ADDR | admin create --email E --username U | admin reset-2fa LOGIN")
 	}
 	if args[0] == "shell-broker" {
 		return runShellBroker(config.LoadBroker())
@@ -454,6 +455,16 @@ func run(args []string) error {
 			return err
 		}
 		fmt.Printf("администратор %s (%s) создан\n", u.Username, u.Email)
+		return nil
+	case args[0] == "admin" && len(args) == 3 && args[1] == "reset-2fa":
+		// Пользователь потерял и телефон, и коды восстановления: снимаем второй фактор и закрываем все его сессии.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		u, err := svc.ResetTwoFactor(ctx, args[2])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("двухфакторный вход для %s (%s) выключен, сессии закрыты\n", u.Username, u.Email)
 		return nil
 	}
 	return fmt.Errorf("неизвестная команда %q", args[0])

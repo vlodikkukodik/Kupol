@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api, refreshSession, setAccessToken } from '@/api/client'
-import { meSchema, sessionSchema, type User } from '@/api/schemas'
+import type { z } from 'zod'
+import { loginResponseSchema, meSchema, sessionSchema, type User } from '@/api/schemas'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
@@ -33,8 +34,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function login(login: string, password: string) {
-    const s = await api('/api/auth/login', { method: 'POST', body: { login, password }, schema: sessionSchema, auth: false })
+  /** Вход. Если у аккаунта включён второй фактор, сессии ещё нет: возвращается билет для loginSecondFactor. */
+  async function login(login: string, password: string): Promise<{ ticket: string } | null> {
+    const r = await api('/api/auth/login', { method: 'POST', body: { login, password }, schema: loginResponseSchema, auth: false })
+    if ('ticket' in r) return { ticket: r.ticket }
+    applySession(r)
+    return null
+  }
+
+  /** Второй шаг входа: код из приложения или код восстановления. */
+  async function loginSecondFactor(ticket: string, code: string) {
+    const s = await api('/api/auth/login/2fa', { method: 'POST', body: { ticket, code }, schema: sessionSchema, auth: false })
+    applySession(s)
+  }
+
+  function applySession(s: z.infer<typeof sessionSchema>) {
     setAccessToken(s.access_token)
     user.value = s.user
     mailEnabled.value = s.mail_enabled
@@ -111,5 +125,5 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, mailEnabled, databasesEnabled, shellEnabled, mailhostEnabled, dnsEnabled, ready, isAdmin, init, login, register, changePassword, resendVerification, updatePreferences, refreshMe, logout, clear }
+  return { user, mailEnabled, databasesEnabled, shellEnabled, mailhostEnabled, dnsEnabled, ready, isAdmin, init, login, loginSecondFactor, register, changePassword, resendVerification, updatePreferences, refreshMe, logout, clear }
 })

@@ -191,6 +191,15 @@ func (s *Service) SendPasswordChanged(ctx context.Context, u auth.User) error {
 	return s.send(ctx, nil, u, KindPasswordChanged, Data{})
 }
 
+// SendTwoFactor сообщает о включении (on) или выключении второго фактора: как и смена пароля, это владелец должен увидеть.
+func (s *Service) SendTwoFactor(ctx context.Context, u auth.User, on bool) error {
+	kind := KindTwoFactorOff
+	if on {
+		kind = KindTwoFactorOn
+	}
+	return s.send(ctx, nil, u, kind, Data{})
+}
+
 // ---- отправка ----
 
 // Run отправляет письма из очереди каждые every, пока не отменён ctx. Раз в час удаляет записи старше 30 суток.

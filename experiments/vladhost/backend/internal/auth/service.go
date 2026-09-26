@@ -24,6 +24,8 @@ type Service struct {
 	accessTTL  time.Duration
 	refreshTTL time.Duration
 	now        func() time.Time
+	revoked    revokedSet  // закрытые сессии, чьи access-токены ещё не истекли
+	tickets    ticketStore // билеты второго шага входа (2FA)
 }
 
 func NewService(db *gorm.DB, secret []byte, accessTTL, refreshTTL time.Duration) *Service {
@@ -86,7 +88,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*Session, err
 	if err != nil {
 		return nil, err
 	}
-	return s.issue(ctx, s.db, user)
+	return s.issue(ctx, s.db, user, 0)
 }
 
 // CreateAdmin заводит администратора без инвайта (первый запуск, CLI).
@@ -114,21 +116,27 @@ func (s *Service) CreateAdmin(ctx context.Context, email, username, password str
 	return &u, nil
 }
 
-// Login принимает email или имя пользователя.
-func (s *Service) Login(ctx context.Context, login, password string) (*Session, error) {
+// Login принимает email или имя пользователя. Если у аккаунта включён второй фактор, сессия не выдаётся:
+// возвращается билет, с которым вход завершает LoginSecondFactor.
+func (s *Service) Login(ctx context.Context, login, password string) (*Session, string, error) {
 	var u User
 	err := s.db.WithContext(ctx).Where("email = ? OR username = ?", lower(login), lower(login)).First(&u).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
-		return nil, ErrInvalidCredentials
+		return nil, "", ErrInvalidCredentials
 	}
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
-		return nil, ErrInvalidCredentials
+		return nil, "", ErrInvalidCredentials
 	}
-	return s.issue(ctx, s.db, u)
+	if u.TOTPEnabledAt != nil {
+		t, err := s.tickets.put(u.ID, s.now())
+		return nil, t, err
+	}
+	sess, err := s.issue(ctx, s.db, u, 0)
+	return sess, "", err
 }
 
 // Refresh меняет refresh-токен на новую пару. Повторное предъявление уже использованного токена
@@ -147,8 +155,16 @@ func (s *Service) Refresh(ctx context.Context, raw string) (*Session, error) {
 		if err != nil {
 			return err
 		}
+		sr, err := sessionOf(tx, rt)
+		if err != nil {
+			return err
+		}
 		if rt.RevokedAt != nil {
-			reused = rt.UserID
+			// Токен закрытой сессии (выход, «завершить сеанс», смена пароля) — просто недействителен. Кража — это повтор
+			// уже обменянного токена при живой сессии: тогда закрываем всё.
+			if sr == nil || sr.RevokedAt == nil {
+				reused = rt.UserID
+			}
 			return ErrInvalidToken
 		}
 		if !rt.ExpiresAt.After(s.now()) {
@@ -158,22 +174,29 @@ func (s *Service) Refresh(ctx context.Context, raw string) (*Session, error) {
 		if err := tx.First(&u, rt.UserID).Error; err != nil {
 			return ErrInvalidToken
 		}
+		if sr != nil && (sr.RevokedAt != nil || sr.UserID != u.ID) {
+			return ErrInvalidToken
+		}
 		if err := tx.Model(&rt).Update("revoked_at", s.now()).Error; err != nil {
 			return err
 		}
-		sess, err = s.issue(ctx, tx, u)
+		var sid int64
+		if sr != nil {
+			sid = sr.ID
+		}
+		sess, err = s.issue(ctx, tx, u, sid)
 		return err
 	})
 	if reused != 0 {
-		s.db.WithContext(ctx).Model(&RefreshToken{}).
-			Where("user_id = ? AND revoked_at IS NULL", reused).Update("revoked_at", s.now())
+		_ = s.revokeSessions(s.db.WithContext(ctx), reused, 0, 0)
 	}
 	return sess, err
 }
 
-// ChangePassword меняет пароль после проверки текущего. Все прежние сессии (refresh-токены) закрываются —
-// если пароль подобрали или украли, вход по старым сессиям не сохранится, — и текущему устройству выдаётся новая.
-func (s *Service) ChangePassword(ctx context.Context, userID int64, current, next string) (*Session, error) {
+// ChangePassword меняет пароль после проверки текущего. Все прежние сессии закрываются — если пароль подобрали или украли,
+// вход по старым сессиям не сохранится, — и текущему устройству выдаётся новая (currentSID — её номер в списке сессий, чтобы
+// устройство не выглядело новым входом).
+func (s *Service) ChangePassword(ctx context.Context, userID, currentSID int64, current, next string) (*Session, error) {
 	if err := validatePassword(next); err != nil {
 		return nil, applyField(err, "new_password")
 	}
@@ -199,20 +222,36 @@ func (s *Service) ChangePassword(ctx context.Context, userID int64, current, nex
 		if err := tx.Model(&u).Update("password_hash", string(hash)).Error; err != nil {
 			return err
 		}
+		if err := s.revokeSessions(tx, u.ID, 0, cmpNonZero(currentSID)); err != nil {
+			return err
+		}
 		if err := tx.Model(&RefreshToken{}).Where("user_id = ? AND revoked_at IS NULL", u.ID).
 			Update("revoked_at", s.now()).Error; err != nil {
 			return err
 		}
 		u.PasswordHash = string(hash)
-		sess, err = s.issue(ctx, tx, u)
+		sess, err = s.issue(ctx, tx, u, currentSID)
 		return err
 	})
 	return sess, err
 }
 
+// Logout закрывает сессию, которой принадлежит refresh-токен (вместе с её access-токеном).
 func (s *Service) Logout(ctx context.Context, raw string) error {
-	return s.db.WithContext(ctx).Model(&RefreshToken{}).
-		Where("token_hash = ? AND revoked_at IS NULL", hashToken(raw)).Update("revoked_at", s.now()).Error
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var rt RefreshToken
+		err := tx.Where("token_hash = ? AND revoked_at IS NULL", hashToken(raw)).First(&rt).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if rt.SessionID != nil {
+			return s.revokeSessions(tx, rt.UserID, *rt.SessionID, 0)
+		}
+		return tx.Model(&rt).Update("revoked_at", s.now()).Error
+	})
 }
 
 func (s *Service) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -227,8 +266,9 @@ func (s *Service) UserByID(ctx context.Context, id int64) (*User, error) {
 }
 
 type Claims struct {
-	UserID int64
-	Role   Role
+	UserID    int64
+	Role      Role
+	SessionID int64 // 0 — токен выдан до появления сессий
 }
 
 func (s *Service) ParseAccess(token string) (*Claims, error) {
@@ -246,7 +286,11 @@ func (s *Service) ParseAccess(token string) (*Claims, error) {
 	if sub == 0 || role == "" {
 		return nil, ErrInvalidToken
 	}
-	return &Claims{UserID: int64(sub), Role: Role(role)}, nil
+	sid, _ := m["sid"].(float64)
+	if sid != 0 && s.revoked.has(int64(sid), s.now()) {
+		return nil, ErrInvalidToken
+	}
+	return &Claims{UserID: int64(sub), Role: Role(role), SessionID: int64(sid)}, nil
 }
 
 func (s *Service) CreateInvite(ctx context.Context, adminID int64, ttl time.Duration) (*Invite, error) {
@@ -270,10 +314,38 @@ func (s *Service) ListInvites(ctx context.Context) ([]InviteView, error) {
 	return out, err
 }
 
-func (s *Service) issue(ctx context.Context, db *gorm.DB, u User) (*Session, error) {
+// issue выдаёт пару токенов. sessionID — продолжение существующей сессии (обновление, смена пароля); 0 — новый вход, новая сессия.
+// Адрес и программа клиента берутся из контекста (WithClient).
+func (s *Service) issue(ctx context.Context, db *gorm.DB, u User, sessionID int64) (*Session, error) {
 	now := s.now()
+	cl := clientFrom(ctx)
+	expires := now.Add(s.refreshTTL)
+	if sessionID != 0 {
+		// Продолжаем только действующую сессию этого же пользователя; закрытую не воскрешаем — тогда это новый вход.
+		upd := map[string]any{"last_seen_at": now, "expires_at": expires}
+		if cl.IP != "" {
+			upd["ip"] = cl.IP
+		}
+		if cl.UserAgent != "" {
+			upd["user_agent"] = cl.UserAgent
+		}
+		res := db.WithContext(ctx).Model(&SessionRow{}).Where("id = ? AND user_id = ? AND revoked_at IS NULL", sessionID, u.ID).Updates(upd)
+		if res.Error != nil {
+			return nil, fmt.Errorf("update session: %w", res.Error)
+		}
+		if res.RowsAffected == 0 {
+			sessionID = 0
+		}
+	}
+	if sessionID == 0 {
+		sr := SessionRow{UserID: u.ID, IP: cl.IP, UserAgent: cl.UserAgent, CreatedAt: now, LastSeenAt: now, ExpiresAt: expires}
+		if err := db.WithContext(ctx).Create(&sr).Error; err != nil {
+			return nil, fmt.Errorf("save session: %w", err)
+		}
+		sessionID = sr.ID
+	}
 	access, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"uid": u.ID, "role": string(u.Role), "iat": now.Unix(), "exp": now.Add(s.accessTTL).Unix(),
+		"uid": u.ID, "role": string(u.Role), "sid": sessionID, "iat": now.Unix(), "exp": now.Add(s.accessTTL).Unix(),
 	}).SignedString(s.secret)
 	if err != nil {
 		return nil, err
@@ -282,13 +354,13 @@ func (s *Service) issue(ctx context.Context, db *gorm.DB, u User) (*Session, err
 	if err != nil {
 		return nil, err
 	}
-	rt := RefreshToken{UserID: u.ID, TokenHash: hashToken(raw), ExpiresAt: now.Add(s.refreshTTL)}
+	rt := RefreshToken{UserID: u.ID, SessionID: &sessionID, TokenHash: hashToken(raw), ExpiresAt: expires}
 	if err := db.WithContext(ctx).Create(&rt).Error; err != nil {
 		return nil, fmt.Errorf("save refresh token: %w", err)
 	}
 	return &Session{
 		AccessToken: access, ExpiresIn: int(s.accessTTL.Seconds()),
-		RefreshToken: raw, RefreshExpires: rt.ExpiresAt, User: u,
+		RefreshToken: raw, RefreshExpires: rt.ExpiresAt, SessionID: sessionID, User: u,
 	}, nil
 }
 
