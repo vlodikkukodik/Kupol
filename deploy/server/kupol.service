@@ -1,0 +1,36 @@
+# /etc/systemd/system/kupol.service — Go API проекта КУПОЛ на VPS.
+# Установка: см. docs/deploy.md, «Подготовка VPS».
+[Unit]
+Description=КУПОЛ — Go API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kupol
+Group=kupol
+WorkingDirectory=/opt/kupol
+# Секреты и настройки: /etc/kupol/kupol.env (права 600, владелец root) — образец deploy/server/kupol.env.example
+EnvironmentFile=/etc/kupol/kupol.env
+ExecStart=/opt/kupol/kupol serve
+Restart=on-failure
+RestartSec=3
+# API завершает запросы по SIGTERM до 20 с (graceful shutdown)
+TimeoutStopSec=30
+LimitNOFILE=65535
+
+# Ограничения процесса
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

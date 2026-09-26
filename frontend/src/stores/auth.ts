@@ -1,0 +1,132 @@
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
+import { authApi } from '@/api/endpoints'
+import { api } from '@/api'
+import { t } from '@/i18n'
+import type { UserDTO } from '@/api/generated/httpapi'
+
+/** Права, которые присылает сервер (accounts.Capability). Интерфейс из ролей ничего не выводит — решает сервер. */
+export type Capability = 'team_panel' | 'write_drafts' | 'review' | 'publish' | 'edit_published' | 'manage_glossary' | 'manage_templates' | 'manage_timeline' | 'manage_team' | 'moderate_comments'
+
+// Загрузка сессии — один запрос на всех, кто её ждёт (роутер, главная, шапка).
+let inflight: Promise<void> | null = null
+
+export const useAuthStore = defineStore('auth', () => {
+  /** Вошедший пользователь или null (Гражданин). */
+  const user = ref<UserDTO | null>(null)
+  /** idle — не спрашивали; loading; ready — ответ получен; failed — связи не было. */
+  const status = ref<'idle' | 'loading' | 'ready' | 'failed'>('idle')
+  /**
+   * Резервный код, показываемый ОДИН раз (после регистрации и восстановления доступа).
+   * Хранится только в памяти: на диск и в адрес не попадает.
+   */
+  const pendingBackupCode = ref('')
+  /** Разовое сообщение для главной (например, «дело сдано в архив»). */
+  const flash = ref('')
+  /** Этот вход только что поднял уровень по XP — повод показать штамп «ДОПУСК ПОВЫШЕН» (глобально, см. LevelUpNotice.vue). */
+  const levelUp = ref(false)
+  /** Грамоты, выданные этим входом/регистрацией (шаг 5.6) — повод показать уведомление (см. AchievementNotice.vue). */
+  const newAchievements = ref<string[]>([])
+
+  const isAuthenticated = computed(() => user.value !== null)
+  const can = (capability: Capability): boolean => Boolean(user.value?.capabilities.includes(capability))
+
+  /** Узнать, кто вошёл. Повторные вызовы не ходят на сервер, пока force не задан. */
+  function load(force = false): Promise<void> {
+    if (inflight) return inflight
+    if (status.value === 'ready' && !force) return Promise.resolve()
+    status.value = 'loading'
+    inflight = authApi
+      .session()
+      .then((res) => {
+        user.value = res.user ?? null
+        status.value = 'ready'
+      })
+      .catch((err: unknown) => {
+        status.value = 'failed'
+        throw err
+      })
+      .finally(() => {
+        inflight = null
+      })
+    return inflight
+  }
+
+  /** Вход. Если включён код из приложения, без totp сервер отвечает 401 totp_required (после проверки пароля). */
+  async function login(loginName: string, password: string, totp = '') {
+    const res = await authApi.login({ login: loginName, password, ...(totp ? { totp } : {}) })
+    user.value = res.user
+    status.value = 'ready'
+    if (res.level_up) levelUp.value = true
+    if (res.new_achievements?.length) newAchievements.value = res.new_achievements
+  }
+
+  function dismissLevelUp() {
+    levelUp.value = false
+  }
+
+  function dismissNewAchievements() {
+    newAchievements.value = []
+  }
+
+  async function register(p: { login: string; password: string; captchaId: string; captchaAnswer: string }) {
+    const res = await authApi.register({ login: p.login, password: p.password, captcha_id: p.captchaId, captcha_answer: p.captchaAnswer })
+    user.value = res.user
+    status.value = 'ready'
+    pendingBackupCode.value = res.backup_code
+    if (res.new_achievements?.length) newAchievements.value = res.new_achievements
+  }
+
+  /**
+   * Восстановление доступа. Возвращает новый резервный код и признак «вошёл»: у кого включён код из приложения,
+   * пароль меняется, но сессии нет — входить нужно обычным путём. Тогда код показывает сам экран восстановления.
+   */
+  async function restore(p: { login: string; backupCode: string; newPassword: string }): Promise<{ signedIn: boolean; backupCode: string }> {
+    const res = await authApi.restore({ login: p.login, backup_code: p.backupCode, new_password: p.newPassword })
+    if (res.user) {
+      user.value = res.user
+      pendingBackupCode.value = res.backup_code
+    }
+    status.value = 'ready'
+    return { signedIn: res.user !== null, backupCode: res.backup_code }
+  }
+
+  /** Выход. Локальное состояние сбрасывается только после подтверждения сервером. */
+  async function logout() {
+    await authApi.logout()
+    user.value = null
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string) {
+    await authApi.changePassword({ current_password: currentPassword, new_password: newPassword })
+  }
+
+  /** «Сдать дело в архив»: удалить аккаунт. */
+  async function deleteAccount(password: string) {
+    await authApi.deleteAccount(password)
+    user.value = null
+    flash.value = t('deleteAccount.flash')
+  }
+
+  function acknowledgeBackupCode() {
+    pendingBackupCode.value = ''
+  }
+
+  function takeFlash(): string {
+    const msg = flash.value
+    flash.value = ''
+    return msg
+  }
+
+  /** Подписка на исходы всех запросов: сервер сказал «не вошли» — забываем пользователя. */
+  function attach(client = api) {
+    return client.subscribe((event) => {
+      if (!event.ok && event.error.code === 'unauthenticated') user.value = null
+    })
+  }
+
+  return {
+    user, status, pendingBackupCode, flash, levelUp, newAchievements, isAuthenticated, can, load, login, register, restore, logout,
+    changePassword, deleteAccount, acknowledgeBackupCode, takeFlash, dismissLevelUp, dismissNewAchievements, attach,
+  }
+})

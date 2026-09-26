@@ -1,0 +1,79 @@
+# КУПОЛ — настройки Apache для shared-хостинга (нужны mod_rewrite, mod_headers; mod_deflate/mod_expires — по возможности).
+# /api/ обрабатывается собственным api/.htaccess (PHP-прокси).
+
+Options -Indexes -MultiViews
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Предпросмотр ссылок: боты мессенджеров и поисковиков получают /doc/<шифр> с og:-тегами (og.php берёт документ у Go API как гость),
+  # люди — обычное SPA. Ответ og.php для закрытого и несуществующего документа — тот же index.html, что у SPA.
+  RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|Twitterbot|TelegramBot|WhatsApp|vkShare|VKShare|Slackbot|Discordbot|LinkedInBot|SkypeUriPreview|Viber|Embedly|redditbot|Pinterestbot|Applebot|Googlebot|bingbot|YandexBot|YandexMobileBot|Mail\.RU_Bot) [NC]
+  RewriteRule ^doc/([^/]+)/?$ /og.php?ref=$1 [L,QSA,B]
+
+  # Пререндер (frontend/scripts/prerender.mjs): главная и «О КУПОЛЕ» отдаются готовыми страницами с текстом и og:-тегами —
+  # поисковики и предпросмотр ссылок видят содержимое без JavaScript. Приложение при запуске заменяет этот текст живой страницей.
+  # Итальянская версия — с ?lang=it (home.it.html, about.it.html); остальным — русская (основной язык).
+  RewriteCond %{QUERY_STRING} (^|&)lang=it(&|$)
+  RewriteRule ^$ /home.it.html [L]
+  RewriteCond %{QUERY_STRING} (^|&)lang=it(&|$)
+  RewriteRule ^about/?$ /about.it.html [L]
+  RewriteRule ^$ /home.html [L]
+  RewriteRule ^about/?$ /about.html [L]
+
+  # Несуществующий файл сборки (/assets/что-то.js, /og.png, /manifest.webmanifest…) — настоящий 404, а не оболочка SPA:
+  # такие адреса не бывают маршрутами приложения, заворачивать их в index.html только вводит в заблуждение (soft 404).
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_URI} ^/assets/. [OR]
+  RewriteCond %{REQUEST_URI} \.[a-zA-Z0-9]{2,5}$
+  RewriteRule ^ - [R=404,L]
+
+  # history-режим Vue Router: всё, что не файл и не /api/, отдаёт index.html
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_URI} !^/api(/|$)
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType font/woff2 .woff2
+  AddType font/woff .woff
+  AddType image/svg+xml .svg
+  AddDefaultCharset UTF-8
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+  # HSTS: сайт всегда за https (редирект http->https уже есть на хостинге); max-age умеренный и без preload —
+  # заголовок новый, сначала стоит понаблюдать, что он доходит до браузера (см. deploy/check-site.sh).
+  Header always set Strict-Transport-Security "max-age=15768000"
+  # Скрипты и стили только свои. Картинки/аудио/WebSocket — ещё и с api-поддомена (загрузки, чат).
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://api.kupol.vladinc.ru; media-src 'self' https://api.kupol.vladinc.ru; font-src 'self'; connect-src 'self' https://api.kupol.vladinc.ru wss://api.kupol.vladinc.ru; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
+  # Индексируются только главная, «О КУПОЛЕ» и служебные файлы для поисковиков (robots.txt, sitemap.xml) — остальное
+  # noindex (в т.ч. любые пути, отдающие SPA). Смотрим на THE_REQUEST (исходная строка запроса): REQUEST_URI при
+  # DirectoryIndex и rewrite становится /index.html, и «/» перестаёт узнаваться. Query-строка (?utm=...) допустима.
+  <If "%{THE_REQUEST} !~ m#^[A-Z]+ /(about/?|robots\.txt|sitemap\.xml)?(\?[^ ]*)? HTTP/#">
+    Header always set X-Robots-Tag "noindex, nofollow"
+  </If>
+
+  # index.html не кэшируем — иначе после деплоя пользователи получат старую сборку
+  <FilesMatch "^(index|home|about)(\.it)?\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+# Хэшированные файлы сборки неизменяемы
+<IfModule mod_headers.c>
+  <If "%{REQUEST_URI} =~ m#^/assets/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript image/svg+xml application/json
+</IfModule>

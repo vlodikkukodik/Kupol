@@ -1,0 +1,11 @@
+Options -Indexes
+DirectoryIndex index.php
+
+# Закрыть от прямого доступа всё, кроме index.php
+<FilesMatch "^(\.env.*|\.htaccess|README\.md)$">
+    Require all denied
+</FilesMatch>
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^src/ - [F,L]
+</IfModule>

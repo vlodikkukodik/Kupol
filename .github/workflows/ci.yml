@@ -1,0 +1,138 @@
+# Проверки на каждый push и pull request: те же команды, что и локально (Makefile), на настоящих
+# PostgreSQL, PHP 8.3 (как на хостинге), Go и Chromium. Секретов не требует: .env создаётся из .env.example.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Go API (PostgreSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: .env из образца
+        run: make env
+      - name: gofmt
+        working-directory: backend
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then echo "не отформатированы gofmt:"; echo "$unformatted"; exit 1; fi
+      - name: go vet
+        working-directory: backend
+        run: go vet ./...
+      - name: Типы фронтенда из Go актуальны (tygo)
+        run: make types-check
+      - name: Тесты (настоящий PostgreSQL в docker)
+        run: make test-back
+
+  proxy:
+    name: PHP-прокси (PHP 8.3)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, json
+          coverage: none
+      - name: Тесты прокси
+        run: make test-proxy
+
+  frontend:
+    name: Фронтенд (типы, eslint, vitest, сборка)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+
+  backup:
+    name: Резервные копии (age, pg_dump 17, FTP)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Инструменты (клиент PostgreSQL 17 — как у сервера в docker-compose)
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y age lftp postgresql-client-17
+          # на раннере уже есть клиент 16 и стоит в PATH раньше: pg_dump 16 не работает с сервером 17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+      - run: make env
+      - run: make test-backup
+
+  e2e:
+    name: Сквозные (Chromium → Vite → PHP-прокси → Go → PostgreSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: [backend, proxy, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, json
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: make env
+      - run: npm ci
+        working-directory: frontend
+      - name: Chromium для Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: API по всей цепочке (curl)
+        run: make e2e-api
+      - name: Браузерные тесты на dev-стеке
+        run: make e2e-browser
+      - name: Боевая сборка на Apache + PHP 8.3
+        run: make e2e-apache
+      - name: Отчёт и снимки при сбое
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: frontend/e2e/results
+          retention-days: 7

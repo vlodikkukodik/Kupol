@@ -1,0 +1,409 @@
+/* Дизайн-система Vladhost: тёмная основа, яркие градиенты, стеклянные поверхности, плавные переходы.
+   Цвета заданы переменными — правьте здесь, а не в компонентах. */
+:root {
+  color-scheme: dark;
+
+  --bg-0: #070914;
+  --bg-1: #0c0f22;
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-2: rgba(255, 255, 255, 0.085);
+  --surface-solid: #141733;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  --text: #f1f2ff;
+  --text-dim: rgba(241, 242, 255, 0.7);
+  --text-faint: rgba(241, 242, 255, 0.46);
+
+  --violet: #a78bfa;
+  --indigo: #818cf8;
+  --pink: #f472b6;
+  --cyan: #22d3ee;
+  --emerald: #34d399;
+  --amber: #fbbf24;
+  --rose: #fb7185;
+  --blue: #60a5fa;
+
+  --grad-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 42%, #ec4899 100%);
+  --grad-cyan: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  --grad-emerald: linear-gradient(135deg, #10b981 0%, #22d3ee 100%);
+  --grad-amber: linear-gradient(135deg, #f59e0b 0%, #f43f5e 100%);
+  --grad-violet: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%);
+
+  --radius: 18px;
+  --radius-sm: 12px;
+  --shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.7), 0 2px 0 rgba(255, 255, 255, 0.04) inset;
+  --glow: 0 10px 30px -8px rgba(139, 92, 246, 0.65);
+  --ease: cubic-bezier(0.22, 0.9, 0.3, 1);
+  --font: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg-0);
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+/* Фон body должен быть прозрачным: под ним лежит анимированная аврора (z-index: -1). */
+body {
+  margin: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.5);
+  color: #fff;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  color: #c4b5fd;
+}
+
+/* Ссылки: не «бесцветный подчёркнутый текст», а акцентный цвет с плавно растущим градиентным подчёркиванием. */
+a {
+  color: #7dd3fc;
+  text-decoration: none;
+  background: linear-gradient(90deg, #22d3ee, #a78bfa, #f472b6) 0 100% / 0 2px no-repeat;
+  padding-bottom: 1px;
+  transition:
+    background-size 0.3s var(--ease),
+    color 0.2s;
+}
+
+a:hover,
+a:focus-visible {
+  color: #e0f2fe;
+  background-size: 100% 2px;
+}
+
+a.plain,
+.n-button a {
+  background: none;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(167, 139, 250, 0.9);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Полоса прокрутки в тон интерфейсу */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(167, 139, 250, 0.4) transparent;
+}
+
+/* --- Поверхности --- */
+.glass,
+.n-card {
+  /* Без backdrop-filter: под карточками движется аврора, и размытие пересчитывалось бы каждый кадр
+     (заметные тормоза на слабых устройствах). На плавном фоне размытие всё равно почти не видно. */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.04)) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow);
+}
+
+/* transition — только у собственных карточек: у компонентов Naive UI (окна, всплывающие панели) свои переходы
+   появления и исчезновения, и переопределение списка transition ломает их (окно «зависает» открытым). */
+.glass {
+  transition:
+    transform 0.3s var(--ease),
+    border-color 0.3s,
+    box-shadow 0.3s,
+    background 0.3s;
+}
+
+.glass.lift:hover,
+.n-card.lift:hover {
+  border-color: var(--border-strong) !important;
+  box-shadow:
+    0 26px 60px -22px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(167, 139, 250, 0.18);
+}
+
+.n-card > .n-card-header .n-card-header__main {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/* Окна и всплывающие панели — плотнее, чтобы текст читался поверх любого фона */
+.n-modal .n-card,
+.n-dialog {
+  background: rgba(20, 23, 51, 0.97) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9), 0 0 60px -20px rgba(139, 92, 246, 0.35);
+}
+
+.gradient-text {
+  background: var(--grad-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --- Кнопки --- */
+.n-button {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  transition:
+    box-shadow 0.25s,
+    background-color 0.25s,
+    border-color 0.25s,
+    filter 0.25s !important;
+}
+
+/* Кнопки не двигаются, не вращаются и не меняют размер: цель клика должна оставаться на месте под курсором. */
+
+/* Основная: градиент с мягким свечением, при наведении градиент «переливается» */
+.n-button.n-button--primary-type:not(.n-button--disabled) {
+  background-image: var(--grad-primary);
+  background-size: 160% 100%;
+  background-position: 0 0;
+  color: #fff;
+  box-shadow: var(--glow);
+  transition:
+    box-shadow 0.3s,
+    background-position 0.5s var(--ease) !important;
+}
+
+.n-button.n-button--primary-type:not(.n-button--disabled):hover {
+  background-position: 100% 0;
+  box-shadow: 0 14px 36px -8px rgba(236, 72, 153, 0.6);
+}
+
+.n-button.n-button--primary-type .n-button__border,
+.n-button.n-button--primary-type .n-button__state-border {
+  border: none !important;
+}
+
+/* Обычная: «стеклянная» с тонкой рамкой; при наведении подсвечивается акцентом */
+.n-button.n-button--default-type:not(.n-button--disabled) {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.n-button.n-button--default-type:not(.n-button--disabled):hover {
+  background: rgba(167, 139, 250, 0.18);
+  color: #fff;
+}
+
+/* Цветные варианты: класс tint-* задаёт оттенок (тонированный фон + рамка + цвет текста + свечение) */
+.n-button.tint-cyan:not(.n-button--disabled),
+.n-button.tint-violet:not(.n-button--disabled),
+.n-button.tint-emerald:not(.n-button--disabled),
+.n-button.tint-amber:not(.n-button--disabled),
+.n-button.tint-rose:not(.n-button--disabled),
+.n-button.tint-pink:not(.n-button--disabled) {
+  background: rgb(var(--tint) / 0.13);
+  border: 1px solid rgb(var(--tint) / 0.4);
+  color: rgb(var(--tint-text));
+}
+
+.n-button.tint-cyan { --tint: 34 211 238; --tint-text: 165 243 252; }
+.n-button.tint-violet { --tint: 167 139 250; --tint-text: 221 214 254; }
+.n-button.tint-emerald { --tint: 52 211 153; --tint-text: 167 243 208; }
+.n-button.tint-amber { --tint: 251 191 36; --tint-text: 253 230 138; }
+.n-button.tint-rose { --tint: 251 113 133; --tint-text: 254 205 211; }
+.n-button.tint-pink { --tint: 244 114 182; --tint-text: 251 207 232; }
+
+.n-button.tint-cyan:not(.n-button--disabled):hover,
+.n-button.tint-violet:not(.n-button--disabled):hover,
+.n-button.tint-emerald:not(.n-button--disabled):hover,
+.n-button.tint-amber:not(.n-button--disabled):hover,
+.n-button.tint-rose:not(.n-button--disabled):hover,
+.n-button.tint-pink:not(.n-button--disabled):hover {
+  background: rgb(var(--tint) / 0.26);
+  border-color: rgb(var(--tint) / 0.75);
+  box-shadow: 0 10px 28px -10px rgb(var(--tint) / 0.75);
+}
+
+.n-button .n-button__border,
+.n-button .n-button__state-border {
+  transition: border-color 0.25s;
+}
+
+/* --- Поля ввода --- */
+.n-input,
+.n-input-number {
+  transition:
+    box-shadow 0.25s,
+    background-color 0.25s;
+}
+
+.n-input:hover {
+  background-color: rgba(255, 255, 255, 0.075) !important;
+}
+
+.n-input.n-input--focus {
+  box-shadow:
+    0 0 0 3px rgba(139, 92, 246, 0.25),
+    0 8px 24px -10px rgba(139, 92, 246, 0.6);
+}
+
+.n-form-item-label {
+  color: var(--text-dim) !important;
+  font-weight: 550;
+}
+
+.n-form-item-feedback {
+  font-size: 13px;
+}
+
+/* Тексты ошибок бывают в две строки: блок растёт по содержимому, а не режется фиксированной высотой Naive UI */
+.n-form-item .n-form-item-feedback-wrapper {
+  min-height: var(--n-feedback-height);
+  height: auto !important;
+}
+
+.n-form-item {
+  margin-bottom: 12px;
+}
+
+/* --- Уведомления: тонированные стеклянные плашки --- */
+.n-alert {
+  --n-border-radius: 14px;
+  backdrop-filter: blur(10px);
+}
+
+.n-alert.n-alert--info-type { --n-color: rgba(34, 211, 238, 0.1) !important; --n-border: 1px solid rgba(34, 211, 238, 0.35) !important; }
+.n-alert.n-alert--error-type { --n-color: rgba(251, 113, 133, 0.1) !important; --n-border: 1px solid rgba(251, 113, 133, 0.4) !important; }
+.n-alert.n-alert--success-type { --n-color: rgba(52, 211, 153, 0.1) !important; --n-border: 1px solid rgba(52, 211, 153, 0.4) !important; }
+.n-alert.n-alert--warning-type { --n-color: rgba(251, 191, 36, 0.1) !important; --n-border: 1px solid rgba(251, 191, 36, 0.4) !important; }
+
+/* --- Таблицы --- */
+.n-data-table {
+  --n-th-color: transparent !important;
+  --n-td-color: transparent !important;
+  --n-td-color-hover: rgba(167, 139, 250, 0.09) !important;
+  --n-border-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.n-data-table .n-data-table-th {
+  color: var(--text-faint);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 650;
+}
+
+/* --- Прогресс: градиентная полоса --- */
+.n-progress.n-progress--line .n-progress-graph-line-fill {
+  background-image: var(--grad-primary) !important;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.6);
+}
+
+.n-progress.n-progress--line .n-progress-graph-line-rail {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* --- Переходы между страницами --- */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 0.28s var(--ease),
+    transform 0.32s var(--ease),
+    filter 0.28s;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(14px);
+  filter: blur(4px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+  filter: blur(3px);
+}
+
+.list-enter-active,
+.list-leave-active,
+.list-move {
+  transition:
+    opacity 0.35s var(--ease),
+    transform 0.4s var(--ease);
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(16px) scale(0.98);
+}
+
+.list-leave-active {
+  position: absolute;
+  width: 100%;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.6s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton {
+  border-radius: var(--radius);
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.04) 30%, rgba(255, 255, 255, 0.11) 50%, rgba(255, 255, 255, 0.04) 70%) 0 0 / 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* Тем, кто просит меньше движения, анимации отключаются */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

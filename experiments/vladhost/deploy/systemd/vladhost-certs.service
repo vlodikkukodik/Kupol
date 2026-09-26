@@ -1,0 +1,7 @@
+[Unit]
+Description=Vladhost — выпуск и удаление сертификатов сайтов
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/vladhost/certs.sh

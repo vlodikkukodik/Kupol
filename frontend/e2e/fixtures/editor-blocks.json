@@ -1,0 +1,100 @@
+[
+  { "id": "dossierheader1", "type": "dossier_header", "data": {} },
+  { "id": "heading1", "type": "heading", "data": { "depth": 2, "text": "Общие сведения" } },
+  {
+    "id": "paragraph1",
+    "type": "paragraph",
+    "level": 2,
+    "data": {
+      "text": [
+        { "text": "Обычный " },
+        { "text": "жирный", "bold": true },
+        { "text": " и " },
+        { "text": "курсив", "italic": true },
+        { "text": " " },
+        { "text": "СЕКРЕТ", "level": 3 }
+      ]
+    }
+  },
+  { "id": "list1", "type": "list", "data": { "ordered": true, "items": [[{ "text": "Один" }], [{ "text": "Два " }, { "text": "три", "level": 4 }]] } },
+  { "id": "list2", "type": "list", "data": { "items": [[{ "text": "Маркер" }]] } },
+  { "id": "quote1", "type": "quote", "data": { "text": [{ "text": "Оно не приближается." }], "source": "свидетель" } },
+  { "id": "quote2", "type": "quote", "data": { "text": [{ "text": "Без источника." }] } },
+  {
+    "id": "experimentlog1",
+    "type": "experiment_log",
+    "data": {
+      "title": "Журнал",
+      "entries": [
+        { "date": "12.04.1979", "participants": ["Дежурный", "Лаборант"], "text": [{ "text": "Помещён в камеру." }] },
+        { "text": [{ "text": "Запись без даты." }] }
+      ]
+    }
+  },
+  { "id": "stamp1", "type": "stamp", "data": { "text": "Совершенно секретно", "tone": "red", "tilt": -6 } },
+  { "id": "stamp2", "type": "stamp", "data": { "text": "Копия", "tone": "ink" } },
+  {
+    "id": "memo1",
+    "type": "memo",
+    "data": {
+      "kind": "order",
+      "number": "МЕМО-5",
+      "date": "20.03.1979",
+      "from": "Отдел 2",
+      "to": ["Директорат", "Архив"],
+      "subject": "О порядке",
+      "body": [[{ "text": "Первый абзац." }], [{ "text": "Второй абзац." }]],
+      "signature": "Начальник"
+    }
+  },
+  { "id": "memo2", "type": "memo", "data": { "kind": "memo", "body": [[{ "text": "Коротко." }]] } },
+  {
+    "id": "clipping1",
+    "type": "clipping",
+    "data": {
+      "kind": "newspaper",
+      "title": "Огни",
+      "source": "Вечерний",
+      "date": "02.03.1979",
+      "paragraphs": [[{ "text": "Свечение." }], [{ "text": "Без комментариев." }]]
+    }
+  },
+  {
+    "id": "clip2",
+    "type": "clipping",
+    "data": {
+      "kind": "transcript",
+      "title": "Запись № 3",
+      "lines": [
+        { "speaker": "Следователь", "text": [{ "text": "Что вы видели?" }] },
+        { "text": [{ "text": "Реплика без говорящего." }] }
+      ]
+    }
+  },
+  {
+    "id": "table1",
+    "type": "table",
+    "data": {
+      "caption": "Замеры",
+      "columns": ["Дата", "Показатель"],
+      "rows": [
+        [[{ "text": "01.04" }], [{ "text": "12" }]],
+        [[{ "text": "02.04" }], [{ "text": "закрыто", "level": 3 }]],
+        [[{ "text": "" }], [{ "text": "" }]]
+      ]
+    }
+  },
+  { "id": "doclink1", "type": "doc_link", "data": { "code": "О-9002", "note": "Смежный" } },
+  { "id": "link2", "type": "doc_link", "data": { "code": "ПРИКАЗ-1901-91" } },
+  { "id": "divider1", "type": "divider", "data": { "style": "stars" } },
+  { "id": "div2", "type": "divider", "data": { "style": "line" } },
+  { "id": "page1", "type": "page", "data": { "number": "2" } },
+  { "id": "page2", "type": "page", "data": {} },
+  { "id": "footnote1", "type": "footnote", "data": { "mark": "*", "text": [{ "text": "Сноска." }] } },
+  { "id": "appendix1", "type": "appendix", "data": { "number": "1", "title": "Схема" } },
+  { "id": "app2", "type": "appendix", "data": { "title": "Без номера" } },
+  { "id": "img1", "type": "image", "data": { "upload": "0123456789abcdef0123456789abcdef", "caption": "План этажа", "sticker": "frame" } },
+  { "id": "img2", "type": "image", "data": { "upload": "fedcba9876543210fedcba9876543210" } },
+  { "id": "snd1", "type": "audio", "data": { "upload": "00112233445566778899aabbccddeeff", "title": "Запись 12", "transcript": [{ "text": "Слышен стук." }] } },
+  { "id": "snd2", "type": "audio", "data": { "upload": "ffeeddccbbaa99887766554433221100" } }
+]

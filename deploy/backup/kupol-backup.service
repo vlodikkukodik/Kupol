@@ -1,0 +1,19 @@
+[Unit]
+Description=Ночная резервная копия БД КУПОЛ
+After=postgresql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=kupol
+Group=kupol
+ExecStart=/usr/local/bin/kupol-backup
+# копия не должна отнимать у соседних сайтов на общем VPS ни процессор, ни диск
+Nice=15
+IOSchedulingClass=idle
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/kupol
+ProtectHome=true
+NoNewPrivileges=true
+TimeoutStartSec=30min

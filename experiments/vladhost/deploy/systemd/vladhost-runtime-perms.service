@@ -1,0 +1,7 @@
+[Unit]
+Description=Vladhost — права на файлы сайтов со средой выполнения (доступ панели, шлюза и приложения)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/vladhost/runtime.sh perms-all
+TimeoutStartSec=120

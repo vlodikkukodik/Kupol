@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+# Служебное — не для поисковиков (документы и остальное и так закрыты заголовком X-Robots-Tag)
+Disallow: /api/
+
+Sitemap: https://kupol.vladinc.ru/sitemap.xml

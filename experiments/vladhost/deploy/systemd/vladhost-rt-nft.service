@@ -1,0 +1,14 @@
+[Unit]
+Description=Vladhost — правила брандмауэра для пользователей сайтов со средой выполнения
+After=network-pre.target
+Before=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/vladhost/rt.nft
+ExecReload=/usr/sbin/nft -f /etc/vladhost/rt.nft
+ExecStop=/usr/sbin/nft delete table inet vladhost_rt
+
+[Install]
+WantedBy=multi-user.target

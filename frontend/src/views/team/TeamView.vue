@@ -1,0 +1,64 @@
+<script setup lang="ts">
+import { useRoute } from 'vue-router'
+import UiPageHeader from '@/ui/UiPageHeader.vue'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+const route = useRoute()
+</script>
+
+<template>
+  <div class="team">
+    <UiPageHeader :title="$t('team.title')" :kicker="$t('team.kicker')" />
+    <nav class="sections" :aria-label="$t('team.sections')">
+      <!-- Раздел помечается вручную: /team — префикс всех адресов панели, и роутер отметил бы «Роли и права» всегда -->
+      <RouterLink :to="{ name: 'team' }" active-class="" exact-active-class="" :aria-current="route.name === 'team' ? 'page' : undefined">{{ $t('team.nav.desk') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-documents' }" active-class="" exact-active-class="" :aria-current="String(route.name).startsWith('team-document') ? 'page' : undefined">{{ $t('team.nav.documents') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-templates' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-templates' ? 'page' : undefined">{{ $t('team.nav.templates') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-glossary' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-glossary' ? 'page' : undefined">{{ $t('team.nav.glossary') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-timeline' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-timeline' ? 'page' : undefined">{{ $t('team.nav.timeline') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-site' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-site' ? 'page' : undefined">{{ $t('team.nav.site') }}</RouterLink>
+      <RouterLink v-if="auth.can('write_drafts')" :to="{ name: 'team-uploads' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-uploads' ? 'page' : undefined">{{ $t('team.nav.uploads') }}</RouterLink>
+      <RouterLink v-if="auth.can('moderate_comments')" :to="{ name: 'team-sanctions' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-sanctions' ? 'page' : undefined">{{ $t('team.nav.sanctions') }}</RouterLink>
+      <RouterLink v-if="auth.user && (auth.user.directorate || auth.user.level >= 6)" :to="{ name: 'team-petitions' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-petitions' ? 'page' : undefined">{{ $t('team.nav.petitions') }}</RouterLink>
+      <RouterLink v-if="auth.user?.directorate" :to="{ name: 'team-inbox' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-inbox' ? 'page' : undefined">{{ $t('team.nav.inbox') }}</RouterLink>
+      <RouterLink v-if="auth.user?.directorate" :to="{ name: 'team-secret-codes' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-secret-codes' ? 'page' : undefined">{{ $t('team.nav.secretCodes') }}</RouterLink>
+      <RouterLink :to="{ name: 'team-roles' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-roles' ? 'page' : undefined">{{ $t('team.nav.roles') }}</RouterLink>
+      <RouterLink v-if="auth.can('manage_team')" :to="{ name: 'team-members' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-members' ? 'page' : undefined">{{ $t('team.nav.members') }}</RouterLink>
+      <RouterLink v-if="auth.can('moderate_comments')" :to="{ name: 'team-reports' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-reports' ? 'page' : undefined">{{ $t('team.nav.reports') }}</RouterLink>
+      <RouterLink v-if="auth.can('review')" :to="{ name: 'team-suggestions' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-suggestions' ? 'page' : undefined">{{ $t('team.nav.suggestions') }}</RouterLink>
+    </nav>
+    <RouterView />
+  </div>
+</template>
+
+<style scoped>
+.sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+}
+.sections a {
+  min-height: var(--control-h);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+  border: 1.5px solid var(--line-on-bg);
+  border-radius: var(--radius-2);
+  color: var(--on-bg);
+  font-family: var(--font-head);
+  letter-spacing: var(--tracking-caps);
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.sections a:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+.sections a[aria-current='page'] {
+  border-color: var(--paper-100);
+  background: var(--paper-100);
+  color: var(--ink-900);
+  font-weight: 700;
+}
+</style>

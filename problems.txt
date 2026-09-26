@@ -1,0 +1,58 @@
+КУПОЛ (https://kupol.vladinc.ru) — проблемы, найденные при проверке 2026-09-21
+=============================================================================
+
+ОШИБКИ
+------
+1. Soft 404.
+   Любой несуществующий URL отдаёт 200 и HTML-оболочку SPA: /nonexistent-page,
+   /og.png, /manifest.webmanifest, /apple-touch-icon.png, /assets/nope.js
+   (content-type: text/html). Спасает только X-Robots-Tag: noindex.
+   Что сделать: для /assets/* и путей с расширением файла отдавать настоящий 404;
+   для неизвестных маршрутов SPA тоже отдавать статус 404.
+
+2. www.kupol.vladinc.ru не отвечает.
+   Нет DNS-записи или сертификата. Что сделать: редирект на kupol.vladinc.ru
+   либо явно решить, что www не используется.
+
+3. Нет кэширования статики.
+   У файлов в /assets/ (хэшированные имена) нет Cache-Control, только ETag.
+   Что сделать: Cache-Control: public, max-age=31536000, immutable для /assets/*;
+   index.html оставить no-cache.
+
+4. Нет HSTS.
+   Заголовка Strict-Transport-Security нет, хотя редирект http -> https работает.
+   Что сделать: добавить Strict-Transport-Security.
+
+SEO
+---
+5. Нет og:image и twitter:image (ни на главной, ни на /about).
+   Превью в мессенджерах и соцсетях без картинки, twitter:card = summary.
+   Что сделать: картинка ~1200x630, og:image / twitter:image; также
+   apple-touch-icon 180x180 и (по желанию) web manifest.
+
+6. Нет структурированных данных (JSON-LD).
+   Что сделать: WebSite/Organization для главной, Article для /about.
+
+7. sitemap.xml (и robots.txt) отдаются с X-Robots-Tag: noindex, nofollow.
+   Обычно не мешает, но безопаснее убрать заголовок для этих двух файлов.
+   В sitemap нет <lastmod>.
+
+8. Мало индексируемого контента.
+   Каталог и документы закрыты noindex (архив с уровнями допуска). Для
+   органического трафика стоит открыть часть публичных дел (допуск 0) и
+   добавить их в sitemap.
+
+9. Prerender неполный.
+   На главной только заголовок, описание и три ссылки, без ссылок на
+   публичные документы.
+
+ПРИОРИТЕТ
+---------
+Сначала пункты 1 (soft 404) и 5 (картинка для превью), затем 4, 3, 2, остальное.
+
+В ПОРЯДКЕ (для справки)
+-----------------------
+HTTPS и сертификат (Let's Encrypt, до 2026-11-13), редирект http -> https,
+title/description/canonical/OG на главной и /about, один h1, lang="ru",
+robots.txt и sitemap.xml, CSP и прочие security-заголовки, gzip, все файлы
+/assets отвечают 200, API отдаёт JSON-ошибки с request_id.

@@ -1,0 +1,8 @@
+[Unit]
+Description=Vladhost — исполнитель сред выполнения сайтов
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/vladhost/runtime.sh
+TimeoutStartSec=600
