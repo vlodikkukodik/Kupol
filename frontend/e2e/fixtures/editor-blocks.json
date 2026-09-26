@@ -92,5 +92,9 @@
   { "id": "page2", "type": "page", "data": {} },
   { "id": "footnote1", "type": "footnote", "data": { "mark": "*", "text": [{ "text": "Сноска." }] } },
   { "id": "appendix1", "type": "appendix", "data": { "number": "1", "title": "Схема" } },
-  { "id": "app2", "type": "appendix", "data": { "title": "Без номера" } }
+  { "id": "app2", "type": "appendix", "data": { "title": "Без номера" } },
+  { "id": "img1", "type": "image", "data": { "upload": "0123456789abcdef0123456789abcdef", "caption": "План этажа", "sticker": "frame" } },
+  { "id": "img2", "type": "image", "data": { "upload": "fedcba9876543210fedcba9876543210" } },
+  { "id": "snd1", "type": "audio", "data": { "upload": "00112233445566778899aabbccddeeff", "title": "Запись 12", "transcript": [{ "text": "Слышен стук." }] } },
+  { "id": "snd2", "type": "audio", "data": { "upload": "ffeeddccbbaa99887766554433221100" } }
 ]

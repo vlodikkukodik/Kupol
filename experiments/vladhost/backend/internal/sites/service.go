@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -70,8 +71,14 @@ type Service struct {
 	limits     Limits
 	locks      sync.Map // host -> *sync.Mutex: один деплой на сайт за раз
 
-	domains *DomainConfig // свои домены; nil — не настроены
-	logDir  string        // журналы сайтов (пишет веб-шлюз); пусто — не настроены
+	domains   *DomainConfig // свои домены; nil — не настроены
+	logDir    string        // журналы сайтов (пишет веб-шлюз); пусто — не настроены
+	backupDir string        // ежедневные снимки сайтов; пусто — раздел выключен
+	// fixPerms вызывается до и после операций, которые заменяют или удаляют дерево сайта целиком (деплой, удаление): у сайтов со средой
+	// выполнения в дереве лежат файлы, созданные PHP или приложением от имени другого пользователя; исполнитель среды заново открывает
+	// к ним доступ панели. nil — среды выполнения нет.
+	fixPerms func(ctx context.Context, site Site)
+	onDelete func(ctx context.Context, site Site) // убрать среду выполнения сайта (пользователь, пул, служба)
 
 	ftpMu      sync.Mutex
 	ftpUsage   map[int64]*siteUsage // счётчик занятого места у сайтов с открытыми FTP-сессиями
@@ -162,6 +169,10 @@ func (s *Service) Delete(ctx context.Context, userID, id int64) error {
 	mu := s.lock(site.Host)
 	mu.Lock()
 	defer mu.Unlock()
+	s.fix(ctx, *site)
+	if s.onDelete != nil {
+		s.onDelete(ctx, *site)
+	}
 	var domains []Domain
 	if err := s.db.WithContext(ctx).Where("site_id = ?", site.ID).Find(&domains).Error; err != nil {
 		return err
@@ -173,7 +184,12 @@ func (s *Service) Delete(ctx context.Context, userID, id int64) error {
 	if err := os.RemoveAll(s.siteDir(site.Host)); err != nil {
 		return err
 	}
-	if err := s.db.WithContext(ctx).Delete(&Site{}, site.ID).Error; err != nil { // домены и FTP-аккаунты удаляются каскадом
+	if s.backupDir != "" {
+		if err := os.RemoveAll(filepath.Join(s.backupDir, strconv.FormatInt(site.ID, 10))); err != nil {
+			log.Printf("удаление резервных копий сайта %s: %v", site.Host, err)
+		}
+	}
+	if err := s.db.WithContext(ctx).Delete(&Site{}, site.ID).Error; err != nil { // домены, FTP-аккаунты и снимки удаляются каскадом
 		return err
 	}
 	s.revokeFTP(site.ID)
@@ -215,6 +231,7 @@ func (s *Service) Deploy(ctx context.Context, userID, id int64, archive io.Reade
 	}
 	limit := s.limits.DiskQuotaBytes - others
 
+	s.fix(ctx, *site) // файлы, созданные приложением, должны быть доступны панели: старая версия удаляется после подмены
 	dir := s.siteDir(site.Host)
 	suffix := randHex()
 	incoming := filepath.Join(dir, "incoming-"+suffix)
@@ -247,6 +264,7 @@ func (s *Service) Deploy(ctx context.Context, userID, id int64, archive io.Reade
 	if hadOld {
 		_ = os.RemoveAll(old)
 	}
+	s.fix(ctx, *site) // новое дерево получает права приложения сайта
 
 	now := time.Now()
 	site.DiskBytes, site.Status, site.DeployedAt = total, "live", &now
@@ -259,6 +277,21 @@ func (s *Service) Deploy(ctx context.Context, userID, id int64, archive io.Reade
 }
 
 func (s *Service) siteDir(host string) string { return filepath.Join(s.root, host) }
+
+// SiteDir возвращает каталог сайта ({корень}/{адрес}): в нём public, settings.json и runtime.json.
+func (s *Service) SiteDir(host string) string { return s.siteDir(host) }
+
+// SetDeleteHook подключает очистку среды выполнения при удалении сайта.
+func (s *Service) SetDeleteHook(f func(ctx context.Context, site Site)) { s.onDelete = f }
+
+// SetPermsFixer подключает исправление прав дерева сайта (см. fixPerms).
+func (s *Service) SetPermsFixer(f func(ctx context.Context, site Site)) { s.fixPerms = f }
+
+func (s *Service) fix(ctx context.Context, site Site) {
+	if s.fixPerms != nil {
+		s.fixPerms(ctx, site)
+	}
+}
 
 func (s *Service) lock(host string) *sync.Mutex {
 	m, _ := s.locks.LoadOrStore(host, &sync.Mutex{})

@@ -19,8 +19,12 @@ import (
 	"kupol/internal/httpapi"
 	"kupol/internal/mail"
 	"kupol/internal/passwords"
+	"kupol/internal/petitions"
 	"kupol/internal/ratelimit"
+	"kupol/internal/sanctions"
+	"kupol/internal/suggestions"
 	"kupol/internal/testutil"
+	"kupol/internal/uploads"
 )
 
 const testOrigin = "https://kupol.test"
@@ -32,6 +36,7 @@ type stack struct {
 	db      *gorm.DB
 	svc     *accounts.Service
 	docs    *documents.Service
+	sugs    *suggestions.Service
 	limiter *ratelimit.Limiter
 	cfg     config.Config
 	clients int
@@ -90,11 +95,16 @@ func newStackOpts(t *testing.T, tweak func(*config.Config), mailer mail.Sender) 
 		t.Fatal(err)
 	}
 	docs := documents.NewService(db, testutil.Logger(), nil)
-	r, err := httpapi.New(httpapi.Deps{Config: cfg, DB: db, Log: testutil.Logger(), Accounts: svc, Documents: docs, Limiter: limiter})
+	sugs := suggestions.NewService(db, testutil.Logger(), nil)
+	uploadsSvc, err := uploads.NewService(db, t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &stack{r: r, db: db, svc: svc, docs: docs, limiter: limiter, cfg: cfg}
+	r, err := httpapi.New(httpapi.Deps{Config: cfg, DB: db, Log: testutil.Logger(), Accounts: svc, Documents: docs, Suggestions: sugs, Petitions: petitions.NewService(db, nil), Sanctions: sanctions.NewService(db, nil), Uploads: uploadsSvc, Limiter: limiter})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &stack{r: r, db: db, svc: svc, docs: docs, sugs: sugs, limiter: limiter, cfg: cfg}
 }
 
 // client — «браузер» с хранилищем кук поверх тестового роутера.

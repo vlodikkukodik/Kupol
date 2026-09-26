@@ -21,7 +21,10 @@ ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
-ReadWritePaths=/data/vladhost /var/lib/vladhost/certs/queue
+# Каталог правил доступа отдельного кластера PostgreSQL для баз пользователей (создаёт prepare-db.sh; «-» — если его нет).
+ReadWritePaths=/data/vladhost /var/lib/vladhost/certs/queue -/etc/postgresql/16/vladhost/hba.d
+# Заявки на запуск команд планировщика (создаёт prepare-cron.sh); результаты панель только читает.
+ReadWritePaths=-/var/lib/vladhost/cron/queue -/var/lib/vladhost/runtime/queue
 
 [Install]
 WantedBy=multi-user.target

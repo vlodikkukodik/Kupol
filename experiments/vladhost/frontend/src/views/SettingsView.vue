@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AddOutline, CheckmarkCircleOutline, CopyOutline, LockClosedOutline } from '@vicons/ionicons5'
-import { NButton, NDataTable, NForm, NFormItem, NIcon, NInput, useMessage, type DataTableColumns } from 'naive-ui'
+import { NButton, NDataTable, NForm, NFormItem, NIcon, NInput, NSwitch, useMessage, type DataTableColumns } from 'naive-ui'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { api, ApiError } from '@/api/client'
 import { createdInviteSchema, fieldErrors, invitesSchema, passwordForm, type Invite } from '@/api/schemas'
@@ -102,6 +102,20 @@ async function changePassword() {
   }
 }
 
+// --- уведомления по почте ---
+const notifyBusy = ref(false)
+async function setNotify(on: boolean) {
+  notifyBusy.value = true
+  try {
+    await auth.updatePreferences({ notify_email: on })
+    message.success(t('settings.notifications.saved'))
+  } catch (e) {
+    message.error(e instanceof ApiError ? e.message : t('settings.notifications.saveFailed'))
+  } finally {
+    notifyBusy.value = false
+  }
+}
+
 onMounted(() => {
   if (auth.isAdmin) void load()
 })
@@ -146,7 +160,25 @@ onMounted(() => {
       <p v-if="auto" class="hint">{{ t('lang.autoHint') }}</p>
     </section>
 
-    <section class="security glass rise" style="--i: 3">
+    <section class="notify glass rise" style="--i: 3">
+      <h3>{{ t('settings.notifications.title') }}</h3>
+      <p class="hint">{{ t('settings.notifications.hint') }}</p>
+      <p v-if="!auth.mailEnabled" class="hint">{{ t('settings.notifications.unavailable') }}</p>
+      <label class="switchrow">
+        <n-switch
+          :value="auth.user.notify_email"
+          :disabled="notifyBusy || !auth.mailEnabled"
+          :aria-label="t('settings.notifications.enable')"
+          @update:value="setNotify"
+        />
+        <span>{{ t('settings.notifications.enable') }}</span>
+        <status-chip :tone="auth.user.email_verified_at ? 'emerald' : 'amber'">
+          {{ auth.user.email_verified_at ? t('settings.notifications.verified') : t('settings.notifications.unverified') }}
+        </status-chip>
+      </label>
+    </section>
+
+    <section class="security glass rise" style="--i: 4">
       <h3>{{ t('settings.password.title') }}</h3>
       <p class="hint">{{ t('settings.password.hint') }}</p>
       <n-form class="pwform" @submit.prevent="changePassword">
@@ -320,5 +352,21 @@ h3 {
 
 .inv-head .hint {
   margin: 0;
+}
+
+.notify {
+  padding: 22px 26px;
+}
+
+.notify h3 {
+  margin-bottom: 8px;
+}
+
+.switchrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  cursor: pointer;
 }
 </style>

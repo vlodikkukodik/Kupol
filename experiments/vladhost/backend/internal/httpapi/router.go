@@ -8,26 +8,59 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"vladhost/internal/activity"
 	"vladhost/internal/apperr"
 	"vladhost/internal/auth"
+	"vladhost/internal/cms"
 	"vladhost/internal/config"
+	"vladhost/internal/cronjobs"
+	"vladhost/internal/dnszones"
 	"vladhost/internal/i18n"
+	"vladhost/internal/mailhost"
+	"vladhost/internal/notify"
+	"vladhost/internal/runtimes"
+	"vladhost/internal/shellaccess"
+	"vladhost/internal/shellclient"
 	"vladhost/internal/sites"
+	support "vladhost/internal/tickets"
+	"vladhost/internal/userdb"
 )
 
 type Server struct {
-	svc   *auth.Service
-	sites *sites.Service
-	cfg   config.Config
+	svc         *auth.Service
+	sites       *sites.Service
+	cfg         config.Config
+	mail        *notify.Service // nil — почта выключена
+	dbs         *userdb.Service // nil — раздел «Базы данных» выключен
+	cron        *cronjobs.Service
+	rt          *runtimes.Service    // nil — среды выполнения выключены
+	cms         *cms.Service         // nil — установка приложений выключена
+	shell       *shellaccess.Service // nil — SSH и веб-терминал выключены
+	shellBroker shellclient.Client
+	activity    *activity.Service // nil — журнал действий выключен
+	support     *support.Service  // nil — обращения в поддержку выключены
+	dns         *dnszones.Service // nil — собственный DNS выключен
+	mailhost    *mailhost.Service // nil — почта на своих доменах выключена
+	tickets     *tickets
+	dbKey       string // секрет обмена токена входа между панелью и веб-клиентом
 
 	// На бою (Secure) cookie с префиксом __Host-: браузер не даст сайту на соседнем поддомене
 	// подбросить свою cookie с этим именем на весь домен. Такой префикс требует Path=/.
 	cookieName, cookiePath string
 }
 
-func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Engine {
+// Option настраивает необязательные части сервера.
+type Option func(*Server)
+
+// WithMail подключает отправку писем (подтверждение почты, сброс пароля). Без неё эти возможности выключены.
+func WithMail(m *notify.Service) Option { return func(s *Server) { s.mail = m } }
+
+func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config, opts ...Option) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	s := &Server{svc: svc, sites: sitesSvc, cfg: cfg, cookieName: "vh_refresh", cookiePath: "/api/auth"}
+	for _, o := range opts {
+		o(s)
+	}
 	if cfg.CookieSecure {
 		s.cookieName, s.cookiePath = "__Host-vh_refresh", "/"
 	}
@@ -50,12 +83,18 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Eng
 	limited.POST("/register", s.register)
 	limited.POST("/login", s.login)
 	limited.POST("/refresh", s.refresh)
+	limited.POST("/forgot", s.forgotPassword)
+	limited.POST("/reset", s.resetPassword)
+	limited.POST("/verify-email", s.verifyEmail)
 	api.POST("/auth/logout", s.checkOrigin, s.logout)
 
 	// Смена пароля — тоже место для подбора текущего пароля, поэтому лимит на IP такой же, как у входа.
 	pwLimiter := newIPLimiter(perMinute, burst)
-	authed := api.Group("", s.requireAuth)
+	authed := api.Group("", s.requireAuth, s.audit())
+	authed.GET("/activity", s.listActivity)
 	authed.GET("/me", s.me)
+	authed.PATCH("/me", s.checkOrigin, s.updateMe)
+	authed.POST("/me/email/verify", s.checkOrigin, s.resendVerification)
 	authed.POST("/me/password", s.checkOrigin, pwLimiter.middleware(), s.changePassword)
 	authed.GET("/sites", s.listSites)
 	authed.POST("/sites", s.createSite)
@@ -63,6 +102,8 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Eng
 	authed.POST("/sites/:id/deploy", s.deploySite)
 	authed.POST("/sites/:id/cert/retry", s.retryCert)
 	authed.POST("/sites/:id/domains", s.addDomain)
+	authed.POST("/sites/:id/subdomains", s.addSubdomain)
+	authed.PATCH("/sites/:id/domains/:did", s.updateDomain)
 	authed.POST("/sites/:id/domains/:did/check", s.checkDomain)
 	authed.DELETE("/sites/:id/domains/:did", s.removeDomain)
 	authed.POST("/sites/:id/ftp", s.enableFTP)
@@ -79,13 +120,99 @@ func New(svc *auth.Service, sitesSvc *sites.Service, cfg config.Config) *gin.Eng
 	authed.GET("/sites/:id/htaccess", s.checkHtaccess)
 	authed.GET("/sites/:id/logs", s.siteLogs)
 	authed.GET("/sites/:id/stats", s.siteStats)
+	authed.POST("/sites/:id/certs/renew", s.renewCert)
+	authed.GET("/sites/:id/settings", s.getSiteSettings)
+	authed.PUT("/sites/:id/settings", s.putSiteSettings)
 	authed.GET("/sites/:id/logs/download", s.downloadSiteLogs)
 	authed.GET("/sites/:id/file", s.readFile)
 	authed.PUT("/sites/:id/file", s.saveFile)
+	authed.GET("/sites/:id/backups", s.listBackups)
+	authed.POST("/sites/:id/backups", s.createBackup)
+	authed.POST("/sites/:id/backups/:bid/restore", s.restoreBackup)
+	authed.GET("/sites/:id/backups/:bid/download", s.downloadBackup)
+	authed.GET("/sites/:id/archive", s.downloadArchive)
+
+	sh := authed.Group("", s.requireShell)
+	sh.GET("/ssh/keys", s.listSSHKeys)
+	sh.POST("/ssh/keys", s.checkOrigin, s.addSSHKey)
+	sh.POST("/ssh/keys/generate", s.checkOrigin, s.generateSSHKey)
+	sh.DELETE("/ssh/keys/:id", s.checkOrigin, s.deleteSSHKey)
+	sh.GET("/sites/:id/shell", s.getShell)
+	sh.PUT("/sites/:id/shell", s.checkOrigin, s.setShell)
+	sh.POST("/sites/:id/terminal", s.checkOrigin, s.terminalTicket)
+
+	mh := authed.Group("/mail", s.requireMailHost)
+	mh.GET("", s.mailOverview)
+	mh.POST("/domains", s.checkOrigin, s.mailEnableDomain)
+	mh.POST("/domains/:id/verify", s.checkOrigin, s.mailVerifyDomain)
+	mh.PATCH("/domains/:id", s.checkOrigin, s.mailSetDomain)
+	mh.DELETE("/domains/:id", s.checkOrigin, s.mailDeleteDomain)
+	mh.GET("/domains/:id/dns", s.mailDNS)
+	mh.POST("/domains/:id/dns/auto", s.checkOrigin, s.mailDNSAuto)
+	mh.GET("/domains/:id/log", s.mailLog)
+	mh.POST("/domains/:id/mailboxes", s.checkOrigin, s.mailCreateMailbox)
+	mh.PUT("/domains/:id/aliases", s.checkOrigin, s.mailSetAlias)
+	mh.PATCH("/mailboxes/:id", s.checkOrigin, s.mailUpdateMailbox)
+	mh.PUT("/mailboxes/:id/rules", s.checkOrigin, s.mailSetRules)
+	mh.PUT("/mailboxes/:id/password", s.checkOrigin, s.mailSetPassword)
+	mh.DELETE("/mailboxes/:id", s.checkOrigin, s.mailDeleteMailbox)
+	mh.DELETE("/aliases/:id", s.checkOrigin, s.mailDeleteAlias)
+
+	tg := authed.Group("/tickets", s.requireSupport)
+	tg.GET("", s.listTickets)
+	tg.POST("", s.checkOrigin, s.createTicket)
+	tg.GET("/summary", s.ticketsSummary)
+	tg.GET("/:id", s.getTicket)
+	tg.POST("/:id/messages", s.checkOrigin, s.replyTicket)
+	tg.POST("/:id/close", s.checkOrigin, s.closeTicket)
+	tg.POST("/:id/reopen", s.checkOrigin, s.reopenTicket)
+
+	dg := authed.Group("/dns", s.requireDNS)
+	dg.GET("", s.dnsOverview)
+	dg.POST("/zones", s.checkOrigin, s.dnsEnableZone)
+	dg.DELETE("/zones/:id", s.checkOrigin, s.dnsDeleteZone)
+	dg.POST("/zones/:id/verify", s.checkOrigin, s.dnsVerifyZone)
+	dg.GET("/zones/:id/delegation", s.dnsDelegation)
+	dg.POST("/zones/:id/records", s.checkOrigin, s.dnsAddRecord)
+	dg.PUT("/records/:id", s.checkOrigin, s.dnsUpdateRecord)
+	dg.DELETE("/records/:id", s.checkOrigin, s.dnsDeleteRecord)
+
+	cmsg := authed.Group("/sites/:id/cms", s.requireCMS)
+	cmsg.GET("", s.getCMS)
+	cmsg.POST("", s.checkOrigin, s.installCMS)
+	cmsg.GET("/job", s.cmsJob)
+
+	rtg := authed.Group("/sites/:id/runtime", s.requireRuntimes)
+	rtg.GET("", s.getRuntime)
+	rtg.PUT("", s.checkOrigin, s.setRuntime)
+	rtg.POST("/restart", s.checkOrigin, s.restartRuntime)
+	rtg.GET("/logs", s.runtimeLogs)
+
+	cr := authed.Group("/cron", s.requireCron)
+	cr.GET("", s.listCron)
+	cr.POST("", s.checkOrigin, s.createCron)
+	cr.PUT("/:id", s.checkOrigin, s.updateCron)
+	cr.DELETE("/:id", s.checkOrigin, s.deleteCron)
+	cr.POST("/:id/run", s.checkOrigin, s.runCron)
+	cr.GET("/:id/runs", s.cronRuns)
+
+	dbs := authed.Group("/databases", s.requireDatabases)
+	dbs.GET("", s.listDatabases)
+	dbs.POST("", s.checkOrigin, s.createDatabase)
+	dbs.DELETE("/:id", s.checkOrigin, s.deleteDatabase)
+	dbs.POST("/:id/password", s.checkOrigin, s.resetDatabasePassword)
+	dbs.PUT("/:id/addrs", s.checkOrigin, s.setDatabaseAddrs)
+	dbs.POST("/:id/web", s.checkOrigin, s.openDatabaseWeb)
+	dbs.POST("/:id/check", s.checkOrigin, s.checkDatabase)
+	// Служебный обмен токена веб-клиента: не под requireAuth, защищён адресом loopback и общим секретом (см. dbSession).
+	api.POST("/internal/db-session", s.requireDatabases, s.dbSession)
+	// Веб-терминал: вход подтверждает одноразовый билет, выданный авторизованным запросом (заголовок Authorization у WebSocket не задать).
+	api.GET("/terminal/ws", s.requireShell, s.terminalSocket)
 
 	admin := authed.Group("", s.requireAdmin)
 	admin.GET("/invites", s.listInvites)
 	admin.POST("/invites", s.createInvite)
+	admin.GET("/admin/tickets", s.requireSupport, s.adminTickets)
 	return r
 }
 
@@ -140,9 +267,11 @@ func (s *Server) respondSession(c *gin.Context, sess *auth.Session) {
 	s.setRefreshCookie(c, sess.RefreshToken, int(time.Until(sess.RefreshExpires).Seconds()))
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": sess.AccessToken,
-		"expires_in":   sess.ExpiresIn,
-		"user":         sess.User,
+		"access_token":      sess.AccessToken,
+		"expires_in":        sess.ExpiresIn,
+		"user":              sess.User,
+		"mail_enabled":      s.mail.Enabled(),
+		"databases_enabled": s.dbs.Enabled(), "shell_enabled": s.shell.Enabled(), "mailhost_enabled": s.mailhost.Enabled(), "dns_enabled": s.dns.Enabled(),
 	})
 }
 
@@ -158,12 +287,14 @@ func (s *Server) register(c *gin.Context) {
 		return
 	}
 	sess, err := s.svc.Register(c.Request.Context(), auth.RegisterInput{
-		Invite: in.Invite, Email: in.Email, Username: in.Username, Password: in.Password,
+		Invite: in.Invite, Email: in.Email, Username: in.Username, Password: in.Password, Lang: string(lang(c)),
 	})
 	if err != nil {
 		failErr(c, err)
 		return
 	}
+	s.sendVerification(c, sess.User) // письмо с подтверждением; сбой почты регистрацию не ломает
+	s.record(c, sess.User.ID, activity.KindRegister, "")
 	s.respondSession(c, sess)
 }
 
@@ -178,9 +309,16 @@ func (s *Server) login(c *gin.Context) {
 	}
 	sess, err := s.svc.Login(c.Request.Context(), in.Login, in.Password)
 	if err != nil {
+		// Неудачный вход пишется тому, чей аккаунт пытались открыть; ответ от этого не меняется (не выдаём, есть ли такой аккаунт).
+		if errors.Is(err, auth.ErrInvalidCredentials) && s.activity != nil {
+			if uid := s.svc.UserIDByLogin(c.Request.Context(), in.Login); uid > 0 {
+				s.record(c, uid, activity.KindLoginFailed, "")
+			}
+		}
 		failErr(c, err)
 		return
 	}
+	s.record(c, sess.User.ID, activity.KindLogin, "")
 	s.respondSession(c, sess)
 }
 
@@ -203,9 +341,16 @@ func (s *Server) refresh(c *gin.Context) {
 
 func (s *Server) logout(c *gin.Context) {
 	if raw, err := c.Cookie(s.cookieName); err == nil && raw != "" {
+		var uid int64
+		if s.activity != nil {
+			uid = s.svc.SessionUser(c.Request.Context(), raw)
+		}
 		if err := s.svc.Logout(c.Request.Context(), raw); err != nil {
 			failErr(c, err)
 			return
+		}
+		if uid > 0 {
+			s.record(c, uid, activity.KindLogout, "")
 		}
 	}
 	s.setRefreshCookie(c, "", -1)
@@ -218,7 +363,7 @@ func (s *Server) me(c *gin.Context) {
 		failErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": u})
+	c.JSON(http.StatusOK, gin.H{"user": u, "mail_enabled": s.mail.Enabled(), "databases_enabled": s.dbs.Enabled(), "shell_enabled": s.shell.Enabled(), "mailhost_enabled": s.mailhost.Enabled(), "dns_enabled": s.dns.Enabled()})
 }
 
 func (s *Server) changePassword(c *gin.Context) {
@@ -235,6 +380,7 @@ func (s *Server) changePassword(c *gin.Context) {
 		failErr(c, err)
 		return
 	}
+	s.notifyPasswordChanged(c, sess.User)
 	s.respondSession(c, sess)
 }
 

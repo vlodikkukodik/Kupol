@@ -1,7 +1,7 @@
 // Форма документа в панели команды: перевод содержимого с сервера в поля формы и обратно, замечания сервера
 // по полям, сравнение «есть ли несохранённые правки». Правила проверки — на сервере; здесь только то, без чего
 // запрос нельзя даже составить (год — число).
-import type { Content, InputBlock, Problem, Props } from '@/api/generated/documents'
+import type { Content, InputBlock, Problem, Props, Translation } from '@/api/generated/documents'
 import { canonicalBlocks } from '@/editor/convert'
 import { t } from '@/i18n'
 
@@ -27,13 +27,37 @@ export interface DocForm {
 
 const str = (v: unknown): string => (v === null || v === undefined ? '' : String(v))
 
+/** Перевод дела в форме редактора блоков: заголовок-строка и блоки, как у основной формы. */
+export interface TranslationForm {
+  title: string
+  blocks: InputBlock[]
+}
+
+const emptyTranslationForm = (): TranslationForm => ({ title: '', blocks: [] })
+
+/** Поля вкладки перевода из содержимого документа. */
+export function translationFormFromContent(content: Partial<Content> | null | undefined): TranslationForm {
+  const it = content?.it
+  if (!it) return emptyTranslationForm()
+  return { title: str(it.title), blocks: canonicalBlocks(it.blocks) }
+}
+
+/** Перевод для отправки на сервер: пустая вкладка (нет заголовка и блоков) значит «перевода нет». */
+export function translationFromForm(form: TranslationForm): Translation | undefined {
+  const blocks = canonicalBlocks(form.blocks)
+  if (form.title.trim() === '' && blocks.length === 0) return undefined
+  return { title: form.title, blocks }
+}
+
 /**
  * Содержимое в той форме, в какой его ведёт редактор блоков (склеенные фрагменты, без пустых абзацев).
  * Сохранённое содержимое приводится к ней перед сравнением: иначе «есть правки» вспыхивало бы у документа,
  * который автор не трогал.
  */
 export function canonicalContent(content: Content): Content {
-  return { ...content, blocks: canonicalBlocks(content.blocks) }
+  const out: Content = { ...content, blocks: canonicalBlocks(content.blocks) }
+  if (content.it) out.it = { title: content.it.title, blocks: canonicalBlocks(content.it.blocks) }
+  return out
 }
 
 /** Поля формы из содержимого документа. */
@@ -66,7 +90,10 @@ function toInt(s: string): number | null {
  * пути — как у замечаний сервера, чтобы показать их у тех же полей.
  * strict=false (автосохранение): неверные числа просто не отправляются — человек ещё пишет.
  */
-export function contentFromForm(form: DocForm, { strict = true } = {}): { content: Content; errors: Record<string, string> } {
+export function contentFromForm(
+  form: DocForm,
+  { strict = true, it }: { strict?: boolean; it?: TranslationForm } = {},
+): { content: Content; errors: Record<string, string> } {
   const errors: Record<string, string> = {}
   const num = (path: string, raw: string, label: string): number | null => {
     const n = toInt(raw)
@@ -107,12 +134,17 @@ export function contentFromForm(form: DocForm, { strict = true } = {}): { conten
     }
     if (Object.keys(props).length > 0) content.props = props
   }
+  if (it) {
+    const translation = translationFromForm(it)
+    if (translation) content.it = translation
+  }
   return { content, errors }
 }
 
 /** Пути полей формы; замечания к остальным путям (блоки и прочее) показываются общим списком. */
 const FORM_PATHS = new Set<string>([
   'title', 'level', 'direct_link', 'grif', 'composed', 'composed.year', 'composed.month', 'composed.day', 'code', 'type', 'props',
+  'it.title',
   ...PROP_FIELDS.map((k) => `props.${k}`),
 ])
 

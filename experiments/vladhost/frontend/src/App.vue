@@ -10,11 +10,22 @@ import {
   ruRU,
   type GlobalThemeOverrides,
 } from 'naive-ui'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import AuroraBackground from '@/components/AuroraBackground.vue'
 import { useI18n } from '@/i18n'
+import { useAuthStore } from '@/stores/auth'
 
 const { locale } = useI18n()
+const auth = useAuthStore()
+
+// Язык писем (подтверждение, уведомления) следует за языком интерфейса: клиент — источник истины, сервер запоминает.
+watch(
+  [locale, () => auth.user?.id],
+  ([l]) => {
+    if (auth.user && auth.user.lang !== l) void auth.updatePreferences({ lang: l }).catch(() => {})
+  },
+  { immediate: true },
+)
 
 // Локаль компонентов Naive UI (подписи в календарях, «Подтвердить/Отмена» и т. п.) следует за языком интерфейса.
 const naiveLocale = computed(() => (locale.value === 'it' ? itIT : ruRU))

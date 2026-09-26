@@ -35,6 +35,7 @@ const (
 	DocumentRejected   Action = "document.rejected"   // документ отклонён и убран в архив
 	DocumentArchived   Action = "document.archived"   // опубликованный документ убран в архив
 	DocumentUnarchived Action = "document.unarchived" // документ возвращён из архива в опубликованные
+	DocumentDeleted    Action = "document.deleted"    // документ удалён безвозвратно, его шифр освобождён
 
 	TemplateCreated Action = "template.created" // заведён шаблон документа или набор блоков
 	TemplateUpdated Action = "template.updated" // шаблон изменён
@@ -45,6 +46,19 @@ const (
 	GlossaryDeleted Action = "glossary.deleted" // термин удалён
 
 	SiteUpdated Action = "site.updated" // изменены настройки сайта (контакты автора)
+
+	SecretCodeCreated  Action = "secret_code.created"  // заведён скрытый код (пасхалка)
+	SecretCodeDeleted  Action = "secret_code.deleted"  // скрытый код удалён
+	SecretCodeRedeemed Action = "secret_code.redeemed" // код погашен читателем
+
+	InboxNoteSent Action = "inbox.note_sent" // Директорат отправил записку (одному или всем)
+
+	InvitationSent     Action = "invitation.sent"     // Совет пригласил читателя на следующий уровень
+	InvitationAccepted Action = "invitation.accepted" // читатель принял приглашение (уровень поднят)
+	SanctionIssued     Action = "sanction.issued"     // наложено наказание (предупреждение, блокировка комментариев, бан)
+	SanctionRevoked    Action = "sanction.revoked"    // наказание снято
+
+	PetitionDecided Action = "petition.decided" // решение по ходатайству о допуске (одобрено или отклонено)
 
 	TimelineCreated Action = "timeline.created" // добавлено событие хронологии
 	TimelineUpdated Action = "timeline.updated" // событие хронологии изменено
@@ -78,6 +92,7 @@ var titles = map[Action]string{
 	DocumentRejected:   "Документ отклонён",
 	DocumentArchived:   "Документ убран в архив",
 	DocumentUnarchived: "Документ возвращён из архива",
+	DocumentDeleted:    "Документ удалён",
 
 	TemplateCreated: "Заведён шаблон",
 	TemplateUpdated: "Шаблон изменён",
@@ -88,6 +103,19 @@ var titles = map[Action]string{
 	GlossaryDeleted: "Термин глоссария удалён",
 
 	SiteUpdated: "Изменены настройки сайта",
+
+	SecretCodeCreated:  "Заведён скрытый код",
+	SecretCodeDeleted:  "Скрытый код удалён",
+	SecretCodeRedeemed: "Скрытый код погашен",
+
+	InboxNoteSent: "Отправлена записка Директората",
+
+	InvitationSent:     "Отправлено приглашение Совета",
+	InvitationAccepted: "Приглашение Совета принято",
+	SanctionIssued:     "Наложено наказание",
+	SanctionRevoked:    "Наказание снято",
+
+	PetitionDecided: "Решение по ходатайству о допуске",
 
 	TimelineCreated: "Добавлено событие хронологии",
 	TimelineUpdated: "Изменено событие хронологии",

@@ -108,6 +108,8 @@ func (h *authHandlers) fail(c *gin.Context, err error, invalidCredentialsMsg str
 		Fail(c, http.StatusConflict, CodeTOTPNotEnabled, "Код из приложения не включён")
 	case errors.Is(err, accounts.ErrWrongPassword):
 		FailFields(c, http.StatusForbidden, CodeWrongPassword, "Неверный пароль", map[string]string{"current_password": "Неверный пароль"})
+	case errors.Is(err, accounts.ErrBanned):
+		Fail(c, http.StatusForbidden, CodeBanned, "Аккаунт заблокирован Модерацией")
 	case errors.Is(err, accounts.ErrNoSession):
 		Fail(c, http.StatusUnauthorized, CodeUnauthenticated, "Требуется вход")
 	case errors.Is(err, accounts.ErrEmailTaken):
@@ -162,7 +164,7 @@ func (h *authHandlers) register(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusCreated, RegisterResponse{User: toUserDTO(res.User, Lang(c)), BackupCode: res.BackupCode})
+	c.JSON(http.StatusCreated, RegisterResponse{User: toUserDTO(res.User, Lang(c)), BackupCode: res.BackupCode, NewAchievements: res.NewAchievements})
 }
 
 type LoginRequest struct {
@@ -185,7 +187,18 @@ func (h *authHandlers) login(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, res.Token, res.ExpiresAt, h.secure)
-	c.JSON(http.StatusOK, LoginResponse{User: toUserDTO(res.User, Lang(c)), LevelUp: res.LevelUp})
+	c.JSON(http.StatusOK, LoginResponse{User: toUserDTO(res.User, Lang(c)), LevelUp: res.LevelUp, NewAchievements: res.NewAchievements})
+}
+
+// GET /api/me/achievements — грамоты пользователя (шаг 5.6), для личного дела.
+func (h *authHandlers) achievements(c *gin.Context) {
+	u := CurrentAuth(c).User
+	items, err := h.svc.Achievements(c.Request.Context(), u.ID, Lang(c))
+	if err != nil {
+		h.fail(c, err, "")
+		return
+	}
+	c.JSON(http.StatusOK, AchievementsResponse{Items: items})
 }
 
 // POST /api/auth/logout — завершает текущую сессию. Без сессии тоже успешно: выход идемпотентен.
@@ -313,4 +326,18 @@ func (h *authHandlers) confirmEmail(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// GET /api/users/:login — ограниченная карточка пользователя (только вошедшим).
+func (h *authHandlers) userCard(c *gin.Context) {
+	card, err := h.svc.Card(c.Request.Context(), c.Param("login"), Lang(c))
+	if errors.Is(err, accounts.ErrUserNotFound) {
+		Fail(c, http.StatusNotFound, CodeNotFound, "Пользователь не найден")
+		return
+	}
+	if err != nil {
+		h.fail(c, err, "")
+		return
+	}
+	c.JSON(http.StatusOK, UserCardResponse{Card: UserCardDTO{Login: card.Login, Level: card.Level, LevelName: card.LevelName, Directorate: card.Directorate, Achievements: card.Achievements}})
 }

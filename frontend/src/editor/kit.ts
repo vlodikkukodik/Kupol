@@ -26,6 +26,8 @@ const VIEWS: Record<string, Component> = {
   pageBreak: BlockNodeView,
   footnote: BlockNodeView,
   appendix: BlockNodeView,
+  image: BlockNodeView,
+  audio: BlockNodeView,
   unknownBlock: BlockNodeView,
   table: TableNodeView,
 }

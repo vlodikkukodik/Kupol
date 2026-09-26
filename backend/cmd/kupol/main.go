@@ -31,7 +31,11 @@ import (
 	"kupol/internal/logging"
 	"kupol/internal/mail"
 	"kupol/internal/passwords"
+	"kupol/internal/petitions"
 	"kupol/internal/ratelimit"
+	"kupol/internal/sanctions"
+	"kupol/internal/suggestions"
+	"kupol/internal/uploads"
 	"kupol/internal/version"
 )
 
@@ -150,9 +154,18 @@ func serve(ctx context.Context, cfg config.Config, db *gorm.DB, log *slog.Logger
 		return fmt.Errorf("индекс поиска: %w", err)
 	}
 
+	uploadsSvc, err := uploads.NewService(db, cfg.UploadsDir, nil)
+	if err != nil {
+		return err
+	}
+
 	handler, err := httpapi.New(httpapi.Deps{
 		Config: cfg, DB: db, Log: log, Accounts: svc, Limiter: limiter,
-		Documents: docs,
+		Documents:   docs,
+		Suggestions: suggestions.NewService(db, log, nil),
+		Petitions:   petitions.NewService(db, nil),
+		Sanctions:   sanctions.NewService(db, nil),
+		Uploads:     uploadsSvc,
 	})
 	if err != nil {
 		return err

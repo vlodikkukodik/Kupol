@@ -51,6 +51,7 @@ type Server struct {
 	failures map[string]*failRecord
 	conns    map[string]int
 	sessions map[uint32]*sites.FTPSession
+	onLogin  func(userID int64, host, ip string)
 }
 
 type failRecord struct {
@@ -65,6 +66,19 @@ func New(svc *sites.Service, cfg config.FTPConfig) (*Server, error) {
 	}
 	s.srv = ftpserver.NewFtpServer(s)
 	return s, nil
+}
+
+// SetLoginHook задаёт функцию, которую вызывают после каждого успешного входа (для журнала действий): номер владельца, адрес сайта, адрес клиента.
+func (s *Server) SetLoginHook(f func(userID int64, host, ip string)) {
+	s.mu.Lock()
+	s.onLogin = f
+	s.mu.Unlock()
+}
+
+func (s *Server) loginHook() func(userID int64, host, ip string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.onLogin
 }
 
 // Listen занимает порт; Serve принимает подключения. Раздельно — чтобы тест мог узнать адрес.
@@ -149,6 +163,10 @@ func (s *Server) AuthUser(cc ftpserver.ClientContext, user, pass string) (ftpser
 		return nil, wrap(err)
 	}
 	s.reset(ip)
+	if hook := s.loginHook(); hook != nil {
+		site := sess.Site()
+		go hook(site.UserID, site.Host, ip) // запись в журнал не задерживает вход
+	}
 	s.mu.Lock()
 	if old := s.sessions[cc.ID()]; old != nil {
 		old.Close() // повторный вход на том же соединении (USER/PASS ещё раз)

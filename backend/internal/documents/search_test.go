@@ -121,7 +121,7 @@ func mustBlock(t *testing.T, raw string) Block {
 // Каждый вид блока либо даёт текст в индекс, либо явно исключён с причиной: новый вид не пройдёт мимо.
 func TestSearchIndexCoversEveryBlockKind(t *testing.T) {
 	seen := map[string]bool{}
-	for _, ib := range fixtureBlocks(t) {
+	for _, ib := range allKindFixtures(t) {
 		seen[ib.Type] = true
 		b := Block{ID: ib.ID, Type: ib.Type, Level: ib.Level, Data: ib.Data}
 		pieces, ok := blockPieces(b)

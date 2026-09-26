@@ -25,6 +25,8 @@ export const useAuthStore = defineStore('auth', () => {
   const flash = ref('')
   /** Этот вход только что поднял уровень по XP — повод показать штамп «ДОПУСК ПОВЫШЕН» (глобально, см. LevelUpNotice.vue). */
   const levelUp = ref(false)
+  /** Грамоты, выданные этим входом/регистрацией (шаг 5.6) — повод показать уведомление (см. AchievementNotice.vue). */
+  const newAchievements = ref<string[]>([])
 
   const isAuthenticated = computed(() => user.value !== null)
   const can = (capability: Capability): boolean => Boolean(user.value?.capabilities.includes(capability))
@@ -56,10 +58,15 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = res.user
     status.value = 'ready'
     if (res.level_up) levelUp.value = true
+    if (res.new_achievements?.length) newAchievements.value = res.new_achievements
   }
 
   function dismissLevelUp() {
     levelUp.value = false
+  }
+
+  function dismissNewAchievements() {
+    newAchievements.value = []
   }
 
   async function register(p: { login: string; password: string; captchaId: string; captchaAnswer: string }) {
@@ -67,6 +74,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = res.user
     status.value = 'ready'
     pendingBackupCode.value = res.backup_code
+    if (res.new_achievements?.length) newAchievements.value = res.new_achievements
   }
 
   /**
@@ -117,5 +125,8 @@ export const useAuthStore = defineStore('auth', () => {
     })
   }
 
-  return { user, status, pendingBackupCode, flash, levelUp, isAuthenticated, can, load, login, register, restore, logout, changePassword, deleteAccount, acknowledgeBackupCode, takeFlash, dismissLevelUp, attach }
+  return {
+    user, status, pendingBackupCode, flash, levelUp, newAchievements, isAuthenticated, can, load, login, register, restore, logout,
+    changePassword, deleteAccount, acknowledgeBackupCode, takeFlash, dismissLevelUp, dismissNewAchievements, attach,
+  }
 })

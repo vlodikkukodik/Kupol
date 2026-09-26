@@ -86,5 +86,13 @@ func init() {
 		"Пометка не найдена":                          "Nota non trovata",
 		"Неизвестная оценка":                          "Valutazione sconosciuta",
 		"Оценка не найдена":                           "Valutazione non trovata",
+
+		// ——— предложения (шаг 5.4) ———
+		"Предложение не найдено":                                      "Proposta non trovata",
+		"Своё предложение рассматривает другой Редактор":              "La proposta propria è esaminata da un altro Redattore",
+		"Это действие не подходит предложению в его нынешнем статусе": "Questa azione non si adatta alla proposta nel suo stato attuale",
+		"Предложение: от 1 до 2000 знаков":                            "Proposta: da 1 a 2000 caratteri",
+		"Пояснение: до 2000 знаков":                                   "Spiegazione: fino a 2000 caratteri",
+		"Неизвестный статус предложения":                              "Stato della proposta sconosciuto",
 	})
 }

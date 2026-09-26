@@ -1,0 +1,16 @@
+# Пользователи сайтов со средой выполнения (vhs{ID}, uid 60001–69999): PHP и приложения не должны ходить к соседним службам сервера.
+# Отдельная таблица: правила брандмауэра других проектов (iptables-nft, ISPmanager) не затрагиваются.
+add table inet vladhost_rt
+flush table inet vladhost_rt
+table inet vladhost_rt {
+    chain output {
+        type filter hook output priority 0; policy accept;
+        # Правила только для НОВЫХ соединений: ответы приложения шлюзу (loopback, случайный порт клиента) идут по уже открытому.
+        # На loopback открыты только базы пользователей (MariaDB 3306, PostgreSQL 5433), порты приложений и DNS (systemd-resolved).
+        meta skuid 60000-69999 oifname "lo" ip daddr 127.0.0.0/8 ct state new tcp dport != { 3306, 5433, 20000-29999 } reject with tcp reset
+        meta skuid 60000-69999 oifname "lo" ip daddr 127.0.0.0/8 ct state new meta l4proto udp udp dport != 53 drop
+        # Внутренние сети провайдера и метаданные облака.
+        meta skuid 60000-69999 ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10 } drop
+        meta skuid 60000-69999 ip6 daddr { fc00::/7, fe80::/10 } drop
+    }
+}

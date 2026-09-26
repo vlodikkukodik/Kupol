@@ -154,6 +154,31 @@ describe('панель команды: охрана страниц', () => {
   })
 })
 
+describe('предложения: охрана страниц', () => {
+  it('гость уходит на главную с адресом возврата — форма только для вошедших', async () => {
+    session = { user: null }
+    const at = await visit('/suggestions')
+    expect(at.name).toBe('home')
+    expect(at.fullPath).toBe('/?next=/suggestions')
+  })
+
+  it('вошедший открывает страницу без каких-либо прав', async () => {
+    await signIn(user([]))
+    expect((await visit('/suggestions')).name).toBe('suggestions')
+  })
+
+  it('очередь в панели команды видна только с правом review', async () => {
+    session = { user: null }
+    expect((await visit('/team/suggestions')).name).toBe('home')
+
+    await signIn(user(['team_panel', 'write_drafts']))
+    expect((await visit('/team/suggestions')).name).toBe('not-found')
+
+    await signIn(user(['team_panel', 'review']))
+    expect((await visit('/team/suggestions')).name).toBe('team-suggestions')
+  })
+})
+
 describe('auth.can', () => {
   it('смотрит только на список прав от сервера', async () => {
     await signIn(user(['team_panel']))

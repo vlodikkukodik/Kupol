@@ -13,8 +13,8 @@ env: ## Создать .env с новым секретом (если его ещ
 	@if [ -f .env ]; then echo ".env уже есть — не трогаю"; else \
 	  sed "s/__GENERATED__/$$(openssl rand -hex 32)/" .env.example > .env; echo ".env создан"; fi
 
-db-up: ## Поднять PostgreSQL и дождаться готовности
-	docker compose up -d --wait postgres
+db-up: ## Поднять PostgreSQL и MariaDB и дождаться готовности
+	docker compose up -d --wait postgres mariadb
 
 db-down: ## Остановить PostgreSQL (данные сохраняются)
 	docker compose down
@@ -44,6 +44,12 @@ e2e: db-up ## Сквозные тесты в браузере (Playwright + на
 
 test-deploy: ## Скрипты выкладки (выпускатель сертификатов) на подменённых certbot/nginx
 	bash deploy/test/certs_test.sh
+	bash deploy/test/cert_info_test.sh
+	bash deploy/test/cron_run_test.sh
+	bash deploy/test/runtime_test.sh
+	python3 deploy/test/mail_sync_test.py
+	python3 deploy/test/mail_log_test.py
+	python3 deploy/test/dns_sync_test.py
 
 test: test-back test-front test-deploy ## Всё быстрое (без e2e)
 

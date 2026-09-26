@@ -84,6 +84,8 @@ async function submit() {
       <n-button type="primary" size="large" attr-type="submit" block :loading="busy">{{ t('auth.login.submit') }}</n-button>
     </n-form>
 
+    <p class="hint"><router-link to="/forgot">{{ t('auth.login.forgot') }}</router-link></p>
+
     <p class="hint">
       {{ t('auth.login.inviteOnly') }}
       <router-link to="/register">{{ t('auth.login.haveCode') }}</router-link>

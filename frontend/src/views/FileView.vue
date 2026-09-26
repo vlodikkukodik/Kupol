@@ -3,7 +3,10 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ChangePasswordForm from '@/components/ChangePasswordForm.vue'
 import DeleteAccountForm from '@/components/DeleteAccountForm.vue'
+import AchievementsShelf from '@/components/AchievementsShelf.vue'
 import EmailPanel from '@/components/EmailPanel.vue'
+import PetitionPanel from '@/components/PetitionPanel.vue'
+import SecretCodePanel from '@/components/SecretCodePanel.vue'
 import TotpPanel from '@/components/TotpPanel.vue'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiButton from '@/ui/UiButton.vue'
@@ -99,6 +102,10 @@ async function logout() {
             <dd>{{ formatDate(auth.user.created_at) }}</dd>
           </div>
         </dl>
+        <section class="shelf-section" aria-labelledby="achievements-title">
+          <h2 id="achievements-title">{{ $t('achievements.title') }}</h2>
+          <AchievementsShelf />
+        </section>
       </UiSheet>
 
       <div class="file__side">
@@ -115,6 +122,16 @@ async function logout() {
         <UiSheet as="section" aria-labelledby="totp-title">
           <h2 id="totp-title">{{ $t('file.totpTitle') }}</h2>
           <TotpPanel />
+        </UiSheet>
+
+        <UiSheet v-if="auth.user.level >= 2 && auth.user.level < 6 && !auth.user.directorate" as="section" aria-labelledby="petition-title">
+          <h2 id="petition-title">{{ $t('file.petitionTitle') }}</h2>
+          <PetitionPanel />
+        </UiSheet>
+
+        <UiSheet as="section" aria-labelledby="secret-code-title">
+          <h2 id="secret-code-title">{{ $t('file.secretCodeTitle') }}</h2>
+          <SecretCodePanel />
         </UiSheet>
 
         <UiSheet as="section" aria-labelledby="session-title">
@@ -194,6 +211,13 @@ async function logout() {
   font-size: var(--text-lg);
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+.shelf-section {
+  margin-top: var(--space-5);
+}
+.shelf-section h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
 }
 .xp-bar {
   margin-top: var(--space-2);

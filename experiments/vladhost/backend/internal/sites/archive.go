@@ -51,7 +51,7 @@ func extractZip(zr *zip.Reader, dst string, limit int64) (int64, error) {
 				return 0, err
 			}
 			total += n
-			if name == "index.html" {
+			if name == "index.html" || name == "index.php" { // сайт на PHP начинается с index.php
 				hasIndex = true
 			}
 		default:

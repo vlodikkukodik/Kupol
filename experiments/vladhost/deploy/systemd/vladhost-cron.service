@@ -1,0 +1,9 @@
+[Unit]
+Description=Vladhost — исполнитель команд планировщика (песочница на каждую команду)
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/vladhost/cron-run.sh
+# Команды идут в отдельных юнитах vhcron-*; сам исполнитель ждёт их и только собирает вывод.
+TimeoutStartSec=600

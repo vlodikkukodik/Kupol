@@ -29,7 +29,7 @@ install -d -m 0755 /var/log/vladhost
 install -d -o vladhost-web -g vladhost -m 2750 /var/log/vladhost/sites
 install -d -m 0755 /etc/nginx/snippets /etc/nginx/vladhost-domains
 # Обмен с выпускателем сертификатов: queue пишет панель, status пишет только root (защита от подмены симлинком).
-install -d -m 0755 /var/lib/vladhost /var/lib/vladhost/certs /var/lib/vladhost/certs/status
+install -d -m 0755 /var/lib/vladhost /var/lib/vladhost/certs /var/lib/vladhost/certs/status /var/lib/vladhost/certs/info
 install -d -o vladhost -g vladhost -m 0755 /var/lib/vladhost/certs/queue
 # /etc/vladhost открыт на вход (nginx идёт в certs), секреты защищены правами самого файла env.
 install -d -m 0755 /etc/vladhost

@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -13,9 +14,12 @@ import (
 
 type siteJSON struct {
 	sites.Site
-	URL     string       `json:"url"`
-	FTP     ftpBlock     `json:"ftp"`
-	Domains []domainJSON `json:"domains"`
+	// Cert — сведения о сертификате адреса сайта (nil, пока не выпущен); CertRenewAt — когда его можно перевыпустить вручную.
+	Cert        *sites.CertInfo `json:"cert"`
+	CertRenewAt *time.Time      `json:"cert_renew_at"`
+	URL         string          `json:"url"`
+	FTP         ftpBlock        `json:"ftp"`
+	Domains     []domainJSON    `json:"domains"`
 }
 
 // ftpBlock — сведения для подключения по FTP. Пароль сюда не попадает: он показывается один раз при выдаче.
@@ -35,7 +39,10 @@ type ftpBlock struct {
 func (s *Server) toJSON(st sites.Site) siteJSON { return s.toJSONWith(st, nil, nil) }
 
 func (s *Server) toJSONWith(st sites.Site, domains []sites.Domain, accounts []sites.FTPAccount) siteJSON {
-	out := siteJSON{Site: st, URL: "https://" + st.Host, Domains: toDomainsJSON(domains), FTP: ftpBlock{Accounts: []ftpAccountJSON{}}}
+	out := siteJSON{
+		Site: st, URL: "https://" + st.Host, Domains: s.toDomainsJSON(domains), FTP: ftpBlock{Accounts: []ftpAccountJSON{}},
+		Cert: s.sites.CertInfo(st.Host), CertRenewAt: sites.RenewAvailableAt(st.CertRequestedAt),
+	}
 	if s.cfg.FTP.Addr != "" {
 		_, port, _ := net.SplitHostPort(s.cfg.FTP.Addr)
 		p, _ := strconv.Atoi(port)
@@ -67,10 +74,14 @@ func (s *Server) listSites(c *gin.Context) {
 	}
 	lim := s.sites.Limits()
 	c.JSON(http.StatusOK, gin.H{
-		"sites":          out,
-		"limits":         gin.H{"max_sites": lim.MaxSites, "disk_quota_bytes": lim.DiskQuotaBytes},
-		"domain_config":  s.domainConfig(),
-		"logs_available": s.sites.LogsAvailable(),
+		"sites":             out,
+		"limits":            gin.H{"max_sites": lim.MaxSites, "disk_quota_bytes": lim.DiskQuotaBytes},
+		"domain_config":     s.domainConfig(),
+		"logs_available":    s.sites.LogsAvailable(),
+		"backups_available": s.sites.BackupsAvailable(),
+		"runtime_available": s.rt.Enabled(),
+		"cms_available":     s.cms.Enabled(),
+		"shell_available":   s.shell.Enabled(),
 	})
 }
 
@@ -92,6 +103,7 @@ func (s *Server) createSite(c *gin.Context) {
 		failErr(c, err)
 		return
 	}
+	setAuditTarget(c, site.Host)
 	c.JSON(http.StatusCreated, gin.H{"site": s.toJSON(*site)})
 }
 

@@ -16,8 +16,9 @@ import (
 // блока сначала не индексируется вовсе, пока для него не написано извлечение (это проверяет тест).
 
 // searchIndexVersion — версия правил построения производных данных (индекс поиска и обратные ссылки). При смене (другие
-// поля, другая разбивка) сервер сам перестраивает их при старте (EnsureSearchIndex). 1 — индекс поиска, 2 — и обратные ссылки.
-const searchIndexVersion = 2
+// поля, другая разбивка) сервер сам перестраивает их при старте (EnsureSearchIndex). 1 — индекс поиска, 2 — и обратные
+// ссылки, 3 — индекс включает перевод дела на второй язык.
+const searchIndexVersion = 3
 
 type searchKind string
 
@@ -202,6 +203,44 @@ func blockPieces(b Block) (*textPieces, bool) {
 		t.rich(decodeData[footnoteData](b.Data).Text)
 	case "appendix":
 		t.plain(decodeData[appendixData](b.Data).Title)
+	case "containment_procedure":
+		d := decodeData[containmentProcedureData](b.Data)
+		t.plain(d.Title)
+		t.richAll(d.Steps)
+	case "directive":
+		d := decodeData[directiveData](b.Data)
+		t.plain(d.Recipient)
+		t.rich(d.Order)
+	case "incident_timeline":
+		for _, e := range decodeData[incidentTimelineData](b.Data).Entries {
+			t.rich(e.Event)
+		}
+	case "personnel_record":
+		d := decodeData[personnelRecordData](b.Data)
+		t.plainAll(d.Rank, d.Clearance)
+	case "roster":
+		for _, e := range decodeData[rosterData](b.Data).Entries {
+			t.plainAll(e.Name, e.Position)
+		}
+	case "hypothesis":
+		d := decodeData[hypothesisData](b.Data)
+		t.rich(d.Text)
+		t.rich(d.Result)
+	case "qa":
+		for _, e := range decodeData[qaData](b.Data).Entries {
+			t.rich(e.Question)
+			t.rich(e.Answer)
+		}
+	case "image":
+		t.plain(decodeData[imageData](b.Data).Caption)
+	case "audio":
+		d := decodeData[audioData](b.Data)
+		t.plain(d.Title)
+		t.rich(d.Transcript)
+	case "routing":
+		for _, e := range decodeData[routingData](b.Data).Entries {
+			t.plain(e.Who)
+		}
 	default:
 		return nil, false
 	}
@@ -229,6 +268,25 @@ func searchRows(d *Document) []searchRow {
 		for level := 0; level <= MaxLevel; level++ {
 			if sb := t.byLevel[level]; sb != nil && cleanForIndex(sb.String()) != "" {
 				rows = append(rows, newRow(d.ID, searchBlock, i+1, b.ID, level, sb.String()))
+			}
+		}
+	}
+	// Перевод индексируется теми же строками, чтобы документ находился независимо от языка
+	// поиска — какую версию показать читателю, решает read.go, а не индекс.
+	if it := translationsFromRaw(d.Translations); it != nil {
+		if cleanForIndex(it.Title) != "" {
+			rows = append(rows, newRow(d.ID, searchTitle, 0, "", 0, it.Title))
+		}
+		for i, ib := range it.Blocks {
+			b := Block{ID: ib.ID, Type: ib.Type, Level: ib.Level, Data: ib.Data}
+			t, ok := blockPieces(b)
+			if !ok {
+				continue
+			}
+			for level := 0; level <= MaxLevel; level++ {
+				if sb := t.byLevel[level]; sb != nil && cleanForIndex(sb.String()) != "" {
+					rows = append(rows, newRow(d.ID, searchBlock, i+1, b.ID, level, sb.String()))
+				}
 			}
 		}
 	}

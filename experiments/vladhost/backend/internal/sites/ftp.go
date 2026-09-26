@@ -9,10 +9,12 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -420,6 +422,11 @@ func (f *FTPSession) OpenWrite(rel string, flags int, offset int64) (Handle, err
 		} else if !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
+		// Снимок резервной копии держит hardlink на файле: запись «в тот же inode»
+		// изменила бы и снимок. При nlink > 1 сначала делаем приватную копию.
+		if err := breakHardLink(r, rel); err != nil {
+			return err
+		}
 		appendMode := flags&os.O_APPEND != 0
 		openFlags := os.O_WRONLY | os.O_CREATE
 		switch {
@@ -457,6 +464,50 @@ func (f *FTPSession) OpenWrite(rel string, flags int, offset int64) (Handle, err
 type readHandle struct{ *os.File }
 
 func (readHandle) Write([]byte) (int, error) { return 0, fs.ErrPermission }
+
+// breakHardLink: если файл попал в снимок резервной копии (nlink > 1), запись через
+// тот же inode изменила бы и копию — сначала делаем приватную копию и подменяем rename.
+func breakHardLink(r *os.Root, rel string) error {
+	fi, err := r.Lstat(rel)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok || st.Nlink <= 1 {
+		return nil
+	}
+	src, err := r.Open(rel)
+	if err != nil {
+		return err
+	}
+	tmp := path.Join(path.Dir(rel), tmpPrefix+randHex())
+	if path.Dir(rel) == "." {
+		tmp = tmpPrefix + randHex()
+	}
+	dst, err := r.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		_ = src.Close()
+		return err
+	}
+	_, err = io.Copy(dst, src)
+	if cerr := src.Close(); err == nil {
+		err = cerr
+	}
+	if cerr := dst.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = r.Remove(tmp)
+		return err
+	}
+	return r.Rename(tmp, rel)
+}
 
 type writeHandle struct {
 	f          *FTPSession

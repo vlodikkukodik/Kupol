@@ -101,9 +101,6 @@ func newSpec[T any](check func(*T, *Problems, string), render func(*T, *renderer
 	}
 }
 
-// mediaTypes — блоки, которым нужны загруженные файлы: появятся вместе с загрузкой (этап 6).
-var mediaTypes = map[string]bool{"image": true, "audio": true}
-
 // describeJSONError переводит ошибку разбора JSON в понятное сообщение: формат и значения для Problems.Add.
 func describeJSONError(err error) (string, []any) {
 	var ute *json.UnmarshalTypeError
@@ -178,10 +175,6 @@ func normalizeBlocksAt(in []InputBlock, p *Problems, base string) []Block {
 			p.Add(path+".type", "не указан тип блока")
 			continue
 		}
-		if mediaTypes[ib.Type] {
-			p.Add(path+".type", "блок %q появится вместе с загрузкой файлов (этап 6)", ib.Type)
-			continue
-		}
 		spec, ok := kinds[ib.Type]
 		if !ok {
 			p.Add(path+".type", "неизвестный тип блока %q; допустимы: %s", ib.Type, strings.Join(KindNames(), ", "))
@@ -219,6 +212,8 @@ func KindNames() []string {
 	return []string{
 		"heading", "paragraph", "list", "quote", "dossier_header", "experiment_log", "stamp", "memo",
 		"clipping", "table", "doc_link", "divider", "page", "footnote", "appendix",
+		"containment_procedure", "directive", "incident_timeline", "personnel_record", "roster", "hypothesis", "qa", "routing",
+		"image", "audio",
 	}
 }
 

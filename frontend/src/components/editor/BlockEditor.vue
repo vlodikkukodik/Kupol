@@ -28,6 +28,7 @@ const cssStrings = computed(() => ({
   '--ph-heading': cssString(t('editor.ph.heading')),
   '--ph-quote': cssString(t('editor.ph.quote')),
   '--ph-footnote': cssString(t('editor.ph.footnote')),
+  '--ph-transcript': cssString(t('editor.ph.transcript')),
   '--ph-entry': cssString(t('editor.ph.entry')),
   '--ph-column': cssString(t('editor.ph.column')),
   '--lbl-closed': cssString(t('editor.closedLabel')),

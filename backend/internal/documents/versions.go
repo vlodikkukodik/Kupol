@@ -232,6 +232,11 @@ func fieldList(c Content) map[string]any {
 	m := map[string]any{
 		"title": c.Title, "grif": c.Grif, "direct_link": c.DirectLink,
 	}
+	if c.IT != nil {
+		m["it_title"] = c.IT.Title
+	} else {
+		m["it_title"] = ""
+	}
 	if c.Level != nil {
 		m["level"] = *c.Level
 	} else {
@@ -259,7 +264,7 @@ func derefInt(p *int) int {
 }
 
 var fieldLabels = []struct{ key, label string }{
-	{"title", "Название"}, {"level", "Допуск"}, {"direct_link", "Прямая ссылка"}, {"grif", "Гриф"},
+	{"title", "Название"}, {"it_title", "Название (IT)"}, {"level", "Допуск"}, {"direct_link", "Прямая ссылка"}, {"grif", "Гриф"},
 	{"composed", "Дата составления"}, {"danger_class", "Класс опасности"}, {"deviation_points", "Пункты отклонения"},
 	{"department", "Отдел"}, {"category", "Категория"}, {"containment_status", "Статус содержания"}, {"discovery_place", "Место обнаружения"},
 }

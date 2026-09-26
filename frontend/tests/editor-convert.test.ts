@@ -10,10 +10,10 @@ describe('блоки ⇄ дерево редактора', () => {
     expect(docToBlocks(blocksToDoc(canonical))).toEqual(canonical)
   })
 
-  it('покрыты все 15 видов блоков', () => {
+  it('покрыты все 17 видов блоков', () => {
     expect(new Set(canonical.map((b) => b.type))).toEqual(new Set(BLOCK_TYPES))
-    expect(BLOCK_TYPES).toHaveLength(15)
-    expect(BLOCK_NODE_NAMES).toHaveLength(16) // + «коробка» для неизвестных
+    expect(BLOCK_TYPES).toHaveLength(17)
+    expect(BLOCK_NODE_NAMES).toHaveLength(18) // + «коробка» для неизвестных
   })
 
   it('идентификатор и уровень блока сохраняются; отсутствие уровня остаётся отсутствием', () => {

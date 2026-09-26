@@ -416,7 +416,7 @@ func TestSaveRejectsInvalidContentWithoutTrace(t *testing.T) {
 			t.Errorf("ожидалось замечание к %q: %v", name, err)
 		}
 	}
-	if _, err := e.svc.TeamSave(ctx, a.owner, d.ID, 1, Content{Title: "x", Composed: &Composed{Year: 1979}, Blocks: []InputBlock{{ID: "b1", Type: "image", Data: json.RawMessage(`{}`)}}}); !hasPath(err, "blocks[0].type") {
+	if _, err := e.svc.TeamSave(ctx, a.owner, d.ID, 1, Content{Title: "x", Composed: &Composed{Year: 1979}, Blocks: []InputBlock{{ID: "b1", Type: "hologram", Data: json.RawMessage(`{}`)}}}); !hasPath(err, "blocks[0].type") {
 		t.Errorf("блок image должен отклоняться до этапа 6: %v", err)
 	}
 }

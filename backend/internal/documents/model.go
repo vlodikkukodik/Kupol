@@ -147,7 +147,10 @@ type Document struct {
 
 	AuthorID *int64
 	Blocks   BlockList `gorm:"type:jsonb"`
-	Revision int
+	// Translations — перевод на второй язык интерфейса: {"it": {"title": ..., "blocks": [...]}}.
+	// Ключ ru не используется — Title/Blocks выше уже канонический (русский) вариант.
+	Translations JSONText `gorm:"type:jsonb"`
+	Revision     int
 	// Время задаёт только сервис (он подменяем в тестах); автопроставление GORM отключено.
 	CreatedAt   time.Time `gorm:"autoCreateTime:false"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime:false"`

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { VueQueryPlugin } from '@tanstack/vue-query'
 import { createPinia, setActivePinia, type Pinia } from 'pinia'
 import { createMemoryHistory, createRouter, type RouteLocationNormalized, type Router } from 'vue-router'
 import { defineComponent, h, nextTick, ref, type Component } from 'vue'
@@ -200,7 +201,7 @@ describe('боковое меню и окно входа', () => {
     document.documentElement.classList.remove('scroll-locked')
   })
 
-  const mountWith = (component: Component) => mount(component, { attachTo: document.body, global: { plugins: [pinia, router] } })
+  const mountWith = (component: Component) => mount(component, { attachTo: document.body, global: { plugins: [pinia, router, VueQueryPlugin] } })
   const text = () => document.body.textContent ?? ''
   const q = <T extends Element>(sel: string) => document.querySelector<T>(sel)
   const userOf = (login: string): UserDTO => ({
@@ -253,7 +254,7 @@ describe('боковое меню и окно входа', () => {
     useUiStore().openMenu()
     await nextTick()
     const links = [...document.querySelectorAll('#site-menu nav a')].map((a) => a.textContent?.trim())
-    expect(links).toEqual(['Главная', 'Каталог', 'Поиск', 'О КУПОЛЕ', 'Личное дело'])
+    expect(links).toEqual(['Главная', 'Каталог', 'Поиск', 'О КУПОЛЕ', 'Личное дело', 'Почта', 'Предложения'])
     expect(text()).toContain('куратор7')
     expect(text()).not.toContain('Войти или зарегистрироваться')
   })

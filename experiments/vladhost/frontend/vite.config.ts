@@ -10,7 +10,8 @@ const CSP =
 export default defineConfig({
   plugins: [vue()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
-  server: { port: 5174, proxy: { '/api': 'http://127.0.0.1:8090' } },
-  preview: { proxy: { '/api': 'http://127.0.0.1:8090' }, headers: { 'Content-Security-Policy': CSP } },
+  // ws: true — веб-терминал ходит на /api/terminal/ws по WebSocket
+  server: { port: 5174, proxy: { '/api': { target: 'http://127.0.0.1:8090', ws: true } } },
+  preview: { proxy: { '/api': { target: 'http://127.0.0.1:8090', ws: true } }, headers: { 'Content-Security-Policy': CSP } },
   test: { environment: 'node', include: ['src/**/*.test.ts'] },
 })

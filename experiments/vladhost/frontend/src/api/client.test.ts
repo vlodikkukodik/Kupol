@@ -6,7 +6,7 @@ import { fieldErrors, registerForm } from './schemas'
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-const session = { access_token: 'NEW', expires_in: 900, user: { id: 1, email: 'a@b.co', username: 'abc', role: 'user', created_at: 'x' } }
+const session = { access_token: 'NEW', expires_in: 900, user: { id: 1, email: 'a@b.co', username: 'abc', role: 'user', created_at: 'x', email_verified_at: null, lang: 'ru', notify_email: true } }
 
 describe('api client', () => {
   const fetchMock = vi.fn<typeof fetch>()

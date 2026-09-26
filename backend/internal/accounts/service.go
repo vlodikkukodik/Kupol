@@ -18,9 +18,11 @@ import (
 	"golang.org/x/text/unicode/norm"
 	"gorm.io/gorm"
 
+	"kupol/internal/achievements"
 	"kupol/internal/audit"
 	"kupol/internal/config"
 	"kupol/internal/i18n"
+	"kupol/internal/inbox"
 	"kupol/internal/mail"
 	"kupol/internal/passwords"
 	"kupol/internal/ratelimit"
@@ -56,6 +58,8 @@ type AuthResult struct {
 	ExpiresAt time.Time
 	// LevelUp — этот вход поднял уровень (XP перешёл порог 2 или 3); повод показать штамп «ДОПУСК ПОВЫШЕН».
 	LevelUp bool
+	// NewAchievements — грамоты, выданные этим входом (шаг 5.6): серия 7/30 дней.
+	NewAchievements []achievements.Kind
 }
 
 // RegisterResult дополнительно содержит резервный код — он показывается только один раз.
@@ -402,6 +406,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput, ci ClientInfo)
 	var token string
 	var expires time.Time
 	var xpRes xp.LoginResult
+	var newAchievements []achievements.Kind
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&user).Error; err != nil {
 			return err
@@ -410,6 +415,11 @@ func (s *Service) Register(ctx context.Context, in RegisterInput, ci ClientInfo)
 		xpRes, xerr = xp.AwardLogin(ctx, tx, user.ID, now)
 		if xerr != nil {
 			return xerr
+		}
+		var aerr error
+		newAchievements, aerr = achievements.CheckStreak(ctx, tx, user.ID, xpRes.Streak, now)
+		if aerr != nil {
+			return aerr
 		}
 		var serr error
 		token, expires, serr = s.createSession(tx, user.ID, ci)
@@ -423,7 +433,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput, ci ClientInfo)
 	}
 	user.XP, user.LoginStreak = xpRes.XP, xpRes.Streak
 	s.log.Info("зарегистрирован пользователь", "user_id", user.ID, "ip", ci.IP)
-	return &RegisterResult{AuthResult: AuthResult{User: user, Token: token, ExpiresAt: expires}, BackupCode: code}, nil
+	return &RegisterResult{AuthResult: AuthResult{User: user, Token: token, ExpiresAt: expires, NewAchievements: newAchievements}, BackupCode: code}, nil
 }
 
 // ---------------------------------------------------------------- вход
@@ -494,6 +504,9 @@ func (s *Service) LoginWithCode(ctx context.Context, login, password, code strin
 		s.log.Warn("вход: неверные данные", "ip", ci.IP, "login", LoginKey(login))
 		return nil, ErrInvalidCredentials
 	}
+	if user.BannedAt != nil {
+		return nil, ErrBanned
+	}
 	if user.TOTPEnabled() {
 		if strings.TrimSpace(code) == "" {
 			return nil, ErrTOTPRequired
@@ -526,6 +539,7 @@ func (s *Service) LoginWithCode(ctx context.Context, login, password, code strin
 	var token string
 	var expires time.Time
 	var xpRes xp.LoginResult
+	var newAchievements []achievements.Kind
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
 			return err
@@ -541,6 +555,16 @@ func (s *Service) LoginWithCode(ctx context.Context, login, password, code strin
 			}); err != nil {
 				return err
 			}
+		}
+		if xpRes.Promoted {
+			if err := inbox.Send(ctx, tx, user.ID, inbox.KindLevelUp, map[string]any{"level": xpRes.Level}, now); err != nil {
+				return err
+			}
+		}
+		var aerr error
+		newAchievements, aerr = achievements.CheckStreak(ctx, tx, user.ID, xpRes.Streak, now)
+		if aerr != nil {
+			return aerr
 		}
 		var serr error
 		token, expires, serr = s.createSession(tx, user.ID, ci)
@@ -559,7 +583,7 @@ func (s *Service) LoginWithCode(ctx context.Context, login, password, code strin
 		s.notifyLevelUp(ctx, user)
 	}
 	s.log.Info("вход выполнен", "user_id", user.ID, "ip", ci.IP)
-	return &AuthResult{User: *user, Token: token, ExpiresAt: expires, LevelUp: xpRes.Promoted}, nil
+	return &AuthResult{User: *user, Token: token, ExpiresAt: expires, LevelUp: xpRes.Promoted, NewAchievements: newAchievements}, nil
 }
 
 // notifyLevelUp шлёт письмо о повышении уровня, если у пользователя есть подтверждённая почта.
@@ -840,6 +864,9 @@ func (s *Service) RestoreAccess(ctx context.Context, login, backupCode, newPassw
 	}
 	if !ok {
 		return fail()
+	}
+	if user.BannedAt != nil {
+		return nil, ErrBanned
 	}
 	s.recordLoginSuccess(ci.IP, login)
 

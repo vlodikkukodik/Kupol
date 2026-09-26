@@ -116,6 +116,17 @@ func TestEveryKindHasValidMinimalForm(t *testing.T) {
 		"page":           `{}`,
 		"footnote":       `{"mark":"1","text":"Сноска"}`,
 		"appendix":       `{"title":"Приложение"}`,
+
+		"containment_procedure": `{"steps":["Шаг"]}`,
+		"directive":             `{"recipient":"Отдел","order":"Предписание"}`,
+		"incident_timeline":     `{"entries":[{"event":"Событие"}]}`,
+		"personnel_record":      `{}`,
+		"roster":                `{"entries":[{"name":"Имя"}]}`,
+		"hypothesis":            `{"text":"Гипотеза","result":"Результат"}`,
+		"qa":                    `{"entries":[{"question":"В","answer":"О"}]}`,
+		"routing":               `{"entries":[{"who":"Кто","decision":"approved"}]}`,
+		"image":                 `{"upload":"0123456789abcdef0123456789abcdef"}`,
+		"audio":                 `{"upload":"0123456789abcdef0123456789abcdef"}`,
 	}
 	for _, kind := range KindNames() {
 		data, ok := minimal[kind]
@@ -137,8 +148,8 @@ func TestBlockRejections(t *testing.T) {
 	// общие ошибки блока
 	mustFail(t, "нет типа", []InputBlock{{Data: json.RawMessage(`{}`)}}, "blocks[0].type", "не указан тип")
 	mustFail(t, "неизвестный тип", []InputBlock{ib("hologram", `{}`)}, "blocks[0].type", "неизвестный тип блока")
-	mustFail(t, "картинки — этап 6", []InputBlock{ib("image", `{}`)}, "blocks[0].type", "загрузкой файлов (этап 6)")
-	mustFail(t, "аудио — этап 6", []InputBlock{ib("audio", `{}`)}, "blocks[0].type", "загрузкой файлов (этап 6)")
+	mustFail(t, "картинка без ключа", []InputBlock{ib("image", `{}`)}, "blocks[0].data.upload", "ключ загруженного файла")
+	mustFail(t, "аудио с чужим ключом", []InputBlock{ib("audio", `{"upload":"../etc"}`)}, "blocks[0].data.upload", "ключ загруженного файла")
 	mustFail(t, "уровень блока 9", []InputBlock{{Type: "divider", Level: intp(9)}}, "blocks[0].level", "от 0 до 7")
 	mustFail(t, "неизвестное поле блока", []InputBlock{ib("heading", `{"text":"З","colour":"red"}`)}, "blocks[0].data", `неизвестное поле "colour"`)
 	mustFail(t, "мусор после данных", []InputBlock{ib("divider", `{} {}`)}, "blocks[0].data", "")

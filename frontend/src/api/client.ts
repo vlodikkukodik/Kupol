@@ -185,7 +185,9 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
 
     // Язык интерфейса уходит серверу: сообщения об ошибках, названия уровней и статусов приходят на нём
     const init: RequestInit = { method, headers: { Accept: 'application/json', 'Accept-Language': locale.value, ...headers }, credentials: 'same-origin' }
-    if (body !== undefined) {
+    if (body instanceof FormData) {
+      init.body = body // границу multipart браузер ставит сам
+    } else if (body !== undefined) {
       ;(init.headers as Record<string, string>)['Content-Type'] = 'application/json'
       init.body = JSON.stringify(body)
     }

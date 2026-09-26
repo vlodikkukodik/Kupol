@@ -186,20 +186,25 @@ func TestReaderSeesItalianNamesButRussianData(t *testing.T) {
 	_, actors := teamStackWithActors(t)
 	author, director, guest := actors["author"], actors["director"], actors["guest"]
 	publishMemo(t, author, director, "МЕМО-11", "Открытая записка", nil)
+	publishMemo(t, author, director, "МЕМО-13", "С переводом", map[string]any{
+		"it": map[string]any{"title": "Con traduzione", "blocks": []any{map[string]any{"id": "b1", "type": "paragraph", "data": map[string]any{"text": "Testo"}}}},
+	})
 
 	guest.client.lang = "it"
+	// каталог по-итальянски показывает только дела с итальянским переводом
 	list := guest.client.do("GET", "/api/documents", nil)
 	items := list.json()["items"].([]any)
-	if list.Code != 200 || len(items) == 0 {
+	if list.Code != 200 || len(items) != 1 {
 		t.Fatalf("каталог: %d %s", list.Code, list.Body)
 	}
 	item := items[0].(map[string]any)
-	if item["type_name"] != "Memorandum" || item["title"] != "Открытая записка" {
+	if item["type_name"] != "Memorandum" || item["title"] != "Con traduzione" {
 		t.Errorf("карточка: %v", item)
 	}
+	// по прямой ссылке дело без перевода всё равно открывается — откат на русское содержимое
 	doc := guest.client.do("GET", "/api/documents/MEMO-11", nil)
 	d := doc.json()["document"].(map[string]any)
-	if d["type_name"] != "Memorandum" || d["copy_number"] != "" {
+	if d["type_name"] != "Memorandum" || d["title"] != "Открытая записка" || d["copy_number"] != "" {
 		t.Errorf("документ гостю: %v", d)
 	}
 

@@ -48,6 +48,7 @@ const https = computed(() => {
 const attentionKey: Record<Attention['kind'], MessageKey> = {
   cert_failed: 'dashboard.attention.certFailed',
   domain_failed: 'dashboard.attention.domainFailed',
+  cert_expiring: 'dashboard.attention.certExpiring',
   domain_dns: 'dashboard.attention.domainDns',
   empty_site: 'dashboard.attention.emptySite',
   disk_full: 'dashboard.attention.diskFull',
@@ -55,7 +56,12 @@ const attentionKey: Record<Attention['kind'], MessageKey> = {
 const attention = computed(() =>
   attentionItems(sites.value, used.value, limits.value.disk_quota_bytes).map((a) => ({
     a,
-    text: t(attentionKey[a.kind], { host: a.site?.host ?? '', domain: a.host ?? '', percent: DISK_WARN_PERCENT }),
+    text: t(a.kind === 'cert_expiring' && (a.days ?? 0) < 0 ? 'dashboard.attention.certExpired' : attentionKey[a.kind], {
+      host: a.site?.host ?? '',
+      domain: a.host ?? '',
+      percent: DISK_WARN_PERCENT,
+      days: a.days ?? 0,
+    }),
     to: (a.site ? { name: a.route, params: { id: a.site.id } } : { name: a.route }) as RouteLocationRaw,
   })),
 )

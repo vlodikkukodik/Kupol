@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -166,8 +167,12 @@ func securityHeadersMiddleware() gin.HandlerFunc {
 	}
 }
 
-func bodyLimitMiddleware(limit int64) gin.HandlerFunc {
+func bodyLimitMiddleware(limit int64, bigPrefix string, bigLimit int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		limit := limit
+		if bigPrefix != "" && strings.HasPrefix(c.Request.URL.Path, bigPrefix) {
+			limit = bigLimit // загрузка файла: свой, больший предел
+		}
 		if c.Request.ContentLength > limit {
 			Fail(c, http.StatusRequestEntityTooLarge, CodeTooLarge, "Слишком большой запрос")
 			return

@@ -25,6 +25,8 @@ type Input struct {
 	Composed   *Composed    `json:"composed"`
 	Props      *Props       `json:"props,omitempty"`
 	Blocks     []InputBlock `json:"blocks"`
+	// IT — перевод заголовка и блоков на итальянский; необязателен, отсутствие значит «перевода нет».
+	IT *Translation `json:"it,omitempty"`
 
 	// allowNoCode — объект можно оставить без шифра при любом статусе (редактор: номер О-№ присвоится
 	// при публикации). При загрузке из файла не задаётся: там объект без шифра допустим только опубликованным.
@@ -220,6 +222,29 @@ func (in *Input) prepare(path string, p *Problems) *prepared {
 	d.Blocks = BlockList(blocks)
 	if links, err := LinkCodes(blocks); err == nil {
 		pr.LinkCodes = links
+	}
+
+	// перевод (необязателен): либо заполнен целиком, либо не задан вовсе
+	if in.IT != nil {
+		title := in.IT.Title
+		hasBlocks := len(in.IT.Blocks) > 0
+		switch {
+		case title == "" && !hasBlocks:
+			// пустой перевод — как если бы поля it не было
+		case title == "" && hasBlocks:
+			p.Add(at("it.title"), "у перевода есть блоки, но не указан заголовок")
+		default:
+			p.text(at("it.title"), title, 1, 300)
+			itBlocks := normalizeBlocksAt(in.IT.Blocks, p, at("it.blocks")+".")
+			normalized := make([]InputBlock, len(itBlocks))
+			for i, b := range itBlocks {
+				normalized[i] = InputBlock{ID: b.ID, Type: b.Type, Level: b.Level, Data: b.Data}
+			}
+			d.Translations = translationsToRaw(&Translation{Title: title, Blocks: normalized})
+		}
+	}
+	if d.Translations == nil {
+		d.Translations = translationsToRaw(nil)
 	}
 
 	if len(p.list) > before {

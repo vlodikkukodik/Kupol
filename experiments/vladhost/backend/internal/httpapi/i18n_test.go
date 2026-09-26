@@ -114,7 +114,7 @@ func TestLocalizedArchiveErrorsCarryFileName(t *testing.T) {
 	}
 	// Ошибки без параметров тоже переведены.
 	w := e.uploadLang("it", url, tok, makeZip(t, zipFile{name: "about.html", body: "x"}))
-	if got := decode[msgBody](t, w).Error; got.Message != "Nella radice dell'archivio manca index.html" {
+	if got := decode[msgBody](t, w).Error; got.Message != "Nella radice dell'archivio manca index.html o index.php" {
 		t.Errorf("it no_index: %+v", got)
 	}
 }

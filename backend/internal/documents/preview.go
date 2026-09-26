@@ -121,6 +121,6 @@ func (s *Service) TeamPreview(ctx context.Context, a Actor, id int64, level int,
 			author = &u.Login
 		}
 	}
-	res.Document = outDocument(&d, author, blocks, v)
+	res.Document = outDocument(&d, d.Title, author, blocks, v)
 	return res, nil
 }

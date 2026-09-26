@@ -242,6 +242,8 @@ const divider = kupolNode({ name: 'divider', attrs: { style: 'line' } })
 const pageBreak = kupolNode({ name: 'pageBreak', attrs: { number: '' } })
 const footnote = kupolNode({ name: 'footnote', content: 'inline*', attrs: { mark: '' } })
 const appendix = kupolNode({ name: 'appendix', attrs: { number: '', title: '' } })
+const image = kupolNode({ name: 'image', attrs: { upload: '', caption: '', sticker: 'none' } })
+const audio = kupolNode({ name: 'audio', content: 'inline*', attrs: { upload: '', title: '' } })
 /** Блок вида, которого этот редактор не знает (пришёл от более новой версии сервера): хранится как есть. */
 const unknownBlock = kupolNode({ name: 'unknownBlock', attrs: { kind: '', data: null as unknown } })
 
@@ -286,5 +288,7 @@ export const schemaExtensions: AnyExtension[] = [
   pageBreak,
   footnote,
   appendix,
+  image,
+  audio,
   unknownBlock,
 ]

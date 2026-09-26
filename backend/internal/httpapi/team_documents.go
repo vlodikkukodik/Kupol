@@ -174,6 +174,19 @@ func (h *teamDocumentHandlers) get(c *gin.Context) {
 	c.JSON(http.StatusOK, TeamDocumentResponse{Document: d})
 }
 
+// DELETE /api/team/documents/:id — удалить документ безвозвратно; право есть у Редактора и Директората.
+func (h *teamDocumentHandlers) delete(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.svc.TeamDelete(c.Request.Context(), actorFrom(c), id); err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 type SaveDocumentRequest struct {
 	BaseRevision int               `json:"base_revision"`
 	Content      documents.Content `json:"content"`

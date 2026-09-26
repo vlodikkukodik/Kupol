@@ -14,15 +14,11 @@ import (
 	"gorm.io/gorm"
 
 	"vladhost/internal/apperr"
+	"vladhost/internal/sitecfg"
 )
 
 // MaxFTPAccounts — сколько дополнительных FTP-аккаунтов можно завести на сайт.
 const MaxFTPAccounts = 5
-
-const (
-	maxFTPDirLen   = 200
-	maxFTPDirDepth = 8
-)
 
 var (
 	ErrFTPNameInvalid   = apperr.Validation("name", "ftp_name", "invalid FTP account name")
@@ -54,36 +50,29 @@ func (s *Service) FTPAccountUsername(host, name string) string {
 	return name + "." + s.FTPUsername(host)
 }
 
-// normalizeFTPDir приводит папку к виду "a/b" (пусто — весь сайт). Скрытые части пути (.git, .ssh) не допускаются.
-func normalizeFTPDir(dir string) (string, error) {
-	dir = strings.Trim(strings.TrimSpace(dir), "/")
-	if dir == "" {
-		return "", nil
-	}
-	if len(dir) > maxFTPDirLen {
-		return "", ErrFTPDirInvalid
-	}
-	c, err := CleanPath(dir)
-	if err != nil {
-		return "", ErrFTPDirInvalid
-	}
-	if c == "" || c == "." {
-		return "", nil
-	}
-	segs := strings.Split(c, "/")
-	if len(segs) > maxFTPDirDepth {
-		return "", ErrFTPDirInvalid
-	}
-	for _, seg := range segs {
-		if strings.HasPrefix(seg, ".") {
-			return "", ErrFTPDirInvalid
-		}
+// errBadDir — папка не прошла проверку; вызывающий код превращает её в свою ошибку (FTP-аккаунт, домен).
+var errBadDir = errors.New("invalid site folder")
+
+// cleanSiteDir приводит папку внутри сайта к виду "a/b" (пусто — весь сайт). Правила общие с настройками сайта и шлюзом
+// (sitecfg.CleanDir): только вниз от корня, без скрытых частей пути, глубина ограничена.
+func cleanSiteDir(dir string) (string, error) {
+	c, ok := sitecfg.CleanDir(dir)
+	if !ok {
+		return "", errBadDir
 	}
 	return c, nil
 }
 
-// ensureFTPDir создаёт папку аккаунта внутри public, если её нет. Через os.Root: ссылки наружу не пройдут.
-func (s *Service) ensureFTPDir(site *Site, dir string) error {
+func normalizeFTPDir(dir string) (string, error) {
+	c, err := cleanSiteDir(dir)
+	if err != nil {
+		return "", ErrFTPDirInvalid
+	}
+	return c, nil
+}
+
+// ensureSiteDir создаёт папку внутри public сайта, если её нет. Через os.Root: ссылки наружу не пройдут.
+func (s *Service) ensureSiteDir(site *Site, dir string) error {
 	if dir == "" {
 		return nil
 	}
@@ -97,13 +86,22 @@ func (s *Service) ensureFTPDir(site *Site, dir string) error {
 	}
 	defer func() { _ = root.Close() }()
 	if err := root.MkdirAll(dir, 0o755); err != nil {
-		return ErrFTPDirInvalid
+		return errBadDir
 	}
 	fi, err := root.Lstat(dir)
 	if err != nil || !fi.IsDir() {
-		return ErrFTPDirInvalid // на этом месте лежит файл или ссылка
+		return errBadDir // на этом месте лежит файл или ссылка
 	}
 	return nil
+}
+
+// ensureFTPDir — то же для папки FTP-аккаунта.
+func (s *Service) ensureFTPDir(site *Site, dir string) error {
+	err := s.ensureSiteDir(site, dir)
+	if errors.Is(err, errBadDir) {
+		return ErrFTPDirInvalid
+	}
+	return err
 }
 
 func (s *Service) getFTPAccount(ctx context.Context, userID, siteID, id int64) (*FTPAccount, *Site, error) {

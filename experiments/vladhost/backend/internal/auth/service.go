@@ -32,6 +32,15 @@ func NewService(db *gorm.DB, secret []byte, accessTTL, refreshTTL time.Duration)
 
 type RegisterInput struct {
 	Invite, Email, Username, Password string
+	Lang                              string // язык писем: по языку интерфейса при регистрации
+}
+
+// NormalizeLang приводит язык к поддерживаемому (ru или it), иначе русский.
+func NormalizeLang(l string) string {
+	if l == "it" {
+		return "it"
+	}
+	return "ru"
 }
 
 // dummyHash выравнивает время ответа при несуществующем логине, чтобы нельзя было перебирать пользователей.
@@ -68,7 +77,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*Session, err
 		if inv.UsedBy != nil || !inv.ExpiresAt.After(now) {
 			return ErrInvalidInvite
 		}
-		user = User{Email: email, Username: username, PasswordHash: string(hash), Role: RoleUser}
+		user = User{Email: email, Username: username, PasswordHash: string(hash), Role: RoleUser, Lang: NormalizeLang(in.Lang), NotifyEmail: true}
 		if err := tx.Create(&user).Error; err != nil {
 			return mapUnique(err)
 		}
@@ -97,7 +106,8 @@ func (s *Service) CreateAdmin(ctx context.Context, email, username, password str
 	if err != nil {
 		return nil, err
 	}
-	u := User{Email: email, Username: username, PasswordHash: string(hash), Role: RoleAdmin}
+	now := s.now()
+	u := User{Email: email, Username: username, PasswordHash: string(hash), Role: RoleAdmin, Lang: "ru", NotifyEmail: true, EmailVerifiedAt: &now}
 	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
 		return nil, mapUnique(err)
 	}

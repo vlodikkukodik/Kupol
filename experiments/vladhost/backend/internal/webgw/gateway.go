@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"vladhost/internal/i18n"
+	"vladhost/internal/runtimecfg"
+	"vladhost/internal/sitecfg"
 	"vladhost/internal/sitelog"
 	"vladhost/internal/sitestats"
 	"vladhost/internal/webgw/htaccess"
@@ -44,15 +46,21 @@ type Options struct {
 	DomainsDir string
 	// LogDir — куда писать журналы сайтов (доступ и ошибки). Пусто — журналы не ведутся.
 	LogDir string
+	// PHPSocketDir — каталог сокетов пулов PHP-FPM сайтов (по умолчанию /run/vhphp).
+	PHPSocketDir string
 }
 
 type Handler struct {
 	opts    Options
 	hostRe  *regexp.Regexp
+	subRe   *regexp.Regexp // поддомен сайта: {метка}.{сайт}.{пользователь}.{домен}
 	baseLow string
 	cache   sync.Map // ключ host|dir → *cachedConfig
 	cacheN  int
 	cacheMu sync.Mutex
+
+	settingsCache sync.Map // адрес сайта → *cachedSettings
+	runtimeCache  sync.Map // адрес сайта → *cachedRuntime
 
 	authMu    sync.Mutex
 	authFails map[string]*failure
@@ -77,6 +85,7 @@ func New(opts Options) *Handler {
 	h := &Handler{
 		opts:      opts,
 		hostRe:    regexp.MustCompile(`^([a-z0-9-]+)\.([a-z0-9-]+)\.` + regexp.QuoteMeta(strings.ToLower(opts.BaseDomain)) + `$`),
+		subRe:     regexp.MustCompile(`^[a-z0-9-]+\.([a-z0-9-]+)\.([a-z0-9-]+)\.` + regexp.QuoteMeta(strings.ToLower(opts.BaseDomain)) + `$`),
 		baseLow:   strings.ToLower(opts.BaseDomain),
 		authFails: map[string]*failure{},
 		authSem:   make(chan struct{}, 4),
@@ -99,14 +108,18 @@ func New(opts Options) *Handler {
 
 // request — состояние обработки одного запроса.
 type request struct {
-	h    *Handler
-	w    http.ResponseWriter
-	r    *http.Request
-	lang i18n.Lang
-	host string // хост запроса (для редиректов и переменных .htaccess)
-	site string // адрес сайта на нашем домене, чьи файлы отдаём (совпадает с host, если домен не свой)
-	root *os.Root
-	eff  *htaccess.Effective // может быть nil до построения цепочки
+	h     *Handler
+	w     http.ResponseWriter
+	r     *http.Request
+	lang  i18n.Lang
+	host  string // хост запроса (для редиректов и переменных .htaccess)
+	site  string // адрес сайта на нашем домене, чьи файлы отдаём (совпадает с host, если домен не свой)
+	base  string // папка сайта, которую отдаёт это имя (или корневая папка из настроек); пусто — весь public
+	set   sitecfg.Settings
+	root  *os.Root
+	rt    runtimecfg.Config   // среда выполнения (PHP, приложение); для папок и поддоменов всегда статика
+	query string              // строка запроса после переписывания URL (для PHP)
+	eff   *htaccess.Effective // может быть nil до построения цепочки
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +144,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.logAccess(siteHost, r, host, sw, start)
 		}
 	}()
-	siteHost, ok := h.resolveSite(host)
+	siteHost, base, ok := h.resolveSite(host)
 	if !ok {
 		noSitePage(w, r, lang)
 		return
@@ -141,25 +154,64 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		noSitePage(w, r, lang)
 		return
 	}
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		noSitePage(w, r, lang)
-		return
+	set := h.settings(siteHost)
+	if base == "" {
+		base = set.RootDir // имя без своей папки отдаёт корень сайта из настроек (по умолчанию весь public)
 	}
-	defer func() { _ = root.Close() }()
 
 	sw = &statusWriter{ResponseWriter: w}
-	q := &request{h: h, w: sw, r: r, lang: lang, host: host, site: siteHost, root: root}
-	switch r.Method {
-	case http.MethodGet, http.MethodHead:
-	case http.MethodOptions:
-		sw.Header().Set("Allow", "GET, HEAD, OPTIONS")
-		sw.WriteHeader(http.StatusNoContent)
+	if set.HSTS {
+		sw.Header().Set("Strict-Transport-Security", "max-age=15552000")
+	}
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		if target := h.wwwTarget(host, siteHost, set.WWW); target != "" {
+			sw.Header().Set("Location", "https://"+target+r.URL.RequestURI())
+			sw.Header().Set("Cache-Control", "max-age=3600") // настройку можно выключить: браузер не должен помнить редирект вечно
+			sw.WriteHeader(http.StatusMovedPermanently)
+			return
+		}
+	}
+
+	siteRoot, err := os.OpenRoot(dir)
+	if err != nil {
+		noSitePage(sw, r, lang)
 		return
+	}
+	defer func() { _ = siteRoot.Close() }()
+	root := siteRoot
+	if base != "" {
+		// Имя привязано к папке сайта: она и есть его корень. OpenRoot внутри Root не выпускает наружу ни «..», ни ссылки.
+		sub, err := siteRoot.OpenRoot(base)
+		if err != nil {
+			noSitePage(sw, r, lang)
+			return
+		}
+		defer func() { _ = sub.Close() }()
+		root = sub
+	}
+
+	q := &request{h: h, w: sw, r: r, lang: lang, host: host, site: siteHost, base: base, set: set, root: root, rt: runtimecfg.Config{Runtime: runtimecfg.Static}}
+	if base == "" { // PHP и приложения работают на основном адресе сайта; поддомены и папки остаются статикой
+		q.rt = h.runtime(siteHost)
+	}
+	switch q.rt.Runtime {
+	case runtimecfg.Node, runtimecfg.Python:
+		h.serveApp(sw, r, q, q.rt)
+		return
+	case runtimecfg.PHP:
+		// Скрипты принимают любые методы; статические файлы отдаются как обычно.
 	default:
-		sw.Header().Set("Allow", "GET, HEAD, OPTIONS")
-		q.fail(http.StatusMethodNotAllowed)
-		return
+		switch r.Method {
+		case http.MethodGet, http.MethodHead:
+		case http.MethodOptions:
+			sw.Header().Set("Allow", "GET, HEAD, OPTIONS")
+			sw.WriteHeader(http.StatusNoContent)
+			return
+		default:
+			sw.Header().Set("Allow", "GET, HEAD, OPTIONS")
+			q.fail(http.StatusMethodNotAllowed)
+			return
+		}
 	}
 	p := r.URL.Path
 	if p == "" || p[0] != '/' || strings.ContainsRune(p, 0) {
@@ -178,30 +230,60 @@ func normalizeHost(h string) string {
 
 var customHostRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$`)
 
-// resolveSite по хосту запроса находит адрес сайта: это либо сам хост ({сайт}.{пользователь}.домен), либо свой
-// домен пользователя — тогда адрес берётся из файла привязки, который пишет панель после проверки DNS.
-func (h *Handler) resolveSite(host string) (string, bool) {
+// resolveSite по хосту запроса находит адрес сайта и папку внутри него. Хост — это либо адрес сайта
+// ({сайт}.{пользователь}.домен, вся папка сайта), либо поддомен сайта ({метка}.{сайт}.{пользователь}.домен), либо
+// свой домен пользователя: тогда сайт и папка берутся из файла привязки, который пишет панель.
+func (h *Handler) resolveSite(host string) (site, dir string, ok bool) {
 	if h.hostRe.MatchString(host) {
-		return host, true
+		return host, "", true
 	}
+	isSub := h.subRe.MatchString(host)
 	if h.opts.DomainsDir == "" || len(host) > 253 || !customHostRe.MatchString(host) ||
-		host == h.baseLow || strings.HasSuffix(host, "."+h.baseLow) {
-		return "", false
+		(!isSub && (host == h.baseLow || strings.HasSuffix(host, "."+h.baseLow))) {
+		return "", "", false
 	}
 	root, err := os.OpenRoot(h.opts.DomainsDir)
 	if err != nil {
-		return "", false
+		return "", "", false
 	}
 	defer func() { _ = root.Close() }()
-	data, err := readFile(root, host, 256)
+	data, err := readFile(root, host, 512)
 	if err != nil {
-		return "", false
+		return "", "", false
 	}
-	site := strings.TrimSpace(string(data))
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	site = strings.TrimSpace(lines[0])
 	if !h.hostRe.MatchString(site) { // содержимое привязки не доверяем: оно попадает в путь к файлам
+		return "", "", false
+	}
+	// Поддомен принадлежит своему сайту и никакому другому, что бы ни лежало в файле привязки.
+	if isSub && !strings.HasSuffix(host, "."+site) {
+		return "", "", false
+	}
+	if len(lines) > 1 {
+		dir, ok = cleanMappingDir(lines[1])
+		if !ok {
+			return "", "", false
+		}
+	}
+	return site, dir, true
+}
+
+// cleanMappingDir проверяет папку из файла привязки: только вниз от корня сайта, без «..» и скрытых частей.
+func cleanMappingDir(d string) (string, bool) {
+	d = strings.TrimSpace(d)
+	if d == "" {
+		return "", true
+	}
+	if len(d) > 200 || strings.ContainsAny(d, "\\\x00") || strings.HasPrefix(d, "/") || path.Clean(d) != d {
 		return "", false
 	}
-	return site, true
+	for _, seg := range strings.Split(d, "/") {
+		if seg == "" || seg == ".." || strings.HasPrefix(seg, ".") {
+			return "", false
+		}
+	}
+	return d, true
 }
 
 // siteDir возвращает каталог public сайта по имени хоста. Имя проверяется по строгому шаблону: оно попадает в путь.
@@ -239,7 +321,7 @@ func rel(urlPath string) string {
 func (q *request) effective(urlPath string) *htaccess.Effective {
 	var chain []htaccess.Dir
 	add := func(dirRel string) {
-		if cfg := q.h.loadConfig(q.root, q.site, dirRel); cfg != nil {
+		if cfg := q.h.loadConfig(q.root, q.site+"|"+q.base, dirRel); cfg != nil {
 			url := "/"
 			if dirRel != "." {
 				url = "/" + dirRel + "/"
@@ -264,7 +346,7 @@ func (q *request) effective(urlPath string) *htaccess.Effective {
 		add(next)
 		cur = next
 	}
-	return htaccess.Merge(chain)
+	return htaccess.MergeWith(chain, q.defaults())
 }
 
 func (h *Handler) loadConfig(root *os.Root, host, dirRel string) *htaccess.Config {
@@ -390,6 +472,7 @@ func (q *request) redirect(target string, status int) {
 // finish отдаёт файл или страницу для итогового пути.
 func (q *request) finish(st htaccess.State) {
 	p := st.Path
+	q.query = st.Query
 	for _, seg := range strings.Split(strings.Trim(p, "/"), "/") {
 		if strings.HasPrefix(seg, ".ht") || strings.EqualFold(seg, ".htaccess") {
 			q.fail(http.StatusForbidden) // .htaccess и .htpasswd никогда не отдаются
@@ -402,6 +485,9 @@ func (q *request) finish(st htaccess.State) {
 	}
 	fi, err := q.root.Lstat(rel(p))
 	if err != nil || (!fi.IsDir() && !fi.Mode().IsRegular()) {
+		if q.tryPHP(p, st.Query) { // /index.php/путь: скрипт есть, а «пути» под ним нет
+			return
+		}
 		q.notFound(p)
 		return
 	}
@@ -481,6 +567,10 @@ func (q *request) file(p string, fi fs.FileInfo) {
 		return
 	}
 	if need := q.eff.Auth(base); need != nil && !q.authorize(need) {
+		return
+	}
+	if q.rt.Runtime == runtimecfg.PHP && isPHPFile(base) {
+		q.runPHP(p, "", q.query)
 		return
 	}
 	f, err := q.root.Open(rel(p))
@@ -754,4 +844,77 @@ func humanSize(n int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGT"[exp])
+}
+
+// defaults переводит настройки сайта из панели в основу для .htaccess.
+func (q *request) defaults() htaccess.Defaults {
+	d := htaccess.Defaults{Indexes: q.set.Autoindex}
+	if len(q.set.Index) > 0 {
+		d.DirectoryIndex = q.set.Index
+	} else if q.rt.Runtime == runtimecfg.PHP {
+		d.DirectoryIndex = append([]string{"index.php"}, sitecfg.DefaultIndex...)
+	}
+	if len(q.set.ErrorPages) > 0 {
+		d.ErrorDocs = map[int]htaccess.ErrorDoc{}
+		for code, file := range q.set.ErrorPages {
+			if n, err := strconv.Atoi(code); err == nil {
+				d.ErrorDocs[n] = htaccess.ErrorDoc{Kind: "path", Value: "/" + file}
+			}
+		}
+	}
+	return d
+}
+
+// --- настройки сайта из панели ---
+
+type cachedSettings struct {
+	mod  time.Time
+	size int64
+	set  sitecfg.Settings
+}
+
+// settings возвращает настройки сайта; файл перечитывается, только когда он изменился.
+func (h *Handler) settings(site string) sitecfg.Settings {
+	dir := filepath.Join(h.opts.Root, site)
+	fi, err := os.Lstat(filepath.Join(dir, sitecfg.FileName))
+	if err != nil || !fi.Mode().IsRegular() {
+		h.settingsCache.Delete(site)
+		return sitecfg.Settings{}
+	}
+	if v, ok := h.settingsCache.Load(site); ok {
+		c := v.(*cachedSettings)
+		if c.mod.Equal(fi.ModTime()) && c.size == fi.Size() {
+			return c.set
+		}
+	}
+	set, err := sitecfg.Read(dir)
+	if err != nil {
+		return sitecfg.Settings{}
+	}
+	h.settingsCache.Store(site, &cachedSettings{mod: fi.ModTime(), size: fi.Size(), set: set})
+	return set
+}
+
+// wwwTarget возвращает имя, на которое нужно перенаправить запрос по настройке «www», или пустую строку.
+// Цель строится только из самого хоста и обязана обслуживаться этим же сайтом: открытым редиректом это стать не может.
+func (h *Handler) wwwTarget(host, site, mode string) string {
+	var cand string
+	switch mode {
+	case sitecfg.WWWAdd:
+		if strings.HasPrefix(host, "www.") {
+			return ""
+		}
+		cand = "www." + host
+	case sitecfg.WWWRemove:
+		if !strings.HasPrefix(host, "www.") {
+			return ""
+		}
+		cand = strings.TrimPrefix(host, "www.")
+	default:
+		return ""
+	}
+	if s, _, ok := h.resolveSite(cand); ok && s == site {
+		return cand
+	}
+	return ""
 }

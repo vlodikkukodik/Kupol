@@ -35,6 +35,9 @@ type User struct {
 	TOTPEnabledAt *time.Time `gorm:"column:totp_enabled_at"`
 	TOTPLastStep  int64      `gorm:"column:totp_last_step"`
 
+	// BannedAt — аккаунт заблокирован (шаг 5.9): вход закрыт, сессии сняты; снимается отзывом наказания.
+	BannedAt *time.Time `gorm:"column:banned_at"`
+
 	// Roles — роли команды (таблица user_roles). Не колонка: подгружается при входе и проверке сессии.
 	Roles []Role `gorm:"-"`
 }

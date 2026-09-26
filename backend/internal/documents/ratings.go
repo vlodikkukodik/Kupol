@@ -37,7 +37,7 @@ func RatingValid(r Rating) bool { return validRatings[r] }
 var ErrRatingNotFound = errors.New("documents: оценка не найдена")
 
 type ratingRow struct {
-	ID         int64  `gorm:"primaryKey"`
+	ID         int64 `gorm:"primaryKey"`
 	DocumentID int64
 	UserID     int64
 	Rating     string
