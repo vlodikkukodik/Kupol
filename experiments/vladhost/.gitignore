@@ -2,6 +2,7 @@ ACCESS.md
 .env
 node_modules/
 dist/
-bin/
+/bin/
 test-results/
 playwright-report/
+__pycache__/

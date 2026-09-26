@@ -52,6 +52,8 @@ func (n *nsResolver) LookupNS(_ context.Context, name string) ([]string, error) 
 	return n.ns[name], nil
 }
 
+func (n *nsResolver) LookupTXT(context.Context, string) ([]string, error) { return nil, nil }
+
 func (n *nsResolver) set(domain string, ns ...string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()

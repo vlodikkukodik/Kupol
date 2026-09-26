@@ -504,7 +504,7 @@ type stateRecord struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
 	Value    string `json:"value"`
-	Priority int    `json:"priority,omitempty"`
+	Priority int    `json:"priority"`
 	TTL      int    `json:"ttl"`
 }
 

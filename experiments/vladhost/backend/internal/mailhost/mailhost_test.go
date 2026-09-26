@@ -864,6 +864,12 @@ func (f *fakeHosting) ApplyMail(_ context.Context, _ int64, _ string, recs []DNS
 	return nil
 }
 
+func (f *fakeHosting) Owns(context.Context, int64, string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.status.Zone, f.err
+}
+
 func TestAutoDNSOnlyForDomainsOnOurNameServers(t *testing.T) {
 	e := newEnv(t)
 	d := e.enable(e.user, "example.com")
