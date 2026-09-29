@@ -1,6 +1,7 @@
 package dev.evoday.gate.session;
 
 import dev.evoday.gate.storage.Account;
+import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.scheduler.BukkitTask;
 
 public final class Session {
@@ -17,6 +18,8 @@ public final class Session {
     // идёт проверка пароля в другом потоке
     boolean busy;
     BukkitTask timer;
+    BossBar bar;
+    int secondsTotal;
 
     Session(String name, String ip, Account account) {
         this.name = name;

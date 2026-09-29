@@ -16,6 +16,8 @@ dependencies {
     compileOnly("com.zaxxer:HikariCP:6.2.1")
     // Есть внутри Paper — нужен только для фильтра паролей в логе.
     compileOnly("org.apache.logging.log4j:log4j-core:2.24.1")
+    // Тот же jar кладётся и на Velocity - блокирует /server до входа.
+    compileOnly("com.velocitypowered:velocity-api:3.4.0-SNAPSHOT")
 }
 
 java {
@@ -30,7 +32,7 @@ tasks.withType<JavaCompile> {
 
 tasks.processResources {
     filteringCharset = "UTF-8"
-    filesMatching("plugin.yml") {
+    filesMatching(listOf("plugin.yml", "velocity-plugin.json")) {
         expand("version" to project.version)
     }
 }

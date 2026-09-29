@@ -55,3 +55,8 @@ admin-not-found: '<red>Аккаунт <white><name></white> не найден.</
 admin-offline: '<red>Игрок <white><name></white> не в сети.</red>'
 admin-reloaded: '<green>Конфигурация перезагружена.</green>'
 admin-usage: '<gray>/evogate unregister <ник> · forcelogin <ник> · changepass <ник> <пароль> · reload</gray>'
+
+# боссбар с таймером
+bossbar-captcha: '<gradient:#F19404:#F14704><b>Proxy</b></gradient> <dark_gray>»</dark_gray> <gray>Введите капчу — осталось <white><seconds></white> сек</gray>'
+bossbar-register: '<gradient:#F19404:#F14704><b>Proxy</b></gradient> <dark_gray>»</dark_gray> <gray>Зарегистрируйтесь — осталось <white><seconds></white> сек</gray>'
+bossbar-login: '<gradient:#F19404:#F14704><b>Proxy</b></gradient> <dark_gray>»</dark_gray> <gray>Войдите — осталось <white><seconds></white> сек</gray>'

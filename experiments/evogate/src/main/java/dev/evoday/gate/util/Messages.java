@@ -36,6 +36,21 @@ public final class Messages {
         if (in != null) {
             defaults = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
             file.setDefaults(defaults);
+            // новые сообщения из jar дописываются в messages.yml
+            boolean added = false;
+            for (String key : defaults.getKeys(false)) {
+                if (!file.isSet(key)) {
+                    file.set(key, defaults.get(key));
+                    added = true;
+                }
+            }
+            if (added) {
+                try {
+                    file.save(target);
+                } catch (java.io.IOException e) {
+                    plugin.getLogger().warning("Can't update messages.yml: " + e.getMessage());
+                }
+            }
         }
     }
 

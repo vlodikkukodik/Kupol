@@ -7,6 +7,7 @@ import dev.evoday.gate.storage.Account;
 import dev.evoday.gate.storage.AccountRepo;
 import dev.evoday.gate.util.Messages;
 import dev.evoday.gate.util.Passwords;
+import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
@@ -73,6 +74,7 @@ public final class AuthManager {
         Session s = new Session(player.getName(), ip(player), null);
         s.state = State.DONE;
         sessions.put(player.getUniqueId(), s);
+        plugin.proxy().send(player, true);
     }
 
     public void onJoin(Player player) {
@@ -92,6 +94,7 @@ public final class AuthManager {
         if (account != null && sessionMs > 0 && s.ip.equals(account.lastIp())
                 && System.currentTimeMillis() - account.lastLogin() < sessionMs) {
             s.state = State.DONE;
+            plugin.proxy().send(player, true);
             msg().send(player, "session-ok");
             return;
         }
@@ -403,6 +406,7 @@ public final class AuthManager {
     private void finish(Player player, Session s, String messageKey) {
         stopTimer(s);
         s.state = State.DONE;
+        plugin.proxy().send(player, true);
         unlock(player, afterLoginTarget(messageKey.equals("register-ok")));
         player.clearTitle();
         player.sendActionBar(Component.empty());
@@ -430,6 +434,7 @@ public final class AuthManager {
     }
 
     private void lock(Player player, boolean hover) {
+        plugin.proxy().send(player, false);
         sky.lift(player, hover);
         if (!cfg().getBoolean("auth.hide-unauthed", true)) {
             return;
@@ -473,6 +478,10 @@ public final class AuthManager {
     private void startTimer(Player player, Session s, int seconds, String kickKey) {
         stopTimer(s);
         s.secondsLeft = seconds;
+        s.secondsTotal = Math.max(1, seconds);
+        // после капчи таймер запускается заново - на вход снова полное время
+        s.bar = BossBar.bossBar(barTitle(s), 1f, BossBar.Color.YELLOW, BossBar.Overlay.PROGRESS);
+        player.showBossBar(s.bar);
         s.timer = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (!player.isOnline()) {
                 stopTimer(s);
@@ -484,17 +493,35 @@ public final class AuthManager {
                 player.kick(msg().raw(kickKey));
                 return;
             }
-            player.sendActionBar(Component.text("⏳ " + s.secondsLeft, NamedTextColor.GRAY));
+            s.bar.name(barTitle(s));
+            s.bar.progress(Math.max(0f, Math.min(1f, (float) s.secondsLeft / s.secondsTotal)));
+            if (s.secondsLeft <= 10) {
+                s.bar.color(BossBar.Color.RED);
+            }
             if (s.secondsLeft % 10 == 0) {
                 prompt(player, s);
             }
         }, 20L, 20L);
     }
 
+    private Component barTitle(Session s) {
+        String key = switch (s.state) {
+            case CAPTCHA -> "bossbar-captcha";
+            case REGISTER -> "bossbar-register";
+            default -> "bossbar-login";
+        };
+        return msg().raw(key, "seconds", s.secondsLeft);
+    }
+
     private void stopTimer(Session s) {
         if (s.timer != null) {
             s.timer.cancel();
             s.timer = null;
+        }
+        if (s.bar != null) {
+            BossBar bar = s.bar;
+            s.bar = null;
+            Bukkit.getOnlinePlayers().forEach(p -> p.hideBossBar(bar));
         }
     }
 

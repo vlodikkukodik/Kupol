@@ -1,0 +1,8 @@
+{
+  "id": "evogate",
+  "name": "EvoGate",
+  "version": "${version}",
+  "description": "Блокирует команды прокси (/server) до входа через EvoGate",
+  "authors": ["EvoDay"],
+  "main": "dev.evoday.gate.velocity.EvoGateProxy"
+}

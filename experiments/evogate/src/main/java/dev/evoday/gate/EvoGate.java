@@ -12,6 +12,7 @@ import dev.evoday.gate.storage.AccountRepo;
 import dev.evoday.gate.storage.Database;
 import dev.evoday.gate.util.Messages;
 import dev.evoday.gate.util.PasswordLogFilter;
+import dev.evoday.gate.util.ProxyBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -25,10 +26,12 @@ public final class EvoGate extends JavaPlugin {
     private AntiBot antiBot;
     private AuthManager auth;
     private PasswordLogFilter logFilter;
+    private ProxyBridge proxy;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        updateConfig();
         messages = new Messages(this);
 
         try {
@@ -50,6 +53,8 @@ public final class EvoGate extends JavaPlugin {
             getLogger().warning("Fonts are not supported by this Java, captcha uses the built-in pixel font");
         }
         antiBot = new AntiBot(this);
+        proxy = new ProxyBridge(this);
+        proxy.install();
         auth = new AuthManager(this);
         Bukkit.getOnlinePlayers().forEach(auth::adopt);
 
@@ -71,6 +76,27 @@ public final class EvoGate extends JavaPlugin {
         getLogger().info("Storage: " + (db.isMysql() ? "MySQL" : "SQLite"));
     }
 
+    // новые ключи из jar дописываются в config.yml, существующие значения и комментарии не трогаются
+    private void updateConfig() {
+        var in = getResource("config.yml");
+        if (in == null) {
+            return;
+        }
+        var defaults = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+        boolean added = false;
+        for (String key : defaults.getKeys(true)) {
+            if (!defaults.isConfigurationSection(key) && !getConfig().isSet(key)) {
+                getConfig().set(key, defaults.get(key));
+                added = true;
+            }
+        }
+        if (added) {
+            saveConfig();
+            getLogger().info("config.yml updated with new options");
+        }
+    }
+
     @Override
     public void onDisable() {
         if (auth != null) {
@@ -81,6 +107,9 @@ public final class EvoGate extends JavaPlugin {
         }
         if (logFilter != null) {
             logFilter.uninstall();
+        }
+        if (proxy != null) {
+            proxy.uninstall();
         }
         if (db != null) {
             db.close();
@@ -105,5 +134,9 @@ public final class EvoGate extends JavaPlugin {
 
     public AuthManager auth() {
         return auth;
+    }
+
+    public ProxyBridge proxy() {
+        return proxy;
     }
 }
