@@ -12,6 +12,14 @@ Group=kupol
 WorkingDirectory=/opt/kupol
 # Секреты и настройки: /etc/kupol/kupol.env (права 600, владелец root) — образец deploy/server/kupol.env.example
 EnvironmentFile=/etc/kupol/kupol.env
+# Загрузки (этап 6.1) — единственное, куда API пишет на диске. ProtectSystem=strict ниже делает всю
+# файловую систему read-only, а каталог рядом с бинарником API и создать не может (/opt/kupol принадлежит
+# deploy). Поэтому каталог заводит systemd: /var/lib/kupol появляется при старте с владельцем kupol,
+# и туда же указывает KUPOL_UPLOADS_DIR. Вручную ничего создавать не нужно; перекрыть путь можно в
+# /etc/kupol/kupol.env (тогда каталог обязан существовать и быть записываемым — иначе API не стартует).
+StateDirectory=kupol
+StateDirectoryMode=0750
+Environment=KUPOL_UPLOADS_DIR=/var/lib/kupol/uploads
 ExecStart=/opt/kupol/kupol serve
 Restart=on-failure
 RestartSec=3

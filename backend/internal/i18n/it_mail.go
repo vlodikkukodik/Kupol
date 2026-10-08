@@ -16,3 +16,15 @@ func init() {
 		"Допуск повышен — КУПОЛ": "Accesso elevato — KUPOL",
 	})
 }
+
+// Копия записки и письмо-проверка почты (internal/mail: Notification, TestMessage).
+func init() {
+	register(IT, map[string]string{
+		"Записка в архиве": "Messaggio nell'archivio",
+		"Открыть в архиве": "Apri nell'archivio",
+
+		"Проверка почты": "Prova della posta",
+		"Это письмо-проверка: настройки почты архива КУПОЛ сохранены верно, письма уходят.": "Questo è un messaggio di prova: le impostazioni di posta dell'archivio KUPOL sono salvate correttamente e i messaggi partono.",
+		"Проверка почты — КУПОЛ": "Prova della posta — KUPOL",
+	})
+}

@@ -4,6 +4,7 @@ import type * as documents from "./documents";
 import type * as suggestions from "./suggestions";
 import type * as achievements from "./achievements";
 import type * as inbox from "./inbox";
+import type * as mailsettings from "./mailsettings";
 import type * as petitions from "./petitions";
 import type * as sanctions from "./sanctions";
 import type * as uploads from "./uploads";
@@ -325,6 +326,18 @@ export interface SiteSettingsResponse {
   site: any /* documents.SiteSettingsOut */;
 }
 /**
+ * SmtpSettingsResponse — GET/PUT /api/team/smtp: настройки почтового сервера, которые включает Директорат.
+ */
+export interface SmtpSettingsResponse {
+  smtp: mailsettings.Out;
+}
+/**
+ * EmailPrefsResponse — GET /api/me/email-prefs: о чём читатель просил писать на почту.
+ */
+export interface EmailPrefsResponse {
+  prefs: inbox.EmailPrefs;
+}
+/**
  * TimelineResponse — GET /api/timeline: хронология «О КУПОЛЕ» для читателя.
  */
 export interface TimelineResponse {
@@ -478,6 +491,11 @@ export interface UserDTO {
    */
   email?: string;
   pending_email?: string;
+  /**
+   * Lang — язык писем-уведомлений, выбранный читателем. Интерфейс сверяет его со своим языком
+   * и при расхождении присылает свой (сервер сам языка интерфейса не хранит).
+   */
+  lang: string;
 }
 export interface RegisterRequest {
   login: string;
@@ -512,6 +530,12 @@ export interface SetEmailRequest {
 }
 export interface ConfirmEmailRequest {
   token: string;
+}
+export interface EmailPrefsRequest {
+  prefs: inbox.EmailPrefs;
+}
+export interface SetLangRequest {
+  lang: string;
 }
 
 //////////
@@ -768,6 +792,10 @@ export interface Deps {
   Petitions?: any /* petitions.Service */;
   Sanctions?: any /* sanctions.Service */;
   Uploads?: unknown;
+  /**
+   * MailSettings — SMTP, который Директорат включает в панели команды (настройки писем читателя — у Accounts).
+   */
+  MailSettings?: unknown;
   Limiter?: unknown;
 }
 
@@ -784,6 +812,16 @@ export interface Deps {
  * поэтому WebSocket и загрузки авторизуются одноразовым тикетом, а не кукой.
  */
 export const SessionCookieName = "kupol_session";
+
+//////////
+// source: smtp.go
+
+/**
+ * SmtpTestRequest — POST /api/team/smtp/test: кому уходит письмо-проверка.
+ */
+export interface SmtpTestRequest {
+  to: string;
+}
 
 //////////
 // source: suggestions.go

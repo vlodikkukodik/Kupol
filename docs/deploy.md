@@ -14,7 +14,8 @@
 
 ## 1. Подготовка VPS (один раз)
 
-Нужны PostgreSQL 15+ (рекомендуется 17: локаль ICU), nginx, certbot, curl. DNS: `api.kupol.vladinc.ru` → IP VPS.
+Нужны PostgreSQL 15+ (рекомендуется 17: локаль ICU), nginx, certbot, curl и `libvips-tools` (загрузки картинок, этап 6.1 —
+`vipsthumbnail`, `vipsheader`). DNS: `api.kupol.vladinc.ru` → IP VPS.
 
 ```bash
 # пользователи и каталоги
@@ -53,6 +54,21 @@ sudo systemctl daemon-reload && sudo systemctl enable kupol
 echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart kupol' | sudo tee /etc/sudoers.d/kupol-deploy
 sudo chmod 440 /etc/sudoers.d/kupol-deploy && sudo visudo -c
 ```
+
+Юнит же заводит API и **каталог загрузок** (`StateDirectory=kupol` → `/var/lib/kupol/uploads`): из-за `ProtectSystem=strict`
+API видит файловую систему только на чтение и писать может лишь в этот каталог, а создаёт его systemd сам — руками ничего
+делать не нужно.
+
+**Обновление юнита на уже развёрнутом VPS** (иначе новая версия бинарника упадёт с `read-only file system` и `deploy-back.sh`
+откатит её — сам скрипт проверяет юнит заранее и печатает те же команды):
+
+```bash
+# под root-логином VPS: у deploy пароля sudo нет, ему разрешён только systemctl restart (см. выше)
+cat deploy/server/kupol.service | ssh -p $VPS_PORT root@$VPS_HOST "tee /etc/systemd/system/kupol.service >/dev/null && systemctl daemon-reload"
+```
+
+Без `daemon-reload` systemd перезапустит сервис **со старым юнитом** — и упадёт по-прежнему. Перезапускать вручную не
+нужно: это сделает следующий `deploy/deploy-back.sh`.
 
 nginx и TLS:
 
@@ -153,7 +169,8 @@ deploy/backup/kupol-restore-check.sh kupol-ГГГГММДД-ЧЧММСС.dump.ag
 отправляется только после успешной копии, а если пинга нет больше суток, приходит тревога.
 
 **Восстановление после потери БД:** `age -d -i kupol-backup.key -o kupol.dump kupol-….dump.age`, затем
-`pg_restore --no-owner -d kupol kupol.dump` в пустую БД с ICU (см. §1). Файлы загрузок (этап 6) будут копироваться так же.
+`pg_restore --no-owner -d kupol kupol.dump` в пустую БД с ICU (см. §1). Файлы загрузок (этап 6, на VPS это
+`/var/lib/kupol/uploads` — каталог заводит systemd, см. §1) будут копироваться так же.
 
 ## Что проверено автоматически, а что нет
 
@@ -162,9 +179,9 @@ deploy/backup/kupol-restore-check.sh kupol-ГГГГММДД-ЧЧММСС.dump.ag
 ключа и подменённого манифеста, сбои БД/ключа/хостинга без полкопии, запрет одновременного запуска),
 боевая сборка на Apache + PHP 8.3 (`.htaccess`, CSP, rewrite,
 прокси, браузерные тесты), скрипты деплоя на настоящих sshd и FTP (доставка, откат сломанной версии, `--wipe`, сохранность
-`config.php`), конфиг nginx (сырой URI и подпись, подделка `X-Forwarded-For`, лимит тела). боевая сборка на Apache + PHP 8.3 (`.htaccess`, CSP, rewrite,
-прокси, браузерные тесты), скрипты деплоя на настоящих sshd и FTP (доставка, откат сломанной версии, `--wipe`, сохранность
-`config.php`), конфиг nginx (сырой URI и подпись, подделка `X-Forwarded-For`, лимит тела).
+`config.php`, отказ при устаревшем юните), запуск API на **read-only корне** — так же, как `ProtectSystem=strict`
+(падает без каталога загрузок и стартует с выделенным `StateDirectory`), конфиг nginx (сырой URI и подпись, подделка
+`X-Forwarded-For`, лимит тела).
 
 **Не проверялось** (локально нечем): реальный хостинг и реальный VPS; FTP поверх TLS (`FTP_TLS=explicit`) — локально гонялся
 FTP без шифрования; запуск `kupol.service` под systemd (в контейнере systemd нет; синтаксис юнита проверен

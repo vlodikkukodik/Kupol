@@ -45,6 +45,7 @@ export const keys = {
   teamGlossary: (q: string) => ['team', 'glossary', q] as const,
   teamTimeline: ['team', 'timeline'] as const,
   teamSite: ['team', 'site'] as const,
+  teamSmtp: ['team', 'smtp'] as const,
   teamSecretCodes: ['team', 'secret-codes'] as const,
   myAchievements: ['me', 'achievements'] as const,
   myInvitations: ['me', 'invitations'] as const,

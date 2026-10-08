@@ -10,6 +10,7 @@ import (
 
 	"kupol/internal/accounts"
 	"kupol/internal/i18n"
+	"kupol/internal/inbox"
 )
 
 type RoleDTO struct {
@@ -330,6 +331,50 @@ func (h *authHandlers) confirmEmail(c *gin.Context) {
 		return
 	}
 	if err := h.svc.ConfirmEmail(c.Request.Context(), req.Token, clientInfo(c)); err != nil {
+		h.fail(c, err, "")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type EmailPrefsRequest struct {
+	Prefs inbox.EmailPrefs `json:"prefs"`
+}
+
+// GET /api/me/email-prefs — о чём читатель просил писать на почту (все письма — в стол, пока он не выбрал).
+func (h *authHandlers) emailPrefs(c *gin.Context) {
+	prefs, err := h.svc.EmailPrefsGet(c.Request.Context(), CurrentAuth(c).User.ID)
+	if err != nil {
+		h.fail(c, err, "")
+		return
+	}
+	c.JSON(http.StatusOK, EmailPrefsResponse{Prefs: prefs})
+}
+
+// PUT /api/me/email-prefs — сохранить выбор: приходит объект целиком, включённые письма.
+func (h *authHandlers) setEmailPrefs(c *gin.Context) {
+	var req EmailPrefsRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := h.svc.EmailPrefsSet(c.Request.Context(), CurrentAuth(c).User.ID, req.Prefs); err != nil {
+		h.fail(c, err, "")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type SetLangRequest struct {
+	Lang string `json:"lang"`
+}
+
+// PUT /api/me/lang — язык писем-уведомлений: интерфейс присылает свой, когда видит расхождение со своим языком.
+func (h *authHandlers) setLang(c *gin.Context) {
+	var req SetLangRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := h.svc.SetLang(c.Request.Context(), CurrentAuth(c).User.ID, req.Lang); err != nil {
 		h.fail(c, err, "")
 		return
 	}

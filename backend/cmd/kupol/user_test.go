@@ -25,7 +25,7 @@ func newUserCLIWithDB(t *testing.T) (*accounts.Service, *gorm.DB, func(args ...s
 	t.Helper()
 	db := testutil.NewMigratedDB(t)
 	cfg := config.Config{Limits: config.DefaultLimits(), ProxySecret: bytes.Repeat([]byte("k"), config.MinSecretBytes)}
-	svc, _, err := newAccounts(cfg, db, testutil.Logger())
+	svc, _, _, err := newAccounts(cfg, db, testutil.Logger())
 	if err != nil {
 		t.Fatal(err)
 	}

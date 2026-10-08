@@ -25,7 +25,8 @@ import type {
   SaveResult,
   AutosaveResult,
 } from './generated/documents'
-import type { Page as InboxPage } from './generated/inbox'
+import type { EmailPrefs, Page as InboxPage } from './generated/inbox'
+import type { Input as SmtpInput } from './generated/mailsettings'
 import type { Item as PetitionItem, Invitation } from './generated/petitions'
 import type { Upload } from './generated/uploads'
 import type { Item as SanctionItem, Input as SanctionInput } from './generated/sanctions'
@@ -59,6 +60,7 @@ import type {
   DashboardResponse,
   DiffResponse,
   DocumentResponse,
+  EmailPrefsResponse,
   GlossaryResponse,
   HealthResponse,
   LintResponse,
@@ -86,6 +88,7 @@ import type {
   SetRatingRequest,
   SiteResponse,
   SiteSettingsResponse,
+  SmtpSettingsResponse,
   SubmitRequest,
   SuggestionResponse,
   SuggestionStatusRequest,
@@ -135,6 +138,11 @@ export const authApi = {
   confirmEmail: (body: ConfirmEmailRequest) => api.post<null>('/auth/email/confirm', body),
   /** Грамоты пользователя (шаг 5.6), для личного дела */
   achievements: (o?: RequestOptions) => api.get<AchievementsResponse>('/me/achievements', o).then((r) => r.items),
+  /** О чём читатель просил писать на почту (копии записок внутренней почты). */
+  emailPrefs: (o?: RequestOptions) => api.get<EmailPrefsResponse>('/me/email-prefs', o).then((r) => r.prefs),
+  setEmailPrefs: (prefs: EmailPrefs) => api.put<null>('/me/email-prefs', { prefs }),
+  /** Язык писем-уведомлений: сервер запоминает выбор интерфейса. */
+  setLang: (lang: string) => api.put<null>('/me/lang', { lang }),
 }
 
 /** Внутренняя почта (шаг 5.7): ящик читателя; записки Директората шлёт teamApi.sendNote. */
@@ -283,6 +291,10 @@ export const teamApi = {
   /** Настройки сайта (контакты автора): читают члены команды, правит только Директорат */
   site: (o?: RequestOptions) => api.get<SiteSettingsResponse>('/team/site', o).then((r) => r.site),
   updateSite: (contact: string) => api.put<SiteSettingsResponse>('/team/site', { contact }).then((r) => r.site),
+  // Почтовый сервер (шаг 5.1.1): читают члены команды, правит и проверяет письмом только Директорат.
+  smtp: (o?: RequestOptions) => api.get<SmtpSettingsResponse>('/team/smtp', o).then((r) => r.smtp),
+  updateSmtp: (body: SmtpInput) => api.put<SmtpSettingsResponse>('/team/smtp', body).then((r) => r.smtp),
+  testSmtp: (to: string) => api.post<null>('/team/smtp/test', { to }),
   /** Хронология «О КУПОЛЕ» для редактирования: все события, ведёт право manage_timeline */
   timeline: (o?: RequestOptions) => api.get<TimelineEventsResponse>('/team/timeline', o).then((r) => r.items),
   createEvent: (body: TimelineInput) => api.post<TimelineEventResponse>('/team/timeline', body).then((r) => r.event),

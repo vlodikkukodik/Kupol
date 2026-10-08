@@ -144,6 +144,7 @@ export default {
     joined: "Ammesso nell'archivio",
     passwordTitle: 'Cambio della password',
     emailTitle: 'Posta',
+    notifyTitle: 'Messaggi di notifica',
     totpTitle: "Codice dall'app",
     petitionTitle: 'Istanza di accesso',
     secretCodeTitle: 'Codice di accesso',
@@ -221,6 +222,27 @@ export default {
     dismiss: 'Annulla',
     sentNotice: 'Messaggio inviato. Segui il link al suo interno per confermare la posta.',
     removedNotice: 'Posta rimossa.',
+  },
+
+  notify: {
+    lead: 'Le copie dei messaggi della posta interna possono arrivare anche alla posta. Il messaggio parte dopo che il messaggio è arrivato nella posta e ne ripete il testo.',
+    master: 'Messaggi di posta',
+    off: 'I messaggi sono spenti: le note arrivano solo nella posta interna dell\'archivio.',
+    saved: 'Impostazioni dei messaggi salvate.',
+    loading: 'Caricamento delle impostazioni…',
+    saving: 'Salvataggio…',
+    noEmail: 'Nel fascicolo non c\'è alcun indirizzo: i messaggi partiranno appena l\'indirizzo sarà confermato.',
+    kinds: {
+      note: 'Note del Direttorato',
+      level_up: 'Accesso elevato',
+      achievement: 'Nuovo attestato',
+      suggestion: 'Decisione sulla proposta',
+      remark_reply: 'Risposta alla nota a margine',
+      petition: 'Decisione sull\'istanza',
+      invitation: 'Invito al livello successivo',
+      invitation_answer: 'La tua risposta all\'invito',
+      sanction: 'Sanzione',
+    },
   },
 
   userCard: {

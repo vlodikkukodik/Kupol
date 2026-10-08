@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { LOCALES, locale, setLocale } from '@/i18n'
+import { LOCALES, type Locale, locale, setLocale } from '@/i18n'
+import { useAuthStore } from '@/stores/auth'
 
 // Переключатель языка интерфейса: RU | IT. Название языка на самом языке (lang у кнопки) — скринридер произнесёт его правильно.
+// Для вошедшего выбранный язык заодно становится языком писем-уведомлений (см. stores/auth, syncLang).
+const auth = useAuthStore()
+
+function pick(code: Locale) {
+  setLocale(code)
+  auth.syncLang(code)
+}
 </script>
 
 <template>
@@ -16,7 +24,7 @@ import { LOCALES, locale, setLocale } from '@/i18n'
       :aria-label="`${$t(`lang.short.${code}`)} — ${$t(`lang.native.${code}`)}`"
       :title="$t(`lang.native.${code}`)"
       :data-testid="`lang-${code}`"
-      @click="setLocale(code)"
+      @click="pick(code)"
     >
       {{ $t(`lang.short.${code}`) }}
     </button>

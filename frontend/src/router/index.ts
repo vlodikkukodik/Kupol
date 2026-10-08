@@ -54,6 +54,7 @@ export const routes: RouteRecordRaw[] = [
       { path: '', name: 'team', component: () => import('@/views/team/TeamDeskView.vue'), meta: { title: 'title.teamDesk' } },
       { path: 'templates', name: 'team-templates', component: () => import('@/views/team/TeamTemplatesView.vue'), meta: { title: 'title.teamTemplates' } },
       { path: 'site', name: 'team-site', component: () => import('@/views/team/TeamSiteView.vue'), meta: { title: 'title.teamSite' } },
+      { path: 'smtp', name: 'team-smtp', component: () => import('@/views/team/TeamSmtpView.vue'), meta: { title: 'title.teamSmtp' } },
       { path: 'timeline', name: 'team-timeline', component: () => import('@/views/team/TeamTimelineView.vue'), meta: { title: 'title.teamTimeline' } },
       { path: 'glossary', name: 'team-glossary', component: () => import('@/views/team/TeamGlossaryView.vue'), meta: { title: 'title.teamGlossary' } },
       { path: 'uploads', name: 'team-uploads', component: () => import('@/views/team/TeamUploadsView.vue'), meta: { title: 'title.teamUploads', capability: 'write_drafts' } },

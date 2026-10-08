@@ -52,6 +52,8 @@ func TestMigrateUpDownUp(t *testing.T) {
 	siteTables := []string{"site_settings"}
 	xpTables := []string{"xp_events"}
 	emailTables := []string{"email_confirmations"}
+	smtpTables := []string{"smtp_settings"}
+	outboxTables := []string{"email_outbox"}
 	remarkTables := []string{"remarks", "remark_reports"}
 	ratingTables := []string{"document_ratings"}
 	suggestionTables := []string{"suggestions"}
@@ -62,8 +64,8 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateUp(ctx, db, log); err != nil {
 		t.Fatal(err)
 	}
-	if v := version(); v != 27 {
-		t.Fatalf("версия схемы %d, ожидалась 27", v)
+	if v := version(); v != 28 {
+		t.Fatalf("версия схемы %d, ожидалась 28", v)
 	}
 	columnExists := func(table, column string) bool {
 		var n int64
@@ -87,12 +89,17 @@ func TestMigrateUpDownUp(t *testing.T) {
 			t.Errorf("колонка users.%s не создана", col)
 		}
 	}
+	for _, col := range []string{"lang", "email_prefs"} {
+		if !columnExists("users", col) {
+			t.Errorf("колонка users.%s не создана", col)
+		}
+	}
 	for _, e := range []string{"citext", "pg_trgm"} {
 		if !extExists(e) {
 			t.Errorf("расширение %s не создано", e)
 		}
 	}
-	for _, tbl := range slices.Concat(accountTables, documentTables, roleTables, versionTables, auditTables, reviewTables, templateTables, glossaryTables, totpTables, searchTables, linkTables, timelineTables, siteTables, xpTables, emailTables, remarkTables, ratingTables, suggestionTables) {
+	for _, tbl := range slices.Concat(accountTables, documentTables, roleTables, versionTables, auditTables, reviewTables, templateTables, glossaryTables, totpTables, searchTables, linkTables, timelineTables, siteTables, xpTables, emailTables, remarkTables, ratingTables, suggestionTables, smtpTables, outboxTables) {
 		if !tableExists(tbl) {
 			t.Errorf("таблица %s не создана", tbl)
 		}
@@ -110,14 +117,32 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateStatus(ctx, db, log, &out); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"0001_extensions.sql", "0002_accounts.sql", "0003_documents.sql", "0004_roles.sql", "0005_document_versions.sql", "0006_audit.sql", "0007_review.sql", "0008_templates.sql", "0009_glossary.sql", "0010_totp.sql", "0011_search.sql", "0012_links.sql", "0013_timeline.sql", "0014_site_settings.sql", "0015_xp.sql", "0016_email.sql", "0017_remarks.sql", "0018_ratings.sql", "0019_suggestions.sql", "0020_document_translations.sql", "0021_secret_codes.sql", "0022_achievements.sql", "0023_inbox.sql", "0024_petitions.sql", "0025_sanctions.sql", "0026_invitations.sql", "0027_uploads.sql", "применена"} {
+	for _, want := range []string{"0001_extensions.sql", "0002_accounts.sql", "0003_documents.sql", "0004_roles.sql", "0005_document_versions.sql", "0006_audit.sql", "0007_review.sql", "0008_templates.sql", "0009_glossary.sql", "0010_totp.sql", "0011_search.sql", "0012_links.sql", "0013_timeline.sql", "0014_site_settings.sql", "0015_xp.sql", "0016_email.sql", "0017_remarks.sql", "0018_ratings.sql", "0019_suggestions.sql", "0020_document_translations.sql", "0021_secret_codes.sql", "0022_achievements.sql", "0023_inbox.sql", "0024_petitions.sql", "0025_sanctions.sql", "0026_invitations.sql", "0027_uploads.sql", "0028_notifications_email.sql", "применена"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("status не содержит %q: %q", want, out.String())
 		}
 	}
 
-	// Откат — по одной миграции: грамоты, скрытые коды, перевод дел, предложения, оценки, пометки на полях, почта, XP, настройки сайта, хронология, связи,
-	// поиск, код из приложения, глоссарий, шаблоны, рецензия, журнал, версии и замки, роли, документы, аккаунты, расширения.
+	// Откат — по одной миграции: почтовый сервер, очередь писем, грамоты, скрытые коды, перевод дел, предложения, оценки,
+	// пометки на полях, почта, XP, настройки сайта, хронология, связи, поиск, код из приложения, глоссарий, шаблоны,
+	// рецензия, журнал, версии и замки, роли, документы, аккаунты, расширения.
+	if err := database.MigrateDown(ctx, db, log); err != nil {
+		t.Fatal(err)
+	}
+	if v := version(); v != 27 {
+		t.Fatalf("после отката 0028 версия %d, ожидалась 27", v)
+	}
+	for _, tbl := range append(smtpTables, outboxTables...) {
+		if tableExists(tbl) {
+			t.Errorf("таблица %s осталась после отката 0028", tbl)
+		}
+	}
+	for _, col := range []string{"lang", "email_prefs"} {
+		if columnExists("users", col) {
+			t.Errorf("колонка users.%s осталась после отката 0028", col)
+		}
+	}
+
 	if err := database.MigrateDown(ctx, db, log); err != nil {
 		t.Fatal(err)
 	}
@@ -496,7 +521,7 @@ func TestMigrateUpDownUp(t *testing.T) {
 	if err := database.MigrateUp(ctx, db, log); err != nil {
 		t.Fatalf("up после down: %v", err)
 	}
-	if v := version(); v != 27 || !tableExists("uploads") || !tableExists("invitations") || !tableExists("sanctions") || !tableExists("petitions") || !tableExists("inbox_messages") || !tableExists("achievements") || !tableExists("secret_codes") || !tableExists("suggestions") || !tableExists("document_ratings") || !tableExists("remarks") || !tableExists("email_confirmations") || !tableExists("xp_events") || !tableExists("site_settings") || !tableExists("timeline_events") || !tableExists("document_links") || !tableExists("document_search") || !tableExists("totp_recovery_codes") || !tableExists("glossary_terms") || !tableExists("templates") || !tableExists("review_events") || !tableExists("audit_events") || !extExists("citext") || !tableExists("users") || !tableExists("documents") || !tableExists("user_roles") || !tableExists("document_versions") {
+	if v := version(); v != 28 || !tableExists("smtp_settings") || !tableExists("email_outbox") || !tableExists("uploads") || !tableExists("invitations") || !tableExists("sanctions") || !tableExists("petitions") || !tableExists("inbox_messages") || !tableExists("achievements") || !tableExists("secret_codes") || !tableExists("suggestions") || !tableExists("document_ratings") || !tableExists("remarks") || !tableExists("email_confirmations") || !tableExists("xp_events") || !tableExists("site_settings") || !tableExists("timeline_events") || !tableExists("document_links") || !tableExists("document_search") || !tableExists("totp_recovery_codes") || !tableExists("glossary_terms") || !tableExists("templates") || !tableExists("review_events") || !tableExists("audit_events") || !extExists("citext") || !tableExists("users") || !tableExists("documents") || !tableExists("user_roles") || !tableExists("document_versions") {
 		t.Errorf("после повторного up: версия %d", v)
 	}
 }

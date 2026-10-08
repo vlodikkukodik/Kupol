@@ -5,6 +5,7 @@ import ChangePasswordForm from '@/components/ChangePasswordForm.vue'
 import DeleteAccountForm from '@/components/DeleteAccountForm.vue'
 import AchievementsShelf from '@/components/AchievementsShelf.vue'
 import EmailPanel from '@/components/EmailPanel.vue'
+import NotifyPanel from '@/components/NotifyPanel.vue'
 import PetitionPanel from '@/components/PetitionPanel.vue'
 import SecretCodePanel from '@/components/SecretCodePanel.vue'
 import TotpPanel from '@/components/TotpPanel.vue'
@@ -117,6 +118,11 @@ async function logout() {
         <UiSheet as="section" aria-labelledby="email-title">
           <h2 id="email-title">{{ $t('file.emailTitle') }}</h2>
           <EmailPanel />
+        </UiSheet>
+
+        <UiSheet as="section" aria-labelledby="notify-title">
+          <h2 id="notify-title">{{ $t('file.notifyTitle') }}</h2>
+          <NotifyPanel />
         </UiSheet>
 
         <UiSheet as="section" aria-labelledby="totp-title">

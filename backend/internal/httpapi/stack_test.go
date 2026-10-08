@@ -18,6 +18,7 @@ import (
 	"kupol/internal/documents"
 	"kupol/internal/httpapi"
 	"kupol/internal/mail"
+	"kupol/internal/mailsettings"
 	"kupol/internal/passwords"
 	"kupol/internal/petitions"
 	"kupol/internal/ratelimit"
@@ -38,6 +39,7 @@ type stack struct {
 	docs    *documents.Service
 	sugs    *suggestions.Service
 	limiter *ratelimit.Limiter
+	ms      *mailsettings.Service
 	cfg     config.Config
 	clients int
 }
@@ -100,11 +102,15 @@ func newStackOpts(t *testing.T, tweak func(*config.Config), mailer mail.Sender) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := httpapi.New(httpapi.Deps{Config: cfg, DB: db, Log: testutil.Logger(), Accounts: svc, Documents: docs, Suggestions: sugs, Petitions: petitions.NewService(db, nil), Sanctions: sanctions.NewService(db, nil), Uploads: uploadsSvc, Limiter: limiter})
+	ms, err := mailsettings.New(db, config.SMTP{}, cfg.ProxySecret, testutil.Logger(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &stack{r: r, db: db, svc: svc, docs: docs, sugs: sugs, limiter: limiter, cfg: cfg}
+	r, err := httpapi.New(httpapi.Deps{Config: cfg, DB: db, Log: testutil.Logger(), Accounts: svc, Documents: docs, Suggestions: sugs, Petitions: petitions.NewService(db, nil), Sanctions: sanctions.NewService(db, nil), Uploads: uploadsSvc, MailSettings: ms, Limiter: limiter})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &stack{r: r, db: db, svc: svc, docs: docs, sugs: sugs, limiter: limiter, ms: ms, cfg: cfg}
 }
 
 // client — «браузер» с хранилищем кук поверх тестового роутера.

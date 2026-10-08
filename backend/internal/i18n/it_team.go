@@ -23,3 +23,19 @@ func init() {
 		"недопустимое значение %q; допустимы: not_found, forbidden": "valore non ammesso %q; ammessi: not_found, forbidden",
 	})
 }
+
+// Почтовый сервер в панели команды (internal/mailsettings: проверка полей формы и ответы API).
+func init() {
+	register(IT, map[string]string{
+		"mailsettings: ошибки в полях: %v":                    "mailsettings: errori nei campi: %v",
+		"Номер порта: от 1 до 65535":                          "Numero di porta: da 1 a 65535",
+		"Укажите адрес SMTP-сервера":                          "Indica l'indirizzo del server SMTP",
+		"Укажите адрес отправителя":                           "Indica l'indirizzo del mittente",
+		"Адрес отправителя должен быть вида name@example.org": "L'indirizzo del mittente deve essere del tipo name@example.org",
+		"Укажите пароль SMTP":                                 "Indica la password SMTP",
+		"Укажите адрес почты получателя":                      "Indica l'indirizzo di posta del destinatario",
+
+		"Почта выключена: включите отправку писем и повторите":  "La posta è disattivata: attiva l'invio dei messaggi e riprova",
+		"Письмо не ушло: проверьте настройки почтового сервера": "Il messaggio non è partito: controlla le impostazioni del server di posta",
+	})
+}

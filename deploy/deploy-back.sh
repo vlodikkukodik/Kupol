@@ -35,6 +35,7 @@ set -a
 set +a
 : "${VPS_HOST:?не задан VPS_HOST}" "${VPS_USER:?не задан VPS_USER}" "${VPS_DIR:?не задан VPS_DIR}"
 VPS_PORT="${VPS_PORT:-22}"
+VPS_UNIT_PATH="${VPS_UNIT_PATH:-/etc/systemd/system/kupol.service}" # юнит на VPS (проверка перед доставкой)
 VPS_RESTART_CMD="${VPS_RESTART_CMD:-sudo systemctl restart kupol}"
 VPS_HEALTH_URL="${VPS_HEALTH_URL:-http://127.0.0.1:8081/health}"
 API_URL="${API_URL:-}"
@@ -77,6 +78,22 @@ echo "== версия: ${VERSION:-неизвестна}"
 echo "== доставляю на $VPS_USER@$VPS_HOST:$VPS_DIR"
 remote true || die "не удалось подключиться по SSH к $VPS_USER@$VPS_HOST:$VPS_PORT (ключ, порт, файрвол?)"
 remote "test -d '$VPS_DIR'" || die "на VPS нет каталога $VPS_DIR — см. docs/deploy.md, «Подготовка VPS»"
+
+# Юнит на VPS должен разрешать API писать загрузки: ProtectSystem=strict оставляет ему только чтение,
+# а каталог заводит сам systemd (StateDirectory=kupol → /var/lib/kupol/uploads). Без этого новая версия
+# упадёт с «read-only file system» и скрипт откатит её — лучше сказать об этом до доставки.
+# Файла юнита может не быть (например, деплой проверяется без systemd) — тогда проверка пропускается.
+echo "== проверяю юнит сервиса на VPS"
+unit="$(remote "[ -f '$VPS_UNIT_PATH' ] || exit 0; grep -qE '^(StateDirectory=|ReadWritePaths=.*kupol)' '$VPS_UNIT_PATH' || echo old" )" ||
+  die "не удалось прочитать юнит $VPS_UNIT_PATH на $VPS_HOST — проверьте доступ $VPS_USER"
+if [ -n "$unit" ]; then
+  die "юнит на VPS устарел ($VPS_UNIT_PATH): без него API не сможет писать загрузки и новая версия не стартует.
+       На VPS репозитория нет, а у $VPS_USER нет прав root — обновите юнит отсюда, из рабочей копии, под своим
+       root-логином (deploy годится только для systemctl restart):
+         cat deploy/server/kupol.service | ssh -p $VPS_PORT root@$VPS_HOST \"tee $VPS_UNIT_PATH >/dev/null && systemctl daemon-reload\"
+       и повторите deploy/deploy-back.sh (параметры ssh, если они нужны, — как в $CONF)"
+fi
+
 scp "${SCP_OPTS[@]}" "$BIN" "$VPS_USER@$VPS_HOST:$VPS_DIR/kupol.new"
 
 echo "== подменяю бинарник и перезапускаю"

@@ -85,6 +85,7 @@ func init() {
 		"Разбирать жалобы на пометки на полях":        "Esaminare i reclami sulle note a margine",
 		"Пометка не найдена":                          "Nota non trovata",
 		"Неизвестная оценка":                          "Valutazione sconosciuta",
+		"Неизвестный язык":                            "Lingua sconosciuta",
 		"Оценка не найдена":                           "Valutazione non trovata",
 
 		// ——— предложения (шаг 5.4) ———

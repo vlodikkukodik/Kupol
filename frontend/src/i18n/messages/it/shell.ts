@@ -90,6 +90,7 @@ export default {
     teamDesk: 'Scrivania — Pannello della squadra',
     teamTemplates: 'Modelli — Pannello della squadra',
     teamSite: 'Sito — Pannello della squadra',
+    teamSmtp: 'Server di posta — Pannello della squadra',
     teamTimeline: 'Cronologia — Pannello della squadra',
     teamGlossary: 'Glossario — Pannello della squadra',
     teamSecretCodes: 'Codici segreti — Pannello della squadra',

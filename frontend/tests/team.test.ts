@@ -23,6 +23,7 @@ const user = (capabilities: string[], extra: Partial<UserDTO> = {}): UserDTO => 
   capabilities,
   created_at: '2026-09-19T12:00:00Z',
   totp_enabled: false,
+  lang: 'ru',
   xp: 0,
   login_streak: 0,
   next_level_xp: 100,

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { authApi } from '@/api/endpoints'
 import { api } from '@/api'
-import { t } from '@/i18n'
+import { locale, t } from '@/i18n'
 import type { UserDTO } from '@/api/generated/httpapi'
 
 /** Права, которые присылает сервер (accounts.Capability). Интерфейс из ролей ничего не выводит — решает сервер. */
@@ -31,6 +31,21 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => user.value !== null)
   const can = (capability: Capability): boolean => Boolean(user.value?.capabilities.includes(capability))
 
+  /**
+   * Язык писем-уведомлений должен совпадать с языком интерфейса: сервер запоминает выбор читателя,
+   * чтобы уведомления, которые уходят без его запроса, приходили на нужном языке. Сбой связи не важен —
+   * интерфейс от него не зависит, а при следующей загрузке попробуем снова.
+   */
+  function syncLang(lang: string) {
+    if (!user.value || user.value.lang === lang) return
+    authApi
+      .setLang(lang)
+      .then(() => {
+        if (user.value) user.value.lang = lang
+      })
+      .catch(() => {})
+  }
+
   /** Узнать, кто вошёл. Повторные вызовы не ходят на сервер, пока force не задан. */
   function load(force = false): Promise<void> {
     if (inflight) return inflight
@@ -41,6 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
       .then((res) => {
         user.value = res.user ?? null
         status.value = 'ready'
+        syncLang(locale.value)
       })
       .catch((err: unknown) => {
         status.value = 'failed'
@@ -57,6 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await authApi.login({ login: loginName, password, ...(totp ? { totp } : {}) })
     user.value = res.user
     status.value = 'ready'
+    syncLang(locale.value)
     if (res.level_up) levelUp.value = true
     if (res.new_achievements?.length) newAchievements.value = res.new_achievements
   }
@@ -73,6 +90,7 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await authApi.register({ login: p.login, password: p.password, captcha_id: p.captchaId, captcha_answer: p.captchaAnswer })
     user.value = res.user
     status.value = 'ready'
+    syncLang(locale.value)
     pendingBackupCode.value = res.backup_code
     if (res.new_achievements?.length) newAchievements.value = res.new_achievements
   }
@@ -127,6 +145,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user, status, pendingBackupCode, flash, levelUp, newAchievements, isAuthenticated, can, load, login, register, restore, logout,
-    changePassword, deleteAccount, acknowledgeBackupCode, takeFlash, dismissLevelUp, dismissNewAchievements, attach,
+    changePassword, deleteAccount, acknowledgeBackupCode, takeFlash, dismissLevelUp, dismissNewAchievements, attach, syncLang,
   }
 })

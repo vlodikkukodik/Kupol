@@ -23,6 +23,8 @@ DB="kupol_deploy_$(openssl rand -hex 4)"
 CONTAINER="kupol-deploy-test-$$"
 PIDS=()
 cleanup() {
+  docker rm -f "kupol-ro-$$" >/dev/null 2>&1 || true
+  docker volume rm "kupol-ro-$$" >/dev/null 2>&1 || true
   [ -f "$TMP/vps/kupol.pid" ] && kill "$(cat "$TMP/vps/kupol.pid")" 2>/dev/null || true
   for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
@@ -75,6 +77,9 @@ for _ in $(seq 1 50); do (exec 3<>"/dev/tcp/127.0.0.1/$SSH_PORT") 2>/dev/null &&
 
 VPS="$TMP/vps"
 mkdir -p "$VPS"
+# Юнит сервиса, который deploy-back.sh проверяет перед доставкой (в тестах systemd не участвует —
+# файл просто лежит в «каталоге VPS», содержимое берётся из репозитория).
+cp deploy/server/kupol.service "$VPS/kupol.service"
 
 # «systemctl restart kupol»: останавливает процесс по pid-файлу и запускает бинарник заново.
 cat >"$TMP/restart.sh" <<EOF
@@ -101,6 +106,7 @@ VPS_HOST=127.0.0.1
 VPS_PORT=$SSH_PORT
 VPS_USER=$(id -un)
 VPS_DIR=$VPS
+VPS_UNIT_PATH=$VPS/kupol.service
 VPS_RESTART_CMD=$TMP/restart.sh
 VPS_HEALTH_URL=http://127.0.0.1:$API_PORT/health
 VPS_HEALTH_WAIT=6
@@ -124,6 +130,7 @@ echo "== бэкенд: первая доставка (предыдущей ве�
 expect "API отвечает после деплоя" "$(health_version)" ok
 expect "бинарник на месте и исполняемый" "$([ -x "$VPS/kupol" ] && echo yes || echo no)" yes
 expect "kupol.prev ещё нет" "$([ -e "$VPS/kupol.prev" ] && echo yes || echo no)" no
+expect "каталог загрузок создан самим API" "$([ -d "$VPS/uploads" ] && echo yes || echo no)" yes
 expect "схема БД мигрирована самим API при старте (версия = числу файлов миграций)" \
   "$(docker compose exec -T postgres psql -U "$KUPOL_DB_USER" -d "$DB" -Atc 'SELECT max(version_id) FROM goose_db_version')" \
   "$(ls backend/internal/database/migrations/*.sql | wc -l | tr -d ' ')"
@@ -154,6 +161,46 @@ echo "== бэкенд: ручной --rollback"
 deploy/deploy-back.sh --rollback
 expect "API отвечает после --rollback" "$(health_version)" ok
 
+# ---------------------------------------------------------------- read-only корень (ProtectSystem=strict)
+echo
+echo "== бэкенд: API на read-only корне — как ProtectSystem=strict в юните"
+# Юнит оставляет API только чтение и выделяет каталог (StateDirectory=kupol → /var/lib/kupol/uploads).
+# Здесь то же самое средствами docker: если каталога не выделить, API обязан упасть с той же ошибкой,
+# что и на VPS без обновлённого юнита, а с выделенным — стартовать и ответить на /health.
+RO_PORT="$(free_port)"
+RO_NAME="kupol-ro-$$"
+RO_ARGS=(--network host --read-only --tmpfs /tmp:rw,size=64m --workdir /opt/kupol
+  -v "$ROOT/backend/bin/kupol:/opt/kupol/kupol:ro"
+  -e KUPOL_ENV=prod -e KUPOL_LOG_LEVEL=info
+  -e "KUPOL_DATABASE_URL=postgres://$KUPOL_DB_USER:$KUPOL_DB_PASSWORD@127.0.0.1:$KUPOL_DB_PORT/$DB?sslmode=disable"
+  -e "KUPOL_HTTP_ADDR=127.0.0.1:$RO_PORT"
+  -e "KUPOL_PROXY_SECRET=$KUPOL_PROXY_SECRET"
+  -e KUPOL_SITE_ORIGIN=http://127.0.0.1)
+
+if ro_out="$(docker run --rm "${RO_ARGS[@]}" debian:bookworm-slim /opt/kupol/kupol serve 2>&1)"; then
+  echo "  FAIL read-only корень без каталога: API не должен был стартовать"; FAILS=$((FAILS+1))
+elif grep -q "read-only file system" <<<"$ro_out"; then
+  echo "  ok   без выделенного каталога — «read-only file system» (та же ошибка, что на VPS без юнита)"
+else
+  echo "  FAIL неожиданная ошибка на read-only корне: $ro_out"; FAILS=$((FAILS+1))
+fi
+
+RO_VOL="kupol-ro-$$"
+docker volume create "$RO_VOL" >/dev/null
+docker run -d --name "$RO_NAME" "${RO_ARGS[@]}" -v "$RO_VOL:/var/lib/kupol" \
+  -e KUPOL_UPLOADS_DIR=/var/lib/kupol/uploads debian:bookworm-slim /opt/kupol/kupol serve >/dev/null
+ro_health=""
+for _ in $(seq 1 40); do
+  ro_health="$(curl -fsS --max-time 2 "http://127.0.0.1:$RO_PORT/health" 2>/dev/null | jq -r .status 2>/dev/null || true)"
+  [ "$ro_health" = ok ] && break
+  sleep 0.5
+done
+expect "с выделенным каталогом API отвечает" "$ro_health" ok
+expect "каталог загрузок создан внутри выделенного тома" \
+  "$(docker exec "$RO_NAME" ls -d /var/lib/kupol/uploads 2>/dev/null || echo нет)" "/var/lib/kupol/uploads"
+docker rm -f "$RO_NAME" >/dev/null 2>&1 || true
+docker volume rm "$RO_VOL" >/dev/null 2>&1 || true
+
 echo
 echo "== бэкенд: ошибки конфигурации"
 # Файл настроек с ошибкой в одном поле: остальное как в рабочем.
@@ -165,6 +212,17 @@ variant VPS_PORT 1 nossh
 expect_fail "SSH недоступен -> ошибка" env KUPOL_DEPLOY_ENV="$TMP/env.nossh" "${DEPLOY_BACK[@]}"
 grep -q "не удалось подключиться по SSH" "$TMP/last.out" && echo "  ok   понятное сообщение об ошибке SSH (а не «нет каталога»)" || { echo "  FAIL сообщение: $(cat "$TMP/last.out")"; FAILS=$((FAILS+1)); }
 expect_fail "нет файла настроек -> ошибка" env KUPOL_DEPLOY_ENV="$TMP/nope" "${DEPLOY_BACK[@]}"
+
+# Юнит без StateDirectory: API при ProtectSystem=strict не сможет писать загрузки, новая версия
+# упала бы с «read-only file system». Скрипт должен отказаться ДО доставки, ничего не подменив.
+sed -E '/^(StateDirectory|StateDirectoryMode|Environment=KUPOL_UPLOADS_DIR)/d' deploy/server/kupol.service >"$VPS/kupol.service"
+expect_fail "юнит без StateDirectory -> отказ до доставки" "${DEPLOY_BACK[@]}"
+grep -q "юнит на VPS устарел" "$TMP/last.out" && echo "  ok   понятное сообщение про юнит" || { echo "  FAIL сообщение: $(cat "$TMP/last.out")"; FAILS=$((FAILS+1)); }
+grep -q "daemon-reload" "$TMP/last.out" && echo "  ok   подсказано, как обновить юнит" || { echo "  FAIL нет подсказки про daemon-reload"; FAILS=$((FAILS+1)); }
+expect "после отказа API отвечает" "$(health_version)" ok
+expect "бинарник не подменялся" "$(sha256sum "$VPS/kupol" | cut -d' ' -f1)" "$GOOD_SUM"
+expect "kupol.new не появился" "$([ -e "$VPS/kupol.new" ] && echo yes || echo no)" no
+cp deploy/server/kupol.service "$VPS/kupol.service"
 
 # ---------------------------------------------------------------- «хостинг»: настоящий FTP + Apache
 echo

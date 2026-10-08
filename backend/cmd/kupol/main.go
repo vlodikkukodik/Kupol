@@ -28,8 +28,10 @@ import (
 	"kupol/internal/database"
 	"kupol/internal/documents"
 	"kupol/internal/httpapi"
+	"kupol/internal/inbox"
 	"kupol/internal/logging"
 	"kupol/internal/mail"
+	"kupol/internal/mailsettings"
 	"kupol/internal/passwords"
 	"kupol/internal/petitions"
 	"kupol/internal/ratelimit"
@@ -42,27 +44,32 @@ import (
 // maxConcurrentHashes — сколько хешей паролей считается одновременно (каждый ~19 МиБ памяти).
 const maxConcurrentHashes = 4
 
-// newAccounts собирает сервис аккаунтов и ограничитель частоты, общий с HTTP-слоем.
-func newAccounts(cfg config.Config, db *gorm.DB, log *slog.Logger) (*accounts.Service, *ratelimit.Limiter, error) {
+// newAccounts собирает сервис аккаунтов, ограничитель частоты и настройки почтового сервера,
+// общие с HTTP-слоем и с очередью писем.
+func newAccounts(cfg config.Config, db *gorm.DB, log *slog.Logger) (*accounts.Service, *ratelimit.Limiter, *mailsettings.Service, error) {
 	hasher, err := passwords.NewHasher(passwords.DefaultParams, maxConcurrentHashes)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	limiter := ratelimit.New(nil)
-	var sender mail.Sender
-	if cfg.SMTP.Enabled() {
-		sender = mail.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.FromName)
-	} else {
-		log.Info("почта выключена: не задан KUPOL_SMTP_HOST")
+	ms, err := mailsettings.New(db, cfg.SMTP, cfg.ProxySecret, log, nil)
+	if err != nil {
+		return nil, nil, nil, err
 	}
+	if !cfg.SMTP.Enabled() {
+		log.Info("почта из окружения не задана: включить и настроить её можно в панели команды")
+	}
+	// Один отправитель на всё: перед каждым письмом спрашивает базу, поэтому сохранение настроек
+	// в панели действует сразу, без перезапуска. Выключенная почта — не ошибка, письмо просто не уходит.
+	sender := &mail.Dynamic{Load: ms.Sender}
 	svc, err := accounts.NewService(accounts.Options{
 		DB: db, Hasher: hasher, Limiter: limiter, Limits: cfg.Limits, Log: log, SecretKey: cfg.ProxySecret,
 		Mailer: sender, SiteOrigin: cfg.SiteOrigin,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return svc, limiter, nil
+	return svc, limiter, ms, nil
 }
 
 func main() {
@@ -119,7 +126,7 @@ func run(args []string) error {
 			return fmt.Errorf("неизвестная подкоманда migrate %q (up|down|status)", sub)
 		}
 	case "user":
-		svc, _, err := newAccounts(cfg, db, log)
+		svc, _, _, err := newAccounts(cfg, db, log)
 		if err != nil {
 			return err
 		}
@@ -140,13 +147,15 @@ func serve(ctx context.Context, cfg config.Config, db *gorm.DB, log *slog.Logger
 		return err
 	}
 
-	svc, limiter, err := newAccounts(cfg, db, log)
+	svc, limiter, ms, err := newAccounts(cfg, db, log)
 	if err != nil {
 		return err
 	}
 	// Фоновая уборка: просроченные ключи ограничителя, сессии и вопросы анкеты.
 	go limiter.RunSweeper(ctx, time.Minute)
 	go svc.RunCleanup(ctx, time.Hour)
+	// Очередь писем-уведомлений: копии записок, которые читатель не прочитал в интерфейсе.
+	go inbox.NewOutbox(db, &mail.Dynamic{Load: ms.Sender}, cfg.SiteOrigin, log, nil).Run(ctx)
 
 	docs := documents.NewService(db, log, nil)
 	// Индекс поиска строится при первом запуске после появления поиска и при смене правил его построения.
@@ -161,11 +170,12 @@ func serve(ctx context.Context, cfg config.Config, db *gorm.DB, log *slog.Logger
 
 	handler, err := httpapi.New(httpapi.Deps{
 		Config: cfg, DB: db, Log: log, Accounts: svc, Limiter: limiter,
-		Documents:   docs,
-		Suggestions: suggestions.NewService(db, log, nil),
-		Petitions:   petitions.NewService(db, nil),
-		Sanctions:   sanctions.NewService(db, nil),
-		Uploads:     uploadsSvc,
+		Documents:    docs,
+		Suggestions:  suggestions.NewService(db, log, nil),
+		Petitions:    petitions.NewService(db, nil),
+		Sanctions:    sanctions.NewService(db, nil),
+		Uploads:      uploadsSvc,
+		MailSettings: ms,
 	})
 	if err != nil {
 		return err

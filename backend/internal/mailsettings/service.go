@@ -37,7 +37,9 @@ var ErrForbidden = errors.New("mailsettings: почту настраивает �
 var ErrNotEnabled = errors.New("mailsettings: отправка писем выключена")
 
 // SendError — письмо-проверка не дошло до сервера. Подробности (адрес, ответ SMTP) — в журнале, читателю — только совет.
-type SendError struct{ Err error }
+type SendError struct {
+	Err error `tstype:"Error"`
+}
 
 func (e *SendError) Error() string { return "mailsettings: " + e.Err.Error() }
 func (e *SendError) Unwrap() error { return e.Err }
@@ -79,36 +81,37 @@ type Input struct {
 	Host     string `json:"host"`
 	Port     string `json:"port"`
 	Username string `json:"username"`
-	// Password — nil не менять, "" — снять: пустое поле в форме не затирает сохранённый пароль.
+	// Password — nil (ключ не прислали): сохранённый остаётся; "": снять пароль. Интерфейс при пустом
+	// поле ключ не шлёт (TeamSmtpView.vue), поэтому пустое поле формы сохранённый не затирает.
 	Password *string `json:"password"`
 	From     string  `json:"from"`
 	FromName string  `json:"from_name"`
 }
 
 type row struct {
-	Singleton  bool `gorm:"primaryKey"`
-	Enabled    bool
-	Host       string
-	Port       string
-	Username   string
-	Password   []byte
-	FromAddr   string `gorm:"column:from_addr"`
-	FromName   string `gorm:"column:from_name"`
-	UpdatedAt  *time.Time
-	UpdatedBy  *int64
+	Singleton bool `gorm:"primaryKey"`
+	Enabled   bool
+	Host      string
+	Port      string
+	Username  string
+	Password  []byte
+	FromAddr  string `gorm:"column:from_addr"`
+	FromName  string `gorm:"column:from_name"`
+	UpdatedAt *time.Time
+	UpdatedBy *int64
 }
 
 func (row) TableName() string { return "smtp_settings" }
 
 const (
-	maxHostLen   = 255
-	maxUserLen   = 255
-	maxFromLen   = 320
-	maxNameLen   = 255
-	defaultPort  = "587"
-	defaultName  = "КУПОЛ"
-	envSource    = "env"
-	dbSource     = "db"
+	maxHostLen  = 255
+	maxUserLen  = 255
+	maxFromLen  = 320
+	maxNameLen  = 255
+	defaultPort = "587"
+	defaultName = "КУПОЛ"
+	envSource   = "env"
+	dbSource    = "db"
 )
 
 // Service — настройки почты.
@@ -221,7 +224,7 @@ func (s *Service) Update(ctx context.Context, a Actor, in Input) (*Out, error) {
 	}
 	now := s.now()
 	uid := a.UserID
-	r := row{
+	nr := row{
 		Singleton: true, Enabled: in.Enabled, Host: host, Port: port, Username: username,
 		Password: sealed, FromAddr: from, FromName: fromName, UpdatedAt: &now, UpdatedBy: &uid,
 	}
@@ -229,7 +232,7 @@ func (s *Service) Update(ctx context.Context, a Actor, in Input) (*Out, error) {
 		err := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "singleton"}},
 			DoUpdates: clause.AssignmentColumns([]string{"enabled", "host", "port", "username", "password", "from_addr", "from_name", "updated_at", "updated_by"}),
-		}).Create(&r).Error
+		}).Create(&nr).Error
 		if err != nil {
 			return err
 		}
@@ -356,7 +359,7 @@ func newSecretBox(serverSecret []byte) (*secretBox, error) {
 
 func (b *secretBox) seal(plain []byte) ([]byte, error) {
 	if len(plain) == 0 {
-		return nil, nil
+		return []byte{}, nil // пустой, а не nil: колонка NOT NULL, а GORM пишет nil как NULL
 	}
 	nonce := make([]byte, b.gcm.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {

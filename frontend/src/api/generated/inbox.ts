@@ -2,6 +2,26 @@
 // Код сгенерирован tygo из backend/internal/inbox (make types). Не править руками.
 
 //////////
+// source: email.go
+
+/**
+ * EmailPrefs — о чём читатель хочет получать письма (колонка users.email_prefs). Письмо — копия записки
+ * из внутренней почты, поэтому настройки те же виды, что и у записок: сначала общий тумблер, потом каждый вид.
+ */
+export interface EmailPrefs {
+  enabled: boolean;
+  note: boolean;
+  level_up: boolean;
+  achievement: boolean;
+  suggestion: boolean;
+  remark_reply: boolean;
+  petition: boolean;
+  invitation: boolean;
+  invitation_answer: boolean;
+  sanction: boolean;
+}
+
+//////////
 // source: inbox.go
 /*
 Package inbox — внутренняя почта (шаг 5.7): записки читателю в интерфейсе. Независимый пакет (как xp и
@@ -55,4 +75,19 @@ export interface Page {
   unread: number /* int64 */;
   page: number /* int */;
   pages: number /* int */;
+}
+
+//////////
+// source: outbox.go
+
+/**
+ * Mailer — отправка писем из очереди. Enabled сообщает, настроен ли SMTP прямо сейчас: настройки читает
+ * вызывающий (mail.Dynamic спрашивает базу, которую правит Директорат), очередь их не хранит.
+ */
+export type Mailer = any;
+/**
+ * Outbox — фоновая отправка писем-копий записок: читает очередь, собирает письмо на языке читателя
+ * тем же текстом, что он видит в ящике, и шлёт его текущими настройками SMTP.
+ */
+export interface Outbox {
 }

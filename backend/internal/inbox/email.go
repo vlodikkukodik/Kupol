@@ -74,12 +74,13 @@ func ParseEmailPrefs(raw []byte) EmailPrefs {
 
 // EmailPrefsGet — настройки писем читателя.
 func EmailPrefsGet(ctx context.Context, db *gorm.DB, userID int64) (EmailPrefs, error) {
-	var raw []byte
+	// в строку, а не в []byte: Scan читает срез как список строк и ломается на одном значении jsonb
+	var raw string
 	err := db.WithContext(ctx).Raw(`SELECT email_prefs FROM users WHERE id = ?`, userID).Scan(&raw).Error
 	if err != nil {
 		return EmailPrefs{}, err
 	}
-	return ParseEmailPrefs(raw), nil
+	return ParseEmailPrefs([]byte(raw)), nil
 }
 
 // EmailPrefsSet — сохранить настройки писем читателя.

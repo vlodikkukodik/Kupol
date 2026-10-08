@@ -25,6 +25,9 @@ type_mappings:
   achievements.Kind: "achievements.Kind"
   inbox.Page: "inbox.Page"
   inbox.Item: "inbox.Item"
+  inbox.EmailPrefs: "inbox.EmailPrefs"
+  # Настройки почтового сервера в панели команды (шаг 5.1.1).
+  mailsettings.Out: "mailsettings.Out"
   petitions.Item: "petitions.Item"
   petitions.Invitation: "petitions.Invitation"
   sanctions.Item: "sanctions.Item"
@@ -34,6 +37,7 @@ type_mappings:
   gorm.DB: "unknown"
   slog.Logger: "unknown"
   accounts.Service: "unknown"
+  mailsettings.Service: "unknown"
   documents.Service: "unknown"
   suggestions.Service: "unknown"
   uploads.Service: "unknown"
@@ -56,6 +60,10 @@ packages:
     output_path: "../frontend/src/api/generated/inbox.ts"
     frontmatter: |
       // Код сгенерирован tygo из backend/internal/inbox (make types). Не править руками.
+  - path: "kupol/internal/mailsettings"
+    output_path: "../frontend/src/api/generated/mailsettings.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/mailsettings (make types). Не править руками.
   - path: "kupol/internal/petitions"
     output_path: "../frontend/src/api/generated/petitions.ts"
     frontmatter: |
@@ -76,6 +84,7 @@ packages:
       import type * as suggestions from "./suggestions";
       import type * as achievements from "./achievements";
       import type * as inbox from "./inbox";
+      import type * as mailsettings from "./mailsettings";
       import type * as petitions from "./petitions";
       import type * as sanctions from "./sanctions";
       import type * as uploads from "./uploads";

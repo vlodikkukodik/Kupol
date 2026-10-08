@@ -21,11 +21,11 @@ type Mailer interface {
 }
 
 const (
-	outboxBatch    = 10                    // сколько писем за один проход
-	outboxAttempts = 5                     // после стольких неудач остаётся только записка в ящике
-	outboxKeep     = 7 * 24 * time.Hour    // недоставленное старше недели удаляется
-	outboxEvery    = 5 * time.Second       // как часто пускать проход
-	outboxSendWait = 20 * time.Second      // таймаут одного письма
+	outboxBatch    = 10                 // сколько писем за один проход
+	outboxAttempts = 5                  // после стольких неудач остаётся только записка в ящике
+	outboxKeep     = 7 * 24 * time.Hour // недоставленное старше недели удаляется
+	outboxEvery    = 5 * time.Second    // как часто пускать проход
+	outboxSendWait = 20 * time.Second   // таймаут одного письма
 )
 
 type outboxRow struct {
@@ -113,7 +113,7 @@ func (o *Outbox) Drain(ctx context.Context) (int, error) {
 			continue
 		}
 		lang := langOf(r.Lang)
-		item := render(row{ID: r.ID, Kind: Kind(r.Kind), Params: r.Params, CreatedAt: r.CreatedAt}, lang)
+		item := render(row{ID: r.ID, Kind: r.Kind, Params: r.Params, CreatedAt: r.CreatedAt}, lang)
 		msg := mail.Notification(lang, item.Title, item.Body, o.link(item.Link))
 		msg.To = *r.Email
 		jobs[i].msg = msg

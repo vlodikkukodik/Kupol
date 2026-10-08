@@ -462,8 +462,10 @@ per-block доступа (без открытия документа целик�
 
 ### Загрузки: картинки и аудио (этап 6.1)
 
-Пакет `internal/uploads`, миграция **0027** (`uploads`), каталог `KUPOL_UPLOADS_DIR` (по умолчанию `uploads`; на боевом
-сервере нужен `libvips-tools` — `vipsthumbnail`, `vipsheader`). PDF (6.2) и чат/доска (6.3) — позже.
+Пакет `internal/uploads`, миграция **0027** (`uploads`), каталог `KUPOL_UPLOADS_DIR` (по умолчанию `uploads` рядом с
+бинарником; на боевом VPS его задаёт юнит — `/var/lib/kupol/uploads`, `StateDirectory=kupol`, потому что
+`ProtectSystem=strict` оставляет API только чтение, см. `deploy/server/kupol.service`; там же нужен `libvips-tools` —
+`vipsthumbnail`, `vipsheader`). PDF (6.2) и чат/доска (6.3) — позже.
 - **Форматы.** JPEG/PNG/WebP и аудио MP3/OGG до 20 МБ; тип определяется по содержимому, а не по имени. Картинка
   перекодируется в WebP с поворотом по EXIF и без метаданных (сторона ≤ 2400 px), рядом кладётся превью 480 px.
 - **Ключ, не номер.** Файл отдаётся по случайному ключу (32 hex): `GET /api/uploads/:key/file` и `/thumb`. Закрытый файл
