@@ -9,6 +9,8 @@ import (
 
 	"gorm.io/gorm"
 
+	"kupol/internal/inbox"
+	"kupol/internal/sanctions"
 	"kupol/internal/xp"
 )
 
@@ -125,6 +127,11 @@ func (s *Service) CreateRemark(ctx context.Context, v Viewer, ref string, in Rem
 	if v.UserID == 0 {
 		return nil, ErrForbidden
 	}
+	if until, err := sanctions.CommentBlockedUntil(ctx, s.db, v.UserID, s.now()); err != nil {
+		return nil, err
+	} else if until != nil {
+		return nil, &CommentsBlockedError{Until: *until}
+	}
 	d, err := s.resolveVisibleDocument(ctx, v, ref)
 	if err != nil {
 		return nil, err
@@ -139,6 +146,7 @@ func (s *Service) CreateRemark(ctx context.Context, v Viewer, ref string, in Rem
 	if word, bad := firstBannedWord(text); bad {
 		return nil, oneProblem("text", "В тексте есть запрещённое слово: «%s»", word)
 	}
+	var parentAuthor int64
 	if in.ParentID != nil {
 		var parent remarkRow
 		err := s.db.WithContext(ctx).Where("id = ? AND document_id = ?", *in.ParentID, d.ID).Take(&parent).Error
@@ -148,6 +156,7 @@ func (s *Service) CreateRemark(ctx context.Context, v Viewer, ref string, in Rem
 		if err != nil {
 			return nil, err
 		}
+		parentAuthor = parent.AuthorID
 	}
 
 	now := s.now()
@@ -159,6 +168,11 @@ func (s *Service) CreateRemark(ctx context.Context, v Viewer, ref string, in Rem
 		}
 		if _, err := xp.Award(ctx, tx, v.UserID, xp.SourceComment, xp.CommentXP, xp.CommentDailyCap, now); err != nil {
 			return err
+		}
+		if parentAuthor != 0 && parentAuthor != v.UserID {
+			if err := inbox.Send(ctx, tx, parentAuthor, inbox.KindRemarkReply, map[string]any{"code": deref(d.Code), "slug": deref(d.Slug)}, now); err != nil {
+				return err
+			}
 		}
 		return tx.Raw("SELECT login FROM users WHERE id = ?", v.UserID).Scan(&login).Error
 	})
@@ -243,4 +257,11 @@ func (s *Service) ReportedRemarks(ctx context.Context, v Viewer) ([]RemarkOut, e
 		}
 	}
 	return out, nil
+}
+
+// CommentsBlockedError — пользователю временно запрещено писать пометки (наказание, шаг 5.9).
+type CommentsBlockedError struct{ Until time.Time }
+
+func (e *CommentsBlockedError) Error() string {
+	return "documents: комментарии заблокированы до " + e.Until.Format(time.RFC3339)
 }

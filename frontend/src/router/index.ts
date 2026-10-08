@@ -36,6 +36,15 @@ export const routes: RouteRecordRaw[] = [
   { path: '/graph/:ref', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: 'title.graph', needsApi: true } },
   { path: '/doc/:ref', name: 'document', component: () => import('@/views/DocumentView.vue'), meta: { title: 'title.document', needsApi: true } },
   { path: '/file', name: 'file', component: () => import('@/views/FileView.vue'), meta: { title: 'title.file', needsApi: true, requiresAuth: true } },
+  { path: '/inbox', name: 'inbox', component: () => import('@/views/InboxView.vue'), meta: { title: 'title.inbox', needsApi: true, requiresAuth: true } },
+  { path: '/user/:login', name: 'user', component: () => import('@/views/UserCardView.vue'), meta: { title: 'title.userCard', needsApi: true, requiresAuth: true } },
+  {
+    // «Предложения» (шаг 5.4): форма и собственные предложения только для вошедших; очередь — в панели команды.
+    path: '/suggestions',
+    name: 'suggestions',
+    component: () => import('@/views/SuggestionsView.vue'),
+    meta: { title: 'title.suggestions', needsApi: true, requiresAuth: true },
+  },
   {
     // Панель команды: право проверяется охраной страниц (и, главное, сервером на каждом запросе).
     path: '/team',
@@ -47,6 +56,11 @@ export const routes: RouteRecordRaw[] = [
       { path: 'site', name: 'team-site', component: () => import('@/views/team/TeamSiteView.vue'), meta: { title: 'title.teamSite' } },
       { path: 'timeline', name: 'team-timeline', component: () => import('@/views/team/TeamTimelineView.vue'), meta: { title: 'title.teamTimeline' } },
       { path: 'glossary', name: 'team-glossary', component: () => import('@/views/team/TeamGlossaryView.vue'), meta: { title: 'title.teamGlossary' } },
+      { path: 'uploads', name: 'team-uploads', component: () => import('@/views/team/TeamUploadsView.vue'), meta: { title: 'title.teamUploads', capability: 'write_drafts' } },
+      { path: 'sanctions', name: 'team-sanctions', component: () => import('@/views/team/TeamSanctionsView.vue'), meta: { title: 'title.teamSanctions', capability: 'moderate_comments' } },
+      { path: 'petitions', name: 'team-petitions', component: () => import('@/views/team/TeamPetitionsView.vue'), meta: { title: 'title.teamPetitions' } },
+      { path: 'inbox', name: 'team-inbox', component: () => import('@/views/team/TeamInboxView.vue'), meta: { title: 'title.teamInbox' } },
+      { path: 'secret-codes', name: 'team-secret-codes', component: () => import('@/views/team/TeamSecretCodesView.vue'), meta: { title: 'title.teamSecretCodes' } },
       { path: 'roles', name: 'team-roles', component: () => import('@/views/team/TeamHomeView.vue'), meta: { title: 'title.teamRoles' } },
       { path: 'documents', name: 'team-documents', component: () => import('@/views/team/TeamDocumentsView.vue'), meta: { title: 'title.teamDocuments' } },
       {
@@ -64,6 +78,7 @@ export const routes: RouteRecordRaw[] = [
       },
       { path: 'members', name: 'team-members', component: () => import('@/views/team/TeamMembersView.vue'), meta: { title: 'title.teamMembers', capability: 'manage_team' } },
       { path: 'reports', name: 'team-reports', component: () => import('@/views/team/TeamReportsView.vue'), meta: { title: 'title.teamReports', capability: 'moderate_comments' } },
+      { path: 'suggestions', name: 'team-suggestions', component: () => import('@/views/team/TeamSuggestionsView.vue'), meta: { title: 'title.teamSuggestions', capability: 'review' } },
     ],
   },
   { path: '/backup-code', name: 'backup-code', component: () => import('@/views/BackupCodeView.vue'), meta: { title: 'title.backupCode', needsApi: true, requiresAuth: true } },

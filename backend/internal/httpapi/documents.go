@@ -36,6 +36,7 @@ func (h *documentHandlers) fail(c *gin.Context, err error) {
 		qe *documents.QueryError
 		ad *documents.AccessDeniedError
 		ve *documents.ValidationError
+		cb *documents.CommentsBlockedError
 	)
 	switch {
 	case errors.Is(err, documents.ErrNotFound):
@@ -46,6 +47,10 @@ func (h *documentHandlers) fail(c *gin.Context, err error) {
 		Fail(c, http.StatusNotFound, CodeNotFound, "Оценка не найдена")
 	case errors.Is(err, documents.ErrForbidden):
 		Fail(c, http.StatusForbidden, CodeForbidden, "Недостаточно прав")
+	case errors.As(err, &cb):
+		failDetail(c, http.StatusForbidden, ErrorDetail{Code: CodeCommentsBlocked, Message: Lang(c).T("Вам временно запрещено писать пометки на полях до %s", cb.Until.UTC().Format("02.01.2006"))})
+	case errors.Is(err, documents.ErrCodeAlreadyRedeemed):
+		Fail(c, http.StatusConflict, CodeAlreadyRedeemed, "Этот код вы уже использовали")
 	case errors.As(err, &ad):
 		FailAccessDenied(c, ad.RequiredLevel, documents.LevelNameIn(Lang(c), ad.RequiredLevel))
 	case errors.As(err, &ve):
@@ -168,4 +173,23 @@ func (h *documentHandlers) get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, DocumentResponse{Document: d})
+}
+
+type RedeemCodeRequest struct {
+	Code string `json:"code"`
+}
+
+// POST /api/secret-codes/redeem — погасить скрытый код (шаг 5.5, требует входа). Неизвестный код и
+// код на недоступный документ неотличимы от «код не подходит» — перебор ничего не раскрывает.
+func (h *documentHandlers) redeemSecretCode(c *gin.Context) {
+	var req RedeemCodeRequest
+	if !bindJSONLimit(c, &req, MaxBodyBytes) {
+		return
+	}
+	res, err := h.svc.RedeemCode(c.Request.Context(), viewerFrom(c), req.Code)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
 }

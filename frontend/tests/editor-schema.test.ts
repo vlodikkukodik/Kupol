@@ -47,12 +47,12 @@ describe('схема сохраняет каждый знак и атрибут'
     expect(out(e)).toEqual(canonical)
   })
 
-  it('все 15 видов блоков присутствуют в схеме', () => {
+  it('все 17 видов блоков присутствуют в схеме', () => {
     const e = create(canonical)
     const names = new Set<string>()
     e.state.doc.forEach((n) => names.add(n.type.name))
-    expect(names.size).toBe(15)
-    expect(BLOCK_TYPES).toHaveLength(15)
+    expect(names.size).toBe(17)
+    expect(BLOCK_TYPES).toHaveLength(17)
   })
 
   it('фикстура e2e со всеми видами блоков не теряет ни блока, ни закрытого фрагмента', () => {
@@ -138,7 +138,7 @@ describe('идентификаторы блоков', () => {
 })
 
 describe('вставка блоков', () => {
-  it('каждый из 15 видов вставляется и уходит в данные своим видом', () => {
+  it('каждый из 17 видов вставляется и уходит в данные своим видом', () => {
     for (const item of INSERTABLE) {
       const e = create([block('paragraph', { text: [{ text: 'опорный' }] })])
       cursorIn(e, 0)

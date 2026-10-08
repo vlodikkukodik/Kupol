@@ -318,6 +318,7 @@ func inputFromDocument(d *Document) Input {
 	for i, b := range d.Blocks {
 		in.Blocks[i] = InputBlock{ID: b.ID, Type: b.Type, Level: b.Level, Data: b.Data}
 	}
+	in.IT = translationsFromRaw(d.Translations)
 	return in
 }
 

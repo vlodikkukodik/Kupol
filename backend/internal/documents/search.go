@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"unicode/utf8"
+
+	"kupol/internal/i18n"
 )
 
 // Поиск по документам (этап 4). Индекс и его правила — search_index.go.
@@ -115,6 +117,11 @@ func (s *Service) Search(ctx context.Context, v Viewer, q SearchQuery) (*SearchR
 	if !v.SeesUnpublished() {
 		where = append(where, "d.status = ?")
 		args = append(args, string(StatusPublished))
+	}
+	// Читателю с итальянским языком интерфейса выдача показывает только дела с итальянским переводом —
+	// как и в каталоге (visible в read.go); прямая ссылка на непереведённое дело всё ещё откроется.
+	if v.Lang == i18n.IT {
+		where = append(where, "jsonb_exists(d.translations, 'it')")
 	}
 	add := func(cond string, arg any) {
 		where = append(where, cond)

@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import {
+  ArchiveOutline,
   ArrowBack,
+  CodeSlashOutline,
+  CubeOutline,
+  TerminalOutline,
   FolderOpenOutline,
   DocumentTextOutline,
   GlobeOutline,
   KeyOutline,
+  LockClosedOutline,
   LinkOutline,
   LogOutOutline,
   SettingsOutline,
@@ -35,19 +40,29 @@ interface NavItem {
   grad: string
 }
 
-const items: NavItem[] = [
+const allItems: NavItem[] = [
   { name: 'site-overview', label: 'siteArea.overview', icon: SpeedometerOutline, grad: 'var(--grad-primary)' },
   { name: 'files', label: 'siteArea.files', icon: FolderOpenOutline, grad: 'var(--grad-cyan)' },
   { name: 'site-domains', label: 'siteArea.domains', icon: LinkOutline, grad: 'var(--grad-emerald)' },
+  { name: 'site-ssl', label: 'siteArea.ssl', icon: LockClosedOutline, grad: 'var(--grad-emerald)' },
+  { name: 'site-runtime', label: 'siteArea.runtime', icon: CodeSlashOutline, grad: 'var(--grad-violet)' },
+  { name: 'site-shell', label: 'siteArea.terminal', icon: TerminalOutline, grad: 'var(--grad-cyan)' },
+  { name: 'site-cms', label: 'siteArea.apps', icon: CubeOutline, grad: 'var(--grad-cyan)' },
   { name: 'site-stats', label: 'siteArea.stats', icon: StatsChartOutline, grad: 'var(--grad-emerald)' },
   { name: 'site-logs', label: 'siteArea.logs', icon: DocumentTextOutline, grad: 'var(--grad-cyan)' },
+  { name: 'site-backups', label: 'siteArea.backups', icon: ArchiveOutline, grad: 'var(--grad-amber)' },
   { name: 'site-ftp', label: 'siteArea.ftp', icon: KeyOutline, grad: 'var(--grad-violet)' },
   { name: 'site-settings', label: 'siteArea.settings', icon: SettingsOutline, grad: 'var(--grad-amber)' },
 ]
 
+// Раздел «Среда» виден, только если на сервере установлена хотя бы одна среда выполнения.
+const items = computed(() =>
+  allItems.filter((i) => (i.name !== 'site-runtime' || store.runtimeAvailable) && (i.name !== 'site-cms' || store.cmsAvailable) && (i.name !== 'site-shell' || store.shellAvailable)),
+)
+
 const siteId = computed(() => Number(route.params.id))
 const site = computed(() => store.byId(siteId.value))
-const current = computed(() => items.find((i) => i.name === route.name) ?? items[0]!)
+const current = computed(() => items.value.find((i) => i.name === route.name) ?? items.value[0]!)
 
 const userMenu = computed(() => [
   { label: t('nav.logout'), key: 'logout', icon: () => h(NIcon, null, { default: () => h(LogOutOutline) }) },
@@ -154,6 +169,8 @@ onBeforeUnmount(() => clearInterval(poll))
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow-y: auto; /* пунктов меню много: на невысоком экране панель прокручивается, а не обрезается */
+  scrollbar-width: thin;
 }
 
 .back {
@@ -372,16 +389,24 @@ onBeforeUnmount(() => clearInterval(poll))
     display: none;
   }
 
+  .side {
+    overflow: visible;
+  }
+
+  /* Пунктов меню много: на телефоне нижняя панель листается по горизонтали, а не сжимает значки */
   .nav {
     flex-direction: row;
     width: 100%;
-    justify-content: space-around;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .item {
+    flex: 0 0 auto;
     flex-direction: column;
     gap: 3px;
-    padding: 6px 8px;
+    padding: 6px 12px;
     font-size: 11px;
   }
 

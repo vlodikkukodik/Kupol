@@ -12,6 +12,9 @@ import VersionHistory from '@/components/team/VersionHistory.vue'
 import UiAlert from '@/ui/UiAlert.vue'
 import UiBadge from '@/ui/UiBadge.vue'
 import UiButton from '@/ui/UiButton.vue'
+import UiField from '@/ui/UiField.vue'
+import UiInput from '@/ui/UiInput.vue'
+import UiModal from '@/ui/UiModal.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
 import { ApiError, isApiError } from '@/api/client'
@@ -24,7 +27,16 @@ import { useReview } from '@/composables/useReview'
 import { blockIndexes } from '@/editor/problems'
 import { formatDateTime, formatTime } from '@/lib/format'
 import { locale, t } from '@/i18n'
-import { canonicalContent, contentFromForm, formFromContent, problemsToFields, sameContent, type DocForm } from '@/lib/teamdoc'
+import {
+  canonicalContent,
+  contentFromForm,
+  formFromContent,
+  problemsToFields,
+  sameContent,
+  translationFormFromContent,
+  type DocForm,
+  type TranslationForm,
+} from '@/lib/teamdoc'
 import { useAuthStore } from '@/stores/auth'
 import ErrorView from '../ErrorView.vue'
 import NotFoundView from '../NotFoundView.vue'
@@ -49,6 +61,7 @@ const loadError = ref<ApiError | null>(null)
 const loading = ref(false)
 
 const form = ref<DocForm | null>(null) // поля формы (строки)
+const itForm = ref<TranslationForm | null>(null) // вкладка перевода (заголовок и блоки на итальянском)
 const baseline = ref<Content | null>(null) // сохранённое содержимое: с ним сравнивается форма
 const errors = reactive<Record<string, string>>({}) // путь замечания → текст
 const otherProblems = ref<Problem[]>([]) // замечания без поля в форме (блоки и прочее)
@@ -67,7 +80,7 @@ const { open: openComments } = useReview(doc, { withLint: false }) // счётч
 const lockedBy = computed(() => (doc.value?.lock && !doc.value.lock.mine ? doc.value.lock : null))
 const mineLock = computed(() => Boolean(doc.value?.lock?.mine))
 const editable = computed(() => Boolean(doc.value?.can_edit) && !lockedBy.value && !conflict.value)
-const current = computed(() => (form.value ? contentFromForm(form.value, { strict: false }).content : null))
+const current = computed(() => (form.value ? contentFromForm(form.value, { strict: false, it: itForm.value ?? undefined }).content : null))
 const dirty = computed(() => Boolean(form.value && baseline.value) && !sameContent(current.value, baseline.value))
 const offeredDraft = computed(() => (doc.value?.draft && doc.value.can_edit && !draftDismissed.value && !dirty.value ? doc.value.draft : null))
 
@@ -105,6 +118,7 @@ function applyDoc(d: TeamDocument, { remount = true } = {}) {
   doc.value = d
   baseline.value = canonicalContent(d.content)
   form.value = formFromContent(d.content, d.type)
+  itForm.value = translationFormFromContent(d.content)
   if (remount) editorKey.value++
   syncTitle()
 }
@@ -153,7 +167,7 @@ const autosave = useAutosave(async () => {
 })
 
 watch(
-  form,
+  [form, itForm],
   () => {
     if (!editable.value || !dirty.value) return
     void ensureLock() // правка блоков (кнопка панели, набор текста) не всегда приходит событием ввода формы
@@ -188,7 +202,7 @@ async function save() {
   if (!form.value || !doc.value) return
   clearProblems()
   notice.value = ''
-  const { content, errors: local } = contentFromForm(form.value)
+  const { content, errors: local } = contentFromForm(form.value, { it: itForm.value ?? undefined })
   if (Object.keys(local).length > 0) {
     Object.assign(errors, local)
     failure.value = t('tdoc.fixFields')
@@ -226,6 +240,7 @@ async function revert() {
   if (!doc.value || !baseline.value) return
   autosave.cancel()
   form.value = formFromContent(baseline.value, doc.value.type)
+  itForm.value = translationFormFromContent(baseline.value)
   editorKey.value++
   clearProblems()
   notice.value = t('tdoc.reverted')
@@ -241,6 +256,7 @@ async function revert() {
 function useDraft() {
   if (!doc.value?.draft) return
   form.value = formFromContent(doc.value.draft.content, doc.value.type)
+  itForm.value = translationFormFromContent(doc.value.draft.content)
   editorKey.value++
   draftDismissed.value = true
   notice.value = t('tdoc.draftOpened')
@@ -306,6 +322,26 @@ const templateOpen = ref(false)
 function onTemplateSaved(tpl: TemplateFull) {
   const what = tpl.kind === 'document' ? t('tdoc.templateWhatDocument') : t('tdoc.templateWhatSet', { n: tpl.blocks })
   notice.value = t('tdoc.templateSaved', { name: tpl.name, what })
+}
+
+// ——— удаление документа безвозвратно (Редактор, Директорат) ———
+const canDelete = computed(() => Boolean(auth.user?.directorate || auth.can('edit_published')))
+const deleteOpen = ref(false)
+const deleting = ref(false)
+const deleteError = ref('')
+async function confirmDelete() {
+  if (!doc.value) return
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await teamApi.deleteDocument(doc.value.id)
+    await router.replace({ name: 'team-documents' })
+  } catch (err) {
+    if (!(err instanceof ApiError)) throw err
+    deleteError.value = describeApiError(err)
+  } finally {
+    deleting.value = false
+  }
 }
 
 /** Документ перевели (отправили, вернули, опубликовали…): показать его новым и объявить итог. */
@@ -467,11 +503,23 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
         <BlockEditor ref="blockEditor" :key="editorKey" v-model:blocks="form.blocks" :editable="editable" :problem-blocks="problemBlockIds" />
       </section>
 
+      <!-- Перевод дела на второй язык интерфейса: тот же шифр и запись, отдельные заголовок и блоки -->
+      <section v-if="itForm" class="blocks translation" aria-labelledby="translation-title" @keydown="onEditorKeydown">
+        <h3 id="translation-title">{{ $t('tdoc.translationIt') }}</h3>
+        <form novalidate :aria-label="$t('tdoc.translationIt')" @submit.prevent @input.capture="ensureLock" @change.capture="ensureLock">
+          <UiField id="tdoc-it-title" :label="$t('tdoc.translationTitle')" :error="errors['it.title']">
+            <UiInput v-model="itForm.title" :maxlength="300" :disabled="!editable" />
+          </UiField>
+        </form>
+        <BlockEditor :key="`it-${editorKey}`" v-model:blocks="itForm.blocks" :editable="editable" />
+      </section>
+
       <div class="save-bar" data-testid="save-bar">
         <UiButton type="submit" form="doc-form" variant="primary" icon="check" :disabled="!editable" :loading="saving">{{ saving ? $t('tdoc.saving') : $t('tdoc.save') }}</UiButton>
         <UiButton v-if="dirty && editable" variant="link" @click="revert">{{ $t('tdoc.revert') }}</UiButton>
         <UiButton v-if="auth.can('manage_templates')" variant="link" icon="layers" data-testid="save-as-template" @click="templateOpen = true">{{ $t('tdoc.saveAsTemplate') }}</UiButton>
         <ExportButtons :doc-id="doc.id" :dirty="dirty" />
+        <UiButton v-if="canDelete" variant="link" icon="trash" data-testid="delete-document" @click="deleteOpen = true">{{ $t('tdoc.delete') }}</UiButton>
         <UiButton
           v-if="mineLock && !lockedBy"
           variant="link"
@@ -496,6 +544,15 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
       :kind-name="blockKindName"
       @saved="onTemplateSaved"
     />
+
+    <UiModal v-model:open="deleteOpen" :title="$t('tdoc.deleteTitle')" testid="delete-dialog">
+      <p>{{ $t('tdoc.deleteText', { code: doc.code ?? t('tdoc.noCode'), title: doc.content.title }) }}</p>
+      <UiAlert v-if="deleteError" tone="danger">{{ deleteError }}</UiAlert>
+      <div class="dlg-actions">
+        <UiButton variant="danger" icon="trash" :loading="deleting" data-testid="delete-confirm" @click="confirmDelete">{{ $t('tdoc.deleteConfirm') }}</UiButton>
+        <UiButton variant="link" @click="deleteOpen = false">{{ $t('tdoc.deleteCancel') }}</UiButton>
+      </div>
+    </UiModal>
 
     <DocumentPreview
       v-if="tab === 'preview'"
@@ -658,6 +715,13 @@ const statusTone = (s: string) => (s === 'published' ? 'published' : s === 'revi
 .hint {
   color: var(--text-muted);
   font-size: var(--text-sm);
+}
+.dlg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 .autosave {
   margin-left: auto;

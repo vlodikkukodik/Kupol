@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, type RouteLocationNormalized } from 'vue-router'
+import AchievementNotice from '@/components/AchievementNotice.vue'
 import AppMenu from '@/components/AppMenu.vue'
 import CookieNotice from '@/components/CookieNotice.vue'
 import LevelUpNotice from '@/components/LevelUpNotice.vue'
@@ -100,6 +101,7 @@ const statusText = computed(() => t(`app.status.${connection.state}`))
   <AppMenu />
   <AuthModal />
   <LevelUpNotice />
+  <AchievementNotice />
 </template>
 
 <style scoped>

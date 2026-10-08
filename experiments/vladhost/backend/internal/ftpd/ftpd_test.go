@@ -30,6 +30,7 @@ type fixture struct {
 	addr     string
 	pub      string // каталог public сайта на диске
 	root     string
+	srv      *ftpd.Server
 }
 
 // setup поднимает настоящий FTP-сервер (FTPS, самоподписанный сертификат) на свободном порту.
@@ -71,7 +72,7 @@ func setup(t *testing.T, quota int64, opts ...func(*config.FTPConfig)) *fixture 
 
 	return &fixture{
 		t: t, svc: svc, site: site, user: svc.FTPUsername(site.Host), password: pw, addr: srv.Addr(),
-		pub: filepath.Join(root, site.Host, "public"), root: root,
+		pub: filepath.Join(root, site.Host, "public"), root: root, srv: srv,
 	}
 }
 
@@ -315,6 +316,48 @@ func TestFTPAuth(t *testing.T) {
 		_ = c.Quit()
 		t.Error("после отключения вход должен быть отклонён")
 	}
+}
+
+// Успешный вход сообщается хуку (для журнала действий): владелец, сайт и адрес клиента; неудачный — нет.
+func TestLoginHookIsCalledOnlyForSuccessfulLogins(t *testing.T) {
+	f := setup(t, 1<<20)
+	type login struct {
+		user int64
+		host string
+		ip   string
+	}
+	got := make(chan login, 4)
+	f.srv.SetLoginHook(func(userID int64, host, ip string) { got <- login{userID, host, ip} })
+
+	if c, err := f.dial(f.user, "wrong-password"); err == nil {
+		_ = c.Quit()
+		t.Fatal("неверный пароль не должен пройти")
+	}
+	select {
+	case l := <-got:
+		t.Fatalf("хук вызван для неудачного входа: %+v", l)
+	case <-time.After(300 * time.Millisecond):
+	}
+	c, err := f.dial(f.user, f.password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = c.Quit()
+	select {
+	case l := <-got:
+		if l.user != f.site.UserID || l.host != f.site.Host || l.ip != "127.0.0.1" {
+			t.Fatalf("%+v", l)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("хук не вызван после успешного входа")
+	}
+	// сервер без хука работает как прежде
+	f.srv.SetLoginHook(nil)
+	c2, err := f.dial(f.user, f.password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = c2.Quit()
 }
 
 func TestFTPBruteForceBlocked(t *testing.T) {

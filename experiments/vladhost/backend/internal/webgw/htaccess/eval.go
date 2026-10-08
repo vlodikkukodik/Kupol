@@ -32,11 +32,27 @@ type Effective struct {
 	encodings     map[string]string
 }
 
+// Defaults — настройки сайта из панели: они действуют, пока директива не задана в .htaccess (тот сильнее).
+type Defaults struct {
+	DirectoryIndex []string         // nil — index.html, index.htm
+	Indexes        bool             // показывать список файлов каталога
+	ErrorDocs      map[int]ErrorDoc // страницы ошибок по коду
+}
+
 // Merge собирает итоговые настройки. chain идёт от корня сайта вглубь.
-func Merge(chain []Dir) *Effective {
+func Merge(chain []Dir) *Effective { return MergeWith(chain, Defaults{}) }
+
+// MergeWith то же, но с настройками сайта из панели в качестве основы.
+func MergeWith(chain []Dir, def Defaults) *Effective {
 	e := &Effective{
-		chain: chain, DirectoryIndex: []string{"index.html", "index.htm"}, ErrorDocs: map[int]ErrorDoc{},
+		chain: chain, DirectoryIndex: []string{"index.html", "index.htm"}, Indexes: def.Indexes, ErrorDocs: map[int]ErrorDoc{},
 		Charset: "utf-8", expiresByType: map[string]ExpiresSpec{}, types: map[string]string{}, encodings: map[string]string{},
+	}
+	if def.DirectoryIndex != nil {
+		e.DirectoryIndex = def.DirectoryIndex
+	}
+	for code, doc := range def.ErrorDocs {
+		e.ErrorDocs[code] = doc
 	}
 	deepest := -1
 	for i, d := range chain {

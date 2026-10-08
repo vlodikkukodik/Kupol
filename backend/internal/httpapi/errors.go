@@ -33,10 +33,13 @@ const (
 	CodeLocked             = "locked"    // документ правит другой человек
 	CodeConflict           = "conflict"  // документ изменён после того, как его открыл редактор
 	CodeCodeTaken          = "code_taken"
-	CodeNameTaken          = "name_taken"    // название шаблона уже занято
-	CodeSelfReview         = "self_review"   // Редактор пытается проверить собственный документ
-	CodeInvalidState       = "invalid_state" // действие не подходит документу в его статусе
-	CodeLintFailed         = "lint_failed"   // документ не прошёл проверку канона; отчёт — в lint
+	CodeNameTaken          = "name_taken"       // название шаблона уже занято
+	CodeSelfReview         = "self_review"      // Редактор пытается проверить собственный документ
+	CodeInvalidState       = "invalid_state"    // действие не подходит документу в его статусе
+	CodeLintFailed         = "lint_failed"      // документ не прошёл проверку канона; отчёт — в lint
+	CodeBanned             = "banned"           // аккаунт заблокирован (шаг 5.9)
+	CodeCommentsBlocked    = "comments_blocked" // пометки временно запрещены (шаг 5.9)
+	CodeAlreadyRedeemed    = "already_redeemed" // скрытый код этим аккаунтом уже погашен
 
 	CodeTOTPRequired       = "totp_required"        // пароль верен, но нужен код из приложения
 	CodeTOTPInvalid        = "totp_invalid"         // неверный, просроченный или уже использованный код

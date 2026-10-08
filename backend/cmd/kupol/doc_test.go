@@ -141,9 +141,9 @@ func TestDocImportPrintsAllProblems(t *testing.T) {
 			t.Errorf("в выводе нет %q:\n%s", want, out)
 		}
 	}
-	// медиа-блоки — понятное сообщение
+	// блок картинки без файла — замечание про поле upload
 	out, _ = run("import", write("img.json", `{"code":"О-2","type":"object","title":"Т","composed":{"year":1979},"blocks":[{"type":"image"}]}`))
-	if !strings.Contains(out, "загрузкой файлов (этап 6)") {
+	if !strings.Contains(out, "data.upload") {
 		t.Errorf("сообщение про картинки:\n%s", out)
 	}
 }

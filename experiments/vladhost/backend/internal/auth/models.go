@@ -17,6 +17,10 @@ type User struct {
 	PasswordHash string    `json:"-"`
 	Role         Role      `json:"role"`
 	CreatedAt    time.Time `json:"created_at"`
+	// Почта: подтверждение адреса, язык писем (ru или it) и согласие на уведомления о проблемах.
+	EmailVerifiedAt *time.Time `json:"email_verified_at"`
+	Lang            string     `json:"lang"`
+	NotifyEmail     bool       `json:"notify_email"`
 }
 
 type Invite struct {

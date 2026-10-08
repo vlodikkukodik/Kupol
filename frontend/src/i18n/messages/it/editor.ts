@@ -22,6 +22,7 @@ export default {
       footnote: 'Testo della nota…',
       entry: 'Testo della registrazione…',
       column: 'Colonna',
+      transcript: 'Trascrizione della registrazione…',
     },
 
     node: {
@@ -42,6 +43,8 @@ export default {
       pageBreak: 'Interruzione di pagina',
       footnote: 'Nota a piè di pagina',
       appendix: 'Allegato',
+      image: 'Immagine',
+      audio: 'Registrazione audio',
       unknownBlock: 'Blocco sconosciuto',
     },
 
@@ -61,6 +64,8 @@ export default {
       pageBreak: { number: 'Numero di pagina' },
       footnote: { mark: 'Segno della nota' },
       appendix: { number: "Numero dell'allegato", title: 'Titolo' },
+      image: { upload: 'Chiave del file (dalla sezione «File»)', caption: 'Didascalia', sticker: 'Aspetto' },
+      audio: { upload: 'Chiave del file (dalla sezione «File»)', title: 'Titolo della registrazione' },
     },
 
     opt: {
@@ -70,6 +75,7 @@ export default {
       memo: { kind: { memo: 'Nota', order: 'Ordine', letter: 'Lettera' } },
       clipping: { kind: { newspaper: 'Ritaglio di giornale', handwritten: 'Appunto manoscritto', transcript: 'Trascrizione di una registrazione' } },
       divider: { style: { line: 'Linea', stars: 'Asterischi' } },
+      image: { sticker: { none: 'Nessuno', frame: 'Cornice', clip: 'Graffetta', stamp: 'Timbro' } },
     },
 
     insert: {
@@ -88,6 +94,8 @@ export default {
       pageBreak: { label: 'Interruzione di pagina', hint: 'con numero' },
       footnote: { label: 'Nota a piè di pagina', hint: 'segno e testo' },
       appendix: { label: 'Allegato', hint: 'numero e titolo' },
+      image: { label: 'Immagine', hint: 'file dalla sezione «File»' },
+      audio: { label: 'Registrazione audio', hint: 'file e trascrizione' },
     },
 
     toolbar: {

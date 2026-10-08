@@ -88,6 +88,9 @@ func (s *Service) reconcileCerts(ctx context.Context) error {
 				continue
 			}
 		}
+		if status == CertFailed && s.hasValidCert(site.Host) {
+			status = CertActive // перевыпуск не удался, но прежний сертификат ещё действует: сайт работает, причина остаётся в cert_error
+		}
 		if err := s.db.WithContext(ctx).Model(&Site{}).Where("id = ?", site.ID).
 			Updates(map[string]any{"cert_status": status, "cert_error": msg}).Error; err != nil {
 			return err

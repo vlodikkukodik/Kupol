@@ -42,6 +42,8 @@ const EMPTY_DATA: Record<string, unknown> = {
   page: {},
   footnote: { mark: '', text: [] },
   appendix: { title: '' },
+  image: { upload: '' },
+  audio: { upload: '' },
 }
 
 const ids = (doc: PMNode): Set<string> => {

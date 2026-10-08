@@ -12,21 +12,32 @@ import (
 	"kupol/internal/accounts"
 	"kupol/internal/config"
 	"kupol/internal/documents"
+	"kupol/internal/mailsettings"
+	"kupol/internal/petitions"
 	"kupol/internal/ratelimit"
+	"kupol/internal/sanctions"
+	"kupol/internal/suggestions"
+	"kupol/internal/uploads"
 )
 
 type Deps struct {
-	Config    config.Config
-	DB        *gorm.DB
-	Log       *slog.Logger
-	Accounts  *accounts.Service
-	Documents *documents.Service
-	Limiter   *ratelimit.Limiter
+	Config      config.Config
+	DB          *gorm.DB
+	Log         *slog.Logger
+	Accounts    *accounts.Service
+	Documents   *documents.Service
+	Suggestions *suggestions.Service
+	Petitions   *petitions.Service
+	Sanctions   *sanctions.Service
+	Uploads     *uploads.Service
+	// MailSettings — SMTP, который Директорат включает в панели команды (настройки писем читателя — у Accounts).
+	MailSettings *mailsettings.Service
+	Limiter      *ratelimit.Limiter
 }
 
 func New(d Deps) (*gin.Engine, error) {
-	if d.Accounts == nil || d.Documents == nil || d.Limiter == nil {
-		return nil, errors.New("httpapi: не заданы Accounts, Documents и Limiter")
+	if d.Accounts == nil || d.Documents == nil || d.Suggestions == nil || d.Petitions == nil || d.Sanctions == nil || d.Uploads == nil || d.MailSettings == nil || d.Limiter == nil {
+		return nil, errors.New("httpapi: не заданы Accounts, Documents, Suggestions, Petitions, Sanctions, Uploads, MailSettings и Limiter")
 	}
 	gin.SetMode(gin.ReleaseMode)
 
@@ -50,7 +61,7 @@ func New(d Deps) (*gin.Engine, error) {
 		proxyTrustMiddleware(d.Config.ProxySecret, d.Log),
 		accessLogMiddleware(d.Log),
 		securityHeadersMiddleware(),
-		bodyLimitMiddleware(MaxBodyBytes),
+		bodyLimitMiddleware(MaxBodyBytes, uploadPutPrefix, uploadBodyLimit),
 		csrfMiddleware(d.Config.SiteOrigin),
 	)
 
@@ -91,6 +102,16 @@ func New(d Deps) (*gin.Engine, error) {
 	me.POST("/totp/enable", auth.totpEnable)
 	me.POST("/totp/disable", auth.totpDisable)
 	me.POST("/totp/recovery-codes", auth.totpRenew)
+	me.GET("/achievements", auth.achievements)
+	me.GET("/inbox", auth.inbox)
+	me.GET("/inbox/unread", auth.inboxUnread)
+	me.POST("/inbox/read-all", auth.inboxReadAll)
+	me.POST("/inbox/:id/read", auth.inboxRead)
+	// Письма-уведомления: о чём читатель просил писать на почту и на каком языке их слать.
+	me.GET("/email-prefs", auth.emailPrefs)
+	me.PUT("/email-prefs", auth.setEmailPrefs)
+	me.PUT("/lang", auth.setLang)
+	api.POST("/team/inbox/send", requireAuth(), auth.inboxSend)
 
 	// Team panel: роли и права проверяются на сервере (requireCapability), а не по тому, что показывает интерфейс.
 	team := &teamHandlers{svc: d.Accounts, log: d.Log}
@@ -102,7 +123,7 @@ func New(d Deps) (*gin.Engine, error) {
 
 	// Документы в team panel. Что именно можно с каждым документом, решает сервис по человеку и документу;
 	// здесь достаточно быть членом команды (Гражданину — 401, вошедшему без ролей — 403).
-	tdocs := &teamDocumentHandlers{svc: d.Documents, log: d.Log}
+	tdocs := &teamDocumentHandlers{svc: d.Documents, smtp: d.MailSettings, log: d.Log}
 	api.GET("/team/document-types", requireCapability(accounts.CapTeamPanel), tdocs.meta)
 	api.GET("/team/dashboard", requireCapability(accounts.CapTeamPanel), tdocs.dashboard)
 	api.GET("/team/glossary", requireCapability(accounts.CapTeamPanel), tdocs.glossary)
@@ -111,6 +132,13 @@ func New(d Deps) (*gin.Engine, error) {
 	api.DELETE("/team/glossary/:id", requireCapability(accounts.CapTeamPanel), tdocs.deleteTerm)
 	api.GET("/team/site", requireCapability(accounts.CapTeamPanel), tdocs.siteGet)
 	api.PUT("/team/site", requireCapability(accounts.CapTeamPanel), tdocs.siteUpdate)
+	// Почтовый сервер: читают члены команды, правит и проверяет только Директорат (проверяет сервис).
+	api.GET("/team/smtp", requireCapability(accounts.CapTeamPanel), tdocs.smtpGet)
+	api.PUT("/team/smtp", requireCapability(accounts.CapTeamPanel), tdocs.smtpUpdate)
+	api.POST("/team/smtp/test", requireCapability(accounts.CapTeamPanel), tdocs.smtpTest)
+	api.GET("/team/secret-codes", requireCapability(accounts.CapTeamPanel), tdocs.secretCodes)
+	api.POST("/team/secret-codes", requireCapability(accounts.CapTeamPanel), tdocs.createSecretCode)
+	api.DELETE("/team/secret-codes/:id", requireCapability(accounts.CapTeamPanel), tdocs.deleteSecretCode)
 	api.GET("/team/timeline", requireCapability(accounts.CapTeamPanel), tdocs.timelineList)
 	api.POST("/team/timeline", requireCapability(accounts.CapTeamPanel), tdocs.timelineCreate)
 	api.PUT("/team/timeline/:id", requireCapability(accounts.CapTeamPanel), tdocs.timelineUpdate)
@@ -125,6 +153,7 @@ func New(d Deps) (*gin.Engine, error) {
 	td.POST("", tdocs.create)
 	td.POST("/import", tdocs.importDocument)
 	td.GET("/:id", tdocs.get)
+	td.DELETE("/:id", tdocs.delete)
 	td.GET("/:id/export", tdocs.export)
 	td.PUT("/:id", tdocs.save)
 	td.PUT("/:id/draft", tdocs.autosave)
@@ -156,6 +185,9 @@ func New(d Deps) (*gin.Engine, error) {
 	api.GET("/documents/recent", docs.recent)
 	api.GET("/documents/:ref", docs.get)
 
+	// Скрытые коды (пасхалки, шаг 5.5): погашает только вошедший.
+	api.POST("/secret-codes/redeem", requireAuth(), docs.redeemSecretCode)
+
 	// «Пометки на полях» (шаг 5.2): читает кто угодно, пишет и жалуется только вошедший.
 	api.GET("/documents/:ref/remarks", docs.listRemarks)
 	api.POST("/documents/:ref/remarks", requireAuth(), docs.createRemark)
@@ -167,6 +199,42 @@ func New(d Deps) (*gin.Engine, error) {
 	api.GET("/documents/:ref/ratings", docs.getRatings)
 	api.POST("/documents/:ref/ratings", requireAuth(), docs.setRating)
 	api.DELETE("/documents/:ref/ratings", requireAuth(), docs.deleteRating)
+
+	// «Предложения» (шаг 5.4): форма и собственные предложения — только вошедшим, очередь и решение — только Редакторам.
+	// «Ходатайства» о допуске 4–6 (шаг 5.8): подаёт вошедший, решает Особый Совет или Директорат (проверяет сервис).
+	// Загрузки (этап 6.1): билет — по праву писать, файл — по билету, отдача — по допуску читателя.
+	up := &uploadHandlers{svc: d.Uploads, log: d.Log}
+	api.POST("/team/uploads/ticket", requireCapability(accounts.CapWriteDrafts), up.ticket)
+	api.POST("/uploads/put/:ticket", up.put)
+	api.GET("/team/uploads", requireCapability(accounts.CapWriteDrafts), up.list)
+	api.DELETE("/team/uploads/:id", requireCapability(accounts.CapWriteDrafts), up.remove)
+	api.GET("/uploads/:key/file", up.serve(false))
+	api.GET("/uploads/:key/thumb", up.serve(true))
+
+	// Наказания (шаг 5.9): накладывает Модератор (moderate_comments) или Директорат — проверяет сервис.
+	san := &sanctionHandlers{svc: d.Sanctions, log: d.Log}
+	api.GET("/team/sanctions", requireAuth(), san.list)
+	api.POST("/team/sanctions", requireAuth(), san.issue)
+	api.POST("/team/sanctions/:id/revoke", requireAuth(), san.revoke)
+
+	pet := &petitionHandlers{svc: d.Petitions, log: d.Log}
+	api.POST("/petitions", requireAuth(), pet.create)
+	api.GET("/petitions", requireAuth(), pet.mine)
+	api.GET("/team/petitions", requireAuth(), pet.queue)
+	api.POST("/team/petitions/:id/decision", requireAuth(), pet.decide)
+	api.GET("/team/invitations", requireAuth(), pet.invitations)
+	api.POST("/team/invitations", requireAuth(), pet.invite)
+	api.POST("/team/invitations/:id/withdraw", requireAuth(), pet.withdraw)
+	api.GET("/invitations", requireAuth(), pet.myInvitations)
+	api.POST("/invitations/:id/respond", requireAuth(), pet.respond)
+	// Карточка пользователя (клик по нику): только вошедшим, только ограниченные сведения.
+	api.GET("/users/:login", requireAuth(), auth.userCard)
+
+	sug := &suggestionHandlers{svc: d.Suggestions, log: d.Log}
+	api.POST("/suggestions", requireAuth(), sug.create)
+	api.GET("/suggestions", requireAuth(), sug.mine)
+	api.GET("/team/suggestions", requireCapability(accounts.CapReview), sug.queue)
+	api.POST("/team/suggestions/:id/status", requireCapability(accounts.CapReview), sug.setStatus)
 
 	return r, nil
 }

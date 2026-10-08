@@ -145,6 +145,8 @@ export default {
     passwordTitle: 'Cambio della password',
     emailTitle: 'Posta',
     totpTitle: "Codice dall'app",
+    petitionTitle: 'Istanza di accesso',
+    secretCodeTitle: 'Codice di accesso',
     sessionTitle: 'Sessione',
     logout: 'Esci',
     loggingOut: 'Uscita…',
@@ -219,6 +221,68 @@ export default {
     dismiss: 'Annulla',
     sentNotice: 'Messaggio inviato. Segui il link al suo interno per confermare la posta.',
     removedNotice: 'Posta rimossa.',
+  },
+
+  userCard: {
+    kicker: 'Scheda utente',
+    title: 'Scheda utente',
+    loading: 'Caricamento della scheda…',
+    noAchievements: 'Non ci sono ancora attestati.',
+  },
+
+  petition: {
+    intro: "Puoi presentare un'istanza per il livello {level} ({name}). La esaminerà il Consiglio Speciale.",
+    label: "Perché chiedi l'aumento",
+    submit: "Presenta l'istanza",
+    enterText: "Scrivi perché chiedi l'aumento",
+    pending: "L'istanza per il livello {level} ({name}) è stata presentata e attende la decisione del Consiglio.",
+    invited: 'Il Consiglio Speciale ti invita al livello {level} ({name}).',
+    accept: "Accetta l'invito",
+    decline: 'Rifiuta',
+    status: {
+      approved: '{when}: istanza per il livello {level} approvata',
+      rejected: '{when}: istanza per il livello {level} respinta',
+    },
+  },
+
+  inbox: {
+    title: 'Posta interna',
+    kicker: "Messaggi del Direttorato e avvisi dell'archivio",
+    loading: 'Caricamento della posta…',
+    empty: 'Non ci sono ancora messaggi.',
+    unread: 'Non letti: {n}',
+    readAll: 'Segna tutti come letti',
+    open: 'Apri',
+    markRead: 'Letto',
+    pages: 'Pagine della posta',
+    prev: 'Indietro',
+    next: 'Avanti',
+  },
+
+  achievements: {
+    title: 'Attestati',
+    empty: 'Non ci sono ancora attestati — leggi i fascicoli, accedi ogni giorno, cerca i codici segreti.',
+    loading: 'Caricamento degli attestati…',
+    got: 'Ottenuto: {when}',
+    newTitle: 'Nuovo attestato!',
+    name: {
+      read_10: '10 fascicoli letti',
+      read_50: '50 fascicoli letti',
+      read_100: '100 fascicoli letti',
+      streak_7: 'Serie di accessi: 7 giorni',
+      streak_30: 'Serie di accessi: 30 giorni',
+      secret_finder: 'Ha trovato un codice segreto',
+    },
+  },
+
+  secretCode: {
+    intro: 'Se hai un codice di accesso, inseriscilo qui.',
+    label: 'Codice',
+    enterCode: 'Inserisci il codice',
+    submit: 'Riscatta il codice',
+    success: 'Codice accettato! Assegnati {xp} XP.',
+    openDocument: 'Apri il fascicolo {ref}',
+    newAchievement: 'Nuovo attestato: «{name}»',
   },
 
   emailConfirm: {

@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
+import { inboxApi } from '@/api/endpoints'
+import { keys } from '@/api/query'
 import UiButton from '@/ui/UiButton.vue'
 import UiDrawer from '@/ui/UiDrawer.vue'
 import UiSeal from '@/ui/UiSeal.vue'
@@ -9,6 +13,13 @@ import { useUiStore } from '@/stores/ui'
 const ui = useUiStore()
 const auth = useAuthStore()
 const toggle = () => document.getElementById('menu-toggle')
+// Значок непрочитанных записок (шаг 5.7): опрос раз в минуту, пока пользователь вошёл
+const unread = useQuery({
+  queryKey: keys.inboxUnread,
+  queryFn: ({ signal }) => inboxApi.unread({ signal }),
+  enabled: computed(() => auth.user !== null),
+  refetchInterval: 60_000,
+})
 </script>
 
 <template>
@@ -35,6 +46,10 @@ const toggle = () => document.getElementById('menu-toggle')
         <li><RouterLink to="/search" @click="ui.closeMenu()">{{ $t('app.nav.search') }}</RouterLink></li>
         <li><RouterLink to="/about" @click="ui.closeMenu()">{{ $t('app.nav.about') }}</RouterLink></li>
         <li v-if="auth.user"><RouterLink to="/file" @click="ui.closeMenu()">{{ $t('app.nav.file') }}</RouterLink></li>
+        <li v-if="auth.user">
+          <RouterLink to="/inbox" @click="ui.closeMenu()">{{ $t('app.nav.inbox') }}<span v-if="unread.data.value" class="badge" data-testid="inbox-badge">{{ unread.data.value }}</span></RouterLink>
+        </li>
+        <li v-if="auth.user"><RouterLink to="/suggestions" @click="ui.closeMenu()">{{ $t('app.nav.suggestions') }}</RouterLink></li>
         <li v-if="auth.can('team_panel')"><RouterLink to="/team" @click="ui.closeMenu()">{{ $t('app.nav.team') }}</RouterLink></li>
       </ul>
     </nav>
@@ -56,6 +71,18 @@ const toggle = () => document.getElementById('menu-toggle')
 </template>
 
 <style scoped>
+.badge {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-left: var(--space-2);
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: var(--red-700);
+  color: var(--paper-50);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: center;
+}
 .brand {
   display: inline-flex;
   align-items: center;

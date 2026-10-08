@@ -77,6 +77,17 @@ for (const loc of ['ru', 'it'] as const) {
     await page.waitForTimeout(700)
     await page.keyboard.press('Escape')
     await shot(page, `${loc}-5b-ftp-accounts`)
+    await menu.getByText(/Домены|Domini/).click()
+    await page.getByLabel(/Имя поддомена|Nome del sottodominio/).fill('docs')
+    await page.getByLabel(/^Папка$|^Cartella$/).fill('docs')
+    await page.getByRole('button', { name: /^Добавить$|^Aggiungi$/ }).click()
+    await page.waitForTimeout(700)
+    await page.getByLabel(/Имя поддомена|Nome del sottodominio/).fill('www')
+    await page.getByRole('button', { name: /^Добавить$|^Aggiungi$/ }).click()
+    await shot(page, `${loc}-5c-domains`)
+    await menu.getByText(/Настройки|Impostazioni/).click()
+    await page.waitForTimeout(600)
+    await shot(page, `${loc}-5d-site-settings`)
 
     await menu.getByText(/Файлы|File/).click()
     await page.waitForTimeout(500)
@@ -121,5 +132,9 @@ test('экраны: телефон', async ({ browser }) => {
   await shot(page, 'm-2-dashboard')
   await page.getByRole('navigation').first().locator('a').nth(1).click()
   await shot(page, 'm-3-sites')
+  if (await page.locator('a.site').count()) {
+    await page.locator('a.site').first().click()
+    await shot(page, 'm-4-site-cabinet')
+  }
   await ctx.close()
 })

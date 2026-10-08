@@ -15,7 +15,7 @@ import (
 
 // Пакеты, тексты которых видит пользователь: русских строк в них быть не должно, только ключи каталога.
 // Исключены пакеты для оператора (конфигурация, миграции, CLI): их сообщения не уходят пользователю.
-var userFacing = []string{"httpapi", "sites", "auth", "ftpd", "apperr", "webgw", "webgw/htaccess"}
+var userFacing = []string{"httpapi", "sites", "auth", "ftpd", "apperr", "webgw", "webgw/htaccess", "userdb", "cronjobs", "runtimes", "cms", "shellaccess", "mailhost", "dnszones", "tickets"}
 
 func sourceFiles(t *testing.T, pkgs ...string) []string {
 	t.Helper()

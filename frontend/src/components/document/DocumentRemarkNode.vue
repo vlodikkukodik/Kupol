@@ -90,7 +90,7 @@ async function confirmRemove() {
 <template>
   <li class="remark" :data-remark="remark.id">
     <p class="remark__meta">
-      <strong>{{ remark.author }}</strong> · <time :datetime="remark.created_at">{{ formatDateTime(remark.created_at) }}</time>
+      <strong v-if="auth.isAuthenticated"><RouterLink :to="{ name: 'user', params: { login: remark.author } }" data-testid="remark-author">{{ remark.author }}</RouterLink></strong><strong v-else>{{ remark.author }}</strong> · <time :datetime="remark.created_at">{{ formatDateTime(remark.created_at) }}</time>
     </p>
     <p class="remark__text">{{ remark.text }}</p>
     <div class="remark__actions">

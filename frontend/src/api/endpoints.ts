@@ -11,8 +11,10 @@ import type {
   Meta,
   PreviewResult,
   Rating,
+  RedeemResult,
   RemarkOut,
   SearchResult,
+  SecretCodeInput,
   TemplateContent,
   TemplateInput,
   TimelineInput,
@@ -23,7 +25,29 @@ import type {
   SaveResult,
   AutosaveResult,
 } from './generated/documents'
+import type { Page as InboxPage } from './generated/inbox'
+import type { Item as PetitionItem, Invitation } from './generated/petitions'
+import type { Upload } from './generated/uploads'
+import type { Item as SanctionItem, Input as SanctionInput } from './generated/sanctions'
 import type {
+  AchievementsResponse,
+  UploadTicketResponse,
+  UploadResponse,
+  UploadsResponse,
+  CreatePetitionRequest,
+  DecidePetitionRequest,
+  InvitationResponse,
+  InvitationsResponse,
+  InviteRequest,
+  RespondInvitationRequest,
+  UserCardResponse,
+  PetitionResponse,
+  SanctionResponse,
+  SanctionsResponse,
+  PetitionsResponse,
+  InboxUnreadResponse,
+  SendNoteRequest,
+  SendNoteResponse,
   AddCommentRequest,
   CaptchaResponse,
   ChangePasswordRequest,
@@ -31,6 +55,7 @@ import type {
   ConfirmEmailRequest,
   CreateRemarkRequest,
   CreateDocumentRequest,
+  CreateSuggestionRequest,
   DashboardResponse,
   DiffResponse,
   DocumentResponse,
@@ -44,6 +69,7 @@ import type {
   PreviewRequest,
   RatingsResponse,
   RecentResponse,
+  RedeemCodeRequest,
   RegisterRequest,
   RegisterResponse,
   RemarkResponse,
@@ -53,12 +79,18 @@ import type {
   ResolveCommentRequest,
   ReviewResponse,
   SaveDocumentRequest,
+  SecretCodeResponse,
+  SecretCodesResponse,
   SessionResponse,
   SetEmailRequest,
   SetRatingRequest,
   SiteResponse,
   SiteSettingsResponse,
   SubmitRequest,
+  SuggestionResponse,
+  SuggestionStatusRequest,
+  SuggestionsListResponse,
+  SuggestionsResponse,
   TeamDocumentResponse,
   TemplateResponse,
   TemplatesResponse,
@@ -101,6 +133,50 @@ export const authApi = {
   removeEmail: (password: string) => api.delete<null>('/me/email', { password }),
   /** Переход по ссылке из письма подтверждения; входа не требует. */
   confirmEmail: (body: ConfirmEmailRequest) => api.post<null>('/auth/email/confirm', body),
+  /** Грамоты пользователя (шаг 5.6), для личного дела */
+  achievements: (o?: RequestOptions) => api.get<AchievementsResponse>('/me/achievements', o).then((r) => r.items),
+}
+
+/** Внутренняя почта (шаг 5.7): ящик читателя; записки Директората шлёт teamApi.sendNote. */
+export const inboxApi = {
+  list: (page: number, o?: RequestOptions) => api.get<InboxPage>(`/me/inbox${qs({ page: page > 1 ? page : undefined })}`, o),
+  unread: (o?: RequestOptions) => api.get<InboxUnreadResponse>('/me/inbox/unread', o).then((r) => r.unread),
+  markRead: (id: number) => api.post<null>(`/me/inbox/${id}/read`),
+  markAllRead: () => api.post<null>('/me/inbox/read-all'),
+}
+
+/** Загрузки (этап 6.1): картинки и аудио. Файл уходит по одноразовому билету на отдельный путь. */
+export const uploadsApi = {
+  list: (o?: RequestOptions) => api.get<UploadsResponse>('/team/uploads', o).then((r) => r.items as Upload[]),
+  /** Билет и загрузка одним действием; level — минимальный допуск читателя (0–6) */
+  async upload(file: File, level: number): Promise<Upload> {
+    const t = await api.post<UploadTicketResponse>('/team/uploads/ticket')
+    const form = new FormData()
+    form.append('level', String(level))
+    form.append('file', file)
+    const r = await api.post<UploadResponse>(t.path.replace(/^\/api/, ''), form)
+    return r.upload as Upload
+  },
+  remove: (id: number) => api.delete<null>(`/team/uploads/${id}`),
+}
+
+/** Карточка пользователя (клик по нику, только вошедшим): ник, уровень, звание, грамоты */
+export const usersApi = {
+  card: (login: string, o?: RequestOptions) => api.get<UserCardResponse>(`/users/${encodeURIComponent(login)}`, o).then((r) => r.card),
+}
+
+/** Ходатайства о допуске 4–6 (шаг 5.8): подаёт вошедший; очередь и решение — Особый Совет и Директорат. */
+export const petitionsApi = {
+  mine: (o?: RequestOptions) => api.get<PetitionsResponse>('/petitions', o).then((r) => r.items as PetitionItem[]),
+  create: (text: string) => api.post<PetitionResponse>('/petitions', { text } satisfies CreatePetitionRequest).then((r) => r.petition as PetitionItem),
+  queue: (o?: RequestOptions) => api.get<PetitionsResponse>('/team/petitions', o).then((r) => r.items as PetitionItem[]),
+  /** Приглашения Совета на следующий уровень: читатель принимает или отклоняет; Совет приглашает и отзывает */
+  invitations: (o?: RequestOptions) => api.get<InvitationsResponse>('/invitations', o).then((r) => r.items as Invitation[]),
+  respond: (id: number, answer: RespondInvitationRequest['answer']) => api.post<InvitationResponse>(`/invitations/${id}/respond`, { answer }).then((r) => r.invitation as Invitation),
+  councilInvitations: (o?: RequestOptions) => api.get<InvitationsResponse>('/team/invitations', o).then((r) => r.items as Invitation[]),
+  invite: (body: InviteRequest) => api.post<InvitationResponse>('/team/invitations', body).then((r) => r.invitation as Invitation),
+  withdraw: (id: number) => api.post<InvitationResponse>(`/team/invitations/${id}/withdraw`).then((r) => r.invitation as Invitation),
+  decide: (id: number, body: DecidePetitionRequest) => api.post<PetitionResponse>(`/team/petitions/${id}/decision`, body).then((r) => r.petition as PetitionItem),
 }
 
 /** Код из приложения (TOTP) в личном деле: включается по желанию, все действия подтверждаются паролем. */
@@ -148,6 +224,16 @@ export const ratingsApi = {
   get: (ref: string, o?: RequestOptions) => api.get<RatingsResponse>(`/documents/${encodeURIComponent(ref)}/ratings`, o).then((r) => r.ratings as DocumentRatings),
   set: (ref: string, rating: Rating) => api.post<RatingsResponse>(`/documents/${encodeURIComponent(ref)}/ratings`, { rating } satisfies SetRatingRequest).then((r) => r.ratings as DocumentRatings),
   remove: (ref: string) => api.delete<RatingsResponse>(`/documents/${encodeURIComponent(ref)}/ratings`).then((r) => r.ratings as DocumentRatings),
+}
+
+/** «Предложения» (шаг 5.4): одна форма для читателей, собственный список, очередь и решение — только с правом review. */
+export const suggestionsApi = {
+  create: (body: CreateSuggestionRequest) => api.post<SuggestionResponse>('/suggestions', body).then((r) => r.suggestion),
+  mine: (o?: RequestOptions) => api.get<SuggestionsResponse>('/suggestions', o).then((r) => r.items),
+  /** Очередь для команды: фильтр по статусу, страницы */
+  queue: (params: { status?: string; page?: number; per_page?: number }, o?: RequestOptions) => api.get<SuggestionsListResponse>(`/team/suggestions${qs(params)}`, o),
+  /** Перевод в новый статус с пояснением автору («записка»); начисляет XP при принятии */
+  setStatus: (id: number, body: SuggestionStatusRequest) => api.post<SuggestionResponse>(`/team/suggestions/${id}/status`, body).then((r) => r.suggestion),
 }
 
 export interface TeamListParams {
@@ -228,4 +314,21 @@ export const teamApi = {
     api.put<CommentResponse>(`/team/documents/${id}/comments/${commentId}`, { resolved } satisfies ResolveCommentRequest),
   deleteComment: (id: number, commentId: number) => api.delete<null>(`/team/documents/${id}/comments/${commentId}`),
   restore: (id: number, versionId: number) => api.post<SaveResult>(`/team/documents/${id}/versions/${versionId}/restore`),
+  /** Наказания (шаг 5.9): Модератор и Директорат */
+  sanctions: (login: string, o?: RequestOptions) => api.get<SanctionsResponse>(`/team/sanctions${qs({ login: login || undefined })}`, o).then((r) => r.items as SanctionItem[]),
+  issueSanction: (body: SanctionInput) => api.post<SanctionResponse>('/team/sanctions', body).then((r) => r.sanction as SanctionItem),
+  revokeSanction: (id: number) => api.post<SanctionResponse>(`/team/sanctions/${id}/revoke`).then((r) => r.sanction as SanctionItem),
+  /** Записка Директората: одному (login) или всем (login пуст) */
+  sendNote: (body: SendNoteRequest) => api.post<SendNoteResponse>('/team/inbox/send', body),
+  /** Удалить документ безвозвратно (Редактор, Директорат); шифр освобождается сразу */
+  deleteDocument: (id: number) => api.delete<null>(`/team/documents/${id}`),
+  /** Скрытые коды (пасхалки, шаг 5.5): заводит и удаляет только Директорат */
+  secretCodes: (o?: RequestOptions) => api.get<SecretCodesResponse>('/team/secret-codes', o).then((r) => r.codes),
+  createSecretCode: (body: SecretCodeInput) => api.post<SecretCodeResponse>('/team/secret-codes', body).then((r) => r.code),
+  deleteSecretCode: (id: number) => api.delete<null>(`/team/secret-codes/${id}`),
+}
+
+/** Погашение скрытого кода (шаг 5.5): требует входа, один раз на аккаунт и код. */
+export const secretCodesApi = {
+  redeem: (code: string) => api.post<RedeemResult>('/secret-codes/redeem', { code } satisfies RedeemCodeRequest),
 }

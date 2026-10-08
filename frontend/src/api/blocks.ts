@@ -4,16 +4,26 @@ import type {
   OutAppendix,
   OutBlock,
   OutClipping,
+  OutContainmentProcedure,
+  OutDirective,
   OutDivider,
   OutDocLink,
   OutExperimentLog,
   OutFootnote,
   OutHeading,
+  OutAudio,
+  OutHypothesis,
+  OutImage,
+  OutIncidentTimeline,
   OutList,
   OutMemo,
   OutPage,
   OutParagraph,
+  OutPersonnelRecord,
+  OutQA,
   OutQuote,
+  OutRoster,
+  OutRouting,
   OutStamp,
   OutTable,
 } from './generated/documents'
@@ -41,6 +51,16 @@ export type DocBlock =
   | Tagged<'page', OutPage>
   | Tagged<'footnote', OutFootnote>
   | Tagged<'appendix', OutAppendix>
+  | Tagged<'containment_procedure', OutContainmentProcedure>
+  | Tagged<'directive', OutDirective>
+  | Tagged<'incident_timeline', OutIncidentTimeline>
+  | Tagged<'personnel_record', OutPersonnelRecord>
+  | Tagged<'roster', OutRoster>
+  | Tagged<'hypothesis', OutHypothesis>
+  | Tagged<'qa', OutQA>
+  | Tagged<'routing', OutRouting>
+  | Tagged<'image', OutImage>
+  | Tagged<'audio', OutAudio>
   | Tagged<'redacted', RedactedData>
 
 export type BlockKind = DocBlock['type']

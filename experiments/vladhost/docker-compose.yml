@@ -17,5 +17,19 @@ services:
       timeout: 3s
       retries: 20
 
+  # MariaDB для тестов раздела «Базы данных» (на бою пользовательские базы живут в отдельных серверах, см. deploy/README.md).
+  mariadb:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: vladhost
+    ports:
+      - "127.0.0.1:3307:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
 volumes:
   vladhost-pgdata:

@@ -21,10 +21,23 @@ rm -rf /opt/vladhost/frontend.old
 # --- выпускатель сертификатов и systemd ---
 install -d -m 0755 /etc/nginx/snippets /etc/nginx/vladhost-domains
 install -m 0644 "$SRC/deploy/nginx/vladhost-site-proxy.conf" /etc/nginx/snippets/vladhost-site-proxy.conf
-install -m 0755 "$SRC/deploy/bin/certs.sh" "$SRC/deploy/bin/cert-hook.sh" /usr/local/lib/vladhost/
+install -m 0755 "$SRC/deploy/bin/certs.sh" "$SRC/deploy/bin/cert-hook.sh" "$SRC/deploy/bin/cert-info.sh" "$SRC/deploy/bin/cron-run.sh" "$SRC/deploy/bin/runtime.sh" /usr/local/lib/vladhost/
 install -m 0644 "$SRC"/deploy/systemd/* /etc/systemd/system/
 systemctl daemon-reload
+# Сведения о ранее выпущенных сертификатах (срок, издатель) для панели: дальше их обновляет хук certbot.
+install -d -m 0755 /var/lib/vladhost/certs/info
+/usr/local/lib/vladhost/cert-info.sh --all || true
 systemctl enable --now vladhost-certs.path >/dev/null 2>&1
+# Команды планировщика: путь включается, только если сервер подготовлен (prepare-cron.sh создал очередь).
+[ -d /var/lib/vladhost/cron/queue ] && systemctl enable --now vladhost-cron.path >/dev/null 2>&1
+# Посредник оболочек (SSH и веб-терминал): перезапускается с новым бинарём, только если сервер подготовлен prepare-ssh.sh.
+if [ -f /etc/systemd/system/vladhost-shell.service ]; then
+    systemctl restart vladhost-shell.service
+fi
+# Среды выполнения (PHP, Node.js, Python): то же — только если сервер подготовлен prepare-runtime.sh.
+if [ -d /var/lib/vladhost/runtime/queue ]; then
+    systemctl enable --now vladhost-runtime.path vladhost-runtime-perms.timer >/dev/null 2>&1
+fi
 systemctl enable vladhost.service vladhost-web.service >/dev/null 2>&1
 systemctl restart vladhost.service
 
@@ -59,6 +72,12 @@ if [ -f /etc/letsencrypt/live/app.vladinc.ru/fullchain.pem ]; then
     enable_conf vladhost-https.conf
 else
     echo "ВНИМАНИЕ: сертификата app.vladinc.ru ещё нет — https-часть nginx не включена"
+fi
+
+# Веб-клиент баз данных: только если сервер уже подготовлен (prepare-db.sh поставил Adminer и выпустил сертификат).
+if [ -d /opt/vladadminer ]; then
+    install -m 0644 -o root -g root "$SRC/deploy/adminer/index.php" /opt/vladadminer/index.php
+    [ -f /etc/letsencrypt/live/db.vladinc.ru/fullchain.pem ] && enable_conf vladhost-db.conf
 fi
 
 if nginx -t 2>/tmp/vh-nginx-test.log; then

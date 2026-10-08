@@ -371,6 +371,88 @@ func renderBlockMarkdown(blk InputBlock, l i18n.Lang) string {
 			title += " " + d.Number
 		}
 		return "## " + mdEscape(title+". "+d.Title)
+	case "containment_procedure":
+		d := decodeData[containmentProcedureData](blk.Data)
+		var lines []string
+		if d.Title != "" {
+			lines = append(lines, "**"+mdEscape(d.Title)+"**")
+		}
+		for i, s := range d.Steps {
+			lines = append(lines, strconv.Itoa(i+1)+". "+mdRich(s))
+		}
+		return strings.Join(lines, "\n")
+	case "directive":
+		d := decodeData[directiveData](blk.Data)
+		out := "**" + mdEscape(d.Recipient) + "** — " + mdRich(d.Order)
+		if d.Deadline != "" {
+			out += " (" + mdEscape(d.Deadline) + ")"
+		}
+		return out
+	case "incident_timeline":
+		d := decodeData[incidentTimelineData](blk.Data)
+		lines := make([]string, len(d.Entries))
+		for i, e := range d.Entries {
+			line := mdRich(e.Event)
+			if e.Time != "" {
+				line = "**" + mdEscape(e.Time) + "** — " + line
+			}
+			lines[i] = "- " + line
+		}
+		return strings.Join(lines, "\n")
+	case "personnel_record":
+		d := decodeData[personnelRecordData](blk.Data)
+		var lines []string
+		add := func(label, val string) {
+			if val != "" {
+				lines = append(lines, label+": "+mdEscape(val))
+			}
+		}
+		add(l.T("Звание"), d.Rank)
+		add(l.T("Допуск"), d.Clearance)
+		add(l.T("Статус"), d.Status)
+		return strings.Join(lines, "  \n")
+	case "roster":
+		d := decodeData[rosterData](blk.Data)
+		lines := make([]string, len(d.Entries))
+		for i, e := range d.Entries {
+			line := "- " + mdEscape(e.Name)
+			if e.Position != "" {
+				line += " — " + mdEscape(e.Position)
+			}
+			lines[i] = line
+		}
+		return strings.Join(lines, "\n")
+	case "hypothesis":
+		d := decodeData[hypothesisData](blk.Data)
+		return l.T("Гипотеза") + ": " + mdRich(d.Text) + "  \n" + l.T("Результат") + ": " + mdRich(d.Result)
+	case "qa":
+		d := decodeData[qaData](blk.Data)
+		lines := make([]string, len(d.Entries))
+		for i, e := range d.Entries {
+			lines[i] = "**" + l.T("Вопрос") + ":** " + mdRich(e.Question) + "  \n**" + l.T("Ответ") + ":** " + mdRich(e.Answer)
+		}
+		return strings.Join(lines, "\n\n")
+	case "image":
+		d := decodeData[imageData](blk.Data)
+		return "![" + mdEscape(d.Caption) + "](upload:" + d.Upload + ")"
+	case "audio":
+		d := decodeData[audioData](blk.Data)
+		out := "🔊 " + l.T("Аудиозапись")
+		if d.Title != "" {
+			out += " «" + mdEscape(d.Title) + "»"
+		}
+		out += " (upload:" + d.Upload + ")"
+		if len(d.Transcript) > 0 {
+			out += "\n\n" + mdQuote(mdRich(d.Transcript))
+		}
+		return out
+	case "routing":
+		d := decodeData[routingData](blk.Data)
+		lines := make([]string, len(d.Entries))
+		for i, e := range d.Entries {
+			lines[i] = "- " + mdEscape(e.Who) + " — " + mdEscape(e.Decision)
+		}
+		return strings.Join(lines, "\n")
 	default:
 		// Неизвестный тип (появится в редакторе позже) не теряется молча.
 		return l.T("<!-- блок «%s»: в Markdown не переносится, см. JSON -->", strings.ReplaceAll(blk.Type, "-->", ""))

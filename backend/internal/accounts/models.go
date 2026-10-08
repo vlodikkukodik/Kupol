@@ -29,11 +29,18 @@ type User struct {
 	Email        *string `gorm:"column:email"`
 	PendingEmail *string `gorm:"column:pending_email"`
 
+	// Lang — язык читателя для писем, которые уходят без его запроса (уведомления); выбирается в интерфейсе.
+	// Язык самих запросов сервер берёт из Accept-Language, здесь — только то, что запомнили.
+	Lang string `gorm:"column:lang;default:ru"`
+
 	// Код из приложения (TOTP): секреты хранятся зашифрованными, наружу не выходят (см. totp.go).
 	TOTPPending   []byte     `gorm:"column:totp_pending"`
 	TOTPSecret    []byte     `gorm:"column:totp_secret"`
 	TOTPEnabledAt *time.Time `gorm:"column:totp_enabled_at"`
 	TOTPLastStep  int64      `gorm:"column:totp_last_step"`
+
+	// BannedAt — аккаунт заблокирован (шаг 5.9): вход закрыт, сессии сняты; снимается отзывом наказания.
+	BannedAt *time.Time `gorm:"column:banned_at"`
 
 	// Roles — роли команды (таблица user_roles). Не колонка: подгружается при входе и проверке сессии.
 	Roles []Role `gorm:"-"`

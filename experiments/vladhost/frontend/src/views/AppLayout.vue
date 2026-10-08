@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ChevronDown, GlobeOutline, GridOutline, LogOutOutline, SettingsOutline } from '@vicons/ionicons5'
-import { NDropdown, NIcon } from 'naive-ui'
-import { computed, h, type Component } from 'vue'
+import { ChatbubbleEllipsesOutline, TimeOutline, ChevronDown, CompassOutline, HelpCircleOutline, MailOutline, GlobeOutline, GridOutline, ServerOutline, TerminalOutline, TimerOutline, LogOutOutline, SettingsOutline } from '@vicons/ionicons5'
+import { NAlert, NButton, NDropdown, NIcon, useMessage } from 'naive-ui'
+import { computed, h, onMounted, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { api, ApiError } from '@/api/client'
+import { ticketSummarySchema } from '@/api/schemas'
 import BrandLogo from '@/components/BrandLogo.vue'
 import LangSwitch from '@/components/LangSwitch.vue'
 import StatusChip from '@/components/StatusChip.vue'
@@ -11,6 +13,7 @@ import { useI18n, type MessageKey } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
+const message = useMessage()
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -22,19 +25,58 @@ interface NavItem {
   grad: string
 }
 
-const items: NavItem[] = [
+const allItems: NavItem[] = [
   { name: 'dashboard', label: 'nav.dashboard', icon: GridOutline, grad: 'var(--grad-primary)' },
   { name: 'sites', label: 'nav.sites', icon: GlobeOutline, grad: 'var(--grad-cyan)' },
+  { name: 'cron', label: 'nav.cron', icon: TimerOutline, grad: 'var(--grad-emerald)' },
+  { name: 'dns', label: 'nav.dns', icon: CompassOutline, grad: 'var(--grad-emerald)' },
+  { name: 'mailhost', label: 'nav.mailhost', icon: MailOutline, grad: 'var(--grad-primary)' },
+  { name: 'ssh', label: 'nav.ssh', icon: TerminalOutline, grad: 'var(--grad-cyan)' },
+  { name: 'databases', label: 'nav.databases', icon: ServerOutline, grad: 'var(--grad-violet)' },
+  { name: 'support', label: 'nav.support', icon: ChatbubbleEllipsesOutline, grad: 'var(--grad-cyan)' },
+  { name: 'help', label: 'nav.help', icon: HelpCircleOutline, grad: 'var(--grad-violet)' },
+  { name: 'activity', label: 'nav.activity', icon: TimeOutline, grad: 'var(--grad-emerald)' },
   { name: 'settings', label: 'nav.settings', icon: SettingsOutline, grad: 'var(--grad-amber)' },
 ]
 
-const active = computed(() => String(route.name ?? ''))
+// Раздел «Базы данных» виден, только если на сервере он включён.
+const items = computed(() => allItems.filter((i) => (i.name !== 'databases' || auth.databasesEnabled) && (i.name !== 'ssh' || auth.shellEnabled) && (i.name !== 'mailhost' || auth.mailhostEnabled) && (i.name !== 'dns' || auth.dnsEnabled)))
 
-const current = computed(() => items.find((i) => i.name === active.value) ?? items[0]!)
+// Страница обращения подсвечивает пункт «Поддержка»
+const active = computed(() => (route.name === 'ticket' ? 'support' : String(route.name ?? '')))
+
+// Сколько обращений ждёт действия: у пользователя — с ответом поддержки, у администратора — ждущих ответа. Обновляется при переходах.
+const waiting = ref(0)
+async function refreshWaiting() {
+  try {
+    waiting.value = (await api('/api/tickets/summary', { schema: ticketSummarySchema })).waiting
+  } catch {
+    waiting.value = 0
+  }
+}
+onMounted(refreshWaiting)
+watch(() => route.fullPath, refreshWaiting)
+
+const current = computed(() => items.value.find((i) => i.name === active.value) ?? items.value[0]!)
 
 const userMenu = computed(() => [
   { label: t('nav.logout'), key: 'logout', icon: () => h(NIcon, null, { default: () => h(LogOutOutline) }) },
 ])
+
+// Баннер «подтвердите почту»: показывается, пока адрес не подтверждён и на сервере настроена почта.
+const needVerify = computed(() => auth.mailEnabled && !!auth.user && !auth.user.email_verified_at)
+const resending = ref(false)
+async function resend() {
+  resending.value = true
+  try {
+    await auth.resendVerification()
+    message.success(t('mail.resent'))
+  } catch (e) {
+    message.error(e instanceof ApiError ? e.message : t('mail.resendFailed'))
+  } finally {
+    resending.value = false
+  }
+}
 
 async function onSelect(key: string) {
   if (key === 'logout') {
@@ -59,6 +101,7 @@ async function onSelect(key: string) {
         >
           <span class="ic"><n-icon :size="19" :component="it.icon" /></span>
           <span class="label">{{ t(it.label) }}</span>
+          <span v-if="it.name === 'support' && waiting > 0" class="count" data-testid="support-badge">{{ waiting }}</span>
         </router-link>
       </nav>
     </aside>
@@ -81,6 +124,11 @@ async function onSelect(key: string) {
           </n-dropdown>
         </div>
       </header>
+
+      <n-alert v-if="needVerify" type="warning" :show-icon="false" class="verify" data-testid="verify-banner">
+        {{ t('mail.verifyBanner', { email: auth.user?.email ?? '' }) }}
+        <n-button size="small" :loading="resending" @click="resend">{{ t('mail.resend') }}</n-button>
+      </n-alert>
 
       <main class="content">
         <router-view v-slot="{ Component: view, route: r }">
@@ -136,6 +184,18 @@ async function onSelect(key: string) {
     background 0.25s,
     color 0.25s,
     transform 0.25s var(--ease);
+}
+
+.item .count {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+  background: var(--grad-amber);
 }
 
 .item .ic {

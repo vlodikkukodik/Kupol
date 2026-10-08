@@ -340,6 +340,25 @@ const KINDS: Record<string, Kind> = {
     toNode: (d) => ({ attrs: { number: str(d.number), title: str(d.title) } }),
     toData: (n) => ({ ...optional('number', str(attrsOf(n).number)), title: str(attrsOf(n).title) }),
   },
+
+  image: {
+    node: 'image',
+    toNode: (d) => ({ attrs: { upload: str(d.upload), caption: str(d.caption), sticker: ['frame', 'clip', 'stamp'].includes(str(d.sticker)) ? str(d.sticker) : 'none' } }),
+    toData: (n) => {
+      const a = attrsOf(n)
+      const sticker = str(a.sticker)
+      return { upload: str(a.upload), ...optional('caption', str(a.caption)), ...(['frame', 'clip', 'stamp'].includes(sticker) ? { sticker } : {}) }
+    },
+  },
+
+  audio: {
+    node: 'audio',
+    toNode: (d) => ({ attrs: { upload: str(d.upload), title: str(d.title) }, content: richToInline(d.transcript) }),
+    toData: (n) => {
+      const transcript = inlineToRuns(n.content)
+      return { upload: str(attrsOf(n).upload), ...optional('title', str(attrsOf(n).title)), ...(hasText(transcript) ? { transcript } : {}) }
+    },
+  },
 }
 
 /** Имя узла редактора → вид блока сервера. */

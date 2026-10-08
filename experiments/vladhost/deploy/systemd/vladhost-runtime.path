@@ -1,0 +1,9 @@
+[Unit]
+Description=Vladhost — заявки на настройку сред выполнения сайтов (PHP, Node.js, Python)
+
+[Path]
+DirectoryNotEmpty=/var/lib/vladhost/runtime/queue
+Unit=vladhost-runtime.service
+
+[Install]
+WantedBy=multi-user.target

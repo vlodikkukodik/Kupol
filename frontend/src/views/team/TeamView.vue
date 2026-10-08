@@ -18,9 +18,15 @@ const route = useRoute()
       <RouterLink :to="{ name: 'team-glossary' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-glossary' ? 'page' : undefined">{{ $t('team.nav.glossary') }}</RouterLink>
       <RouterLink :to="{ name: 'team-timeline' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-timeline' ? 'page' : undefined">{{ $t('team.nav.timeline') }}</RouterLink>
       <RouterLink :to="{ name: 'team-site' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-site' ? 'page' : undefined">{{ $t('team.nav.site') }}</RouterLink>
+      <RouterLink v-if="auth.can('write_drafts')" :to="{ name: 'team-uploads' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-uploads' ? 'page' : undefined">{{ $t('team.nav.uploads') }}</RouterLink>
+      <RouterLink v-if="auth.can('moderate_comments')" :to="{ name: 'team-sanctions' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-sanctions' ? 'page' : undefined">{{ $t('team.nav.sanctions') }}</RouterLink>
+      <RouterLink v-if="auth.user && (auth.user.directorate || auth.user.level >= 6)" :to="{ name: 'team-petitions' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-petitions' ? 'page' : undefined">{{ $t('team.nav.petitions') }}</RouterLink>
+      <RouterLink v-if="auth.user?.directorate" :to="{ name: 'team-inbox' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-inbox' ? 'page' : undefined">{{ $t('team.nav.inbox') }}</RouterLink>
+      <RouterLink v-if="auth.user?.directorate" :to="{ name: 'team-secret-codes' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-secret-codes' ? 'page' : undefined">{{ $t('team.nav.secretCodes') }}</RouterLink>
       <RouterLink :to="{ name: 'team-roles' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-roles' ? 'page' : undefined">{{ $t('team.nav.roles') }}</RouterLink>
       <RouterLink v-if="auth.can('manage_team')" :to="{ name: 'team-members' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-members' ? 'page' : undefined">{{ $t('team.nav.members') }}</RouterLink>
       <RouterLink v-if="auth.can('moderate_comments')" :to="{ name: 'team-reports' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-reports' ? 'page' : undefined">{{ $t('team.nav.reports') }}</RouterLink>
+      <RouterLink v-if="auth.can('review')" :to="{ name: 'team-suggestions' }" active-class="" exact-active-class="" :aria-current="route.name === 'team-suggestions' ? 'page' : undefined">{{ $t('team.nav.suggestions') }}</RouterLink>
     </nav>
     <RouterView />
   </div>

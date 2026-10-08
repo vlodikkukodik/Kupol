@@ -10,6 +10,7 @@ import (
 
 	"kupol/internal/accounts"
 	"kupol/internal/documents"
+	"kupol/internal/mailsettings"
 )
 
 // Документы в team panel: список, создание, сохранение, автосохранение, замок, история и откат.
@@ -17,7 +18,9 @@ import (
 
 type teamDocumentHandlers struct {
 	svc *documents.Service
-	log *slog.Logger
+	// smtp — настройки почтового сервера в той же панели (см. httpapi/smtp.go).
+	smtp *mailsettings.Service
+	log  *slog.Logger
 }
 
 // maxDocumentBody — предел тела при сохранении документа: тот же, что у обычных запросов (и у PHP-прокси).
@@ -172,6 +175,19 @@ func (h *teamDocumentHandlers) get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, TeamDocumentResponse{Document: d})
+}
+
+// DELETE /api/team/documents/:id — удалить документ безвозвратно; право есть у Редактора и Директората.
+func (h *teamDocumentHandlers) delete(c *gin.Context) {
+	id, ok := idParam(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.svc.TeamDelete(c.Request.Context(), actorFrom(c), id); err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 type SaveDocumentRequest struct {

@@ -1,0 +1,9 @@
+[Unit]
+Description=Vladhost — заявки на запуск команд планировщика
+
+[Path]
+DirectoryNotEmpty=/var/lib/vladhost/cron/queue
+Unit=vladhost-cron.service
+
+[Install]
+WantedBy=multi-user.target

@@ -59,13 +59,19 @@ name=\${name%.}
 [ -f "$T/dns/\$name" ] && awk '{print \$1 "  STREAM " "'"\$name"'"}' "$T/dns/\$name"
 exit 0
 EOF
+# Скрипт сведений о сертификате (cert-info.sh) подменён: тут проверяем только, что выпускатель его вызывает.
+cat >"$T/bin/info-stub" <<EOF
+#!/bin/bash
+echo "info \$*" >>"$LOG"
+exit 0
+EOF
 chmod +x "$T"/bin/*
 mkdir -p "$T/dns"
 echo 'SERVER_IPS="203.0.113.10"' >"$T/certs.conf"
 
 export PATH="$T/bin:$PATH"
 export VH_CERTS_BASE=$T/certs VH_WEBROOT=$T/webroot VH_CERTS_DIR=$T/vhcerts VH_HOOK=/bin/true
-export VH_NGINX_ETC=$T/nginx VH_CERTS_CONF=$T/certs.conf
+export VH_NGINX_ETC=$T/nginx VH_CERTS_CONF=$T/certs.conf VH_INFO=$T/bin/info-stub
 
 run() { bash "$SCRIPT" >"$T/out.log" 2>&1; }
 enqueue() { : >"$T/certs/queue/$1"; }
@@ -195,6 +201,88 @@ check "nginx-конфиг для адреса сайта не создаётся
 enqueue delete-blog.john.vladinc.ru
 run
 check "удаление адреса сайта" test ! -e "$T/vhcerts/blog.john.vladinc.ru"
+
+echo "== поддомен сайта: сертификат как у адреса сайта, отдельный nginx-блок не создаётся"
+reset
+enqueue issue-docs.blog.john.vladinc.ru
+run
+check "статус ok" test "$(status docs.blog.john.vladinc.ru)" = ok
+check "certbot вызван для поддомена" grep -q 'certonly.*-d docs.blog.john.vladinc.ru' "$LOG"
+check "nginx-конфиг не создаётся" test -z "$(ls "$T/nginx/vladhost-domains" 2>/dev/null)"
+enqueue delete-docs.blog.john.vladinc.ru
+run
+check "сертификат поддомена удалён" test ! -e "$T/vhcerts/docs.blog.john.vladinc.ru"
+check "certbot delete для поддомена" grep -q 'certbot delete --cert-name docs.blog.john.vladinc.ru' "$LOG"
+reset
+for evil in 'issue-a.b.c.d.vladinc.ru' 'issue-x..blog.john.vladinc.ru' 'issue-.blog.john.vladinc.ru' 'issue-DOCS.blog.john.vladinc.ru' 'issue-a_b.blog.john.vladinc.ru' 'issue-a.blog.john.vladinc.ru.evil.com'; do
+    enqueue "$evil"
+done
+run
+check "лишняя глубина и мусор не доходят до certbot" test -z "$(grep certbot "$LOG")"
+
+echo "== принудительный перевыпуск адреса сайта: certbot с --force-renewal, сведения о сертификате обновлены"
+reset
+enqueue issue-blog.john.vladinc.ru
+run
+: >"$LOG"
+enqueue renew-blog.john.vladinc.ru
+run
+check "статус ok" test "$(status blog.john.vladinc.ru)" = ok
+check "certbot вызван с --force-renewal" grep -q 'certonly.*-d blog.john.vladinc.ru.*--force-renewal' "$LOG"
+check "сведения о сертификате обновлены" grep -q '^info blog.john.vladinc.ru' "$LOG"
+
+echo "== обычный выпуск не принуждает и тоже пишет сведения"
+reset
+enqueue issue-plain.john.vladinc.ru
+run
+check "без --force-renewal" test -z "$(grep 'force-renewal' "$LOG")"
+check "сведения записаны" grep -q '^info plain.john.vladinc.ru' "$LOG"
+
+echo "== неудачный перевыпуск: ошибка в статусе, действующий сертификат на месте"
+reset
+enqueue issue-keep.john.vladinc.ru
+run
+keep_target=$(readlink "$T/vhcerts/keep.john.vladinc.ru")
+touch "$T/certbot.fail"
+enqueue renew-keep.john.vladinc.ru
+run
+check "статус error" grep -q '^error:' "$T/certs/status/keep.john.vladinc.ru"
+check "сертификат не тронут" test "$(readlink "$T/vhcerts/keep.john.vladinc.ru")" = "$keep_target"
+
+echo "== перевыпуск своего домена: только для настроенного"
+reset
+echo 203.0.113.10 >"$T/dns/renew.com"
+enqueue renew-renew.com
+run
+check "без настройки — отказ" grep -q 'not set up' "$T/certs/status/renew.com"
+check "certbot не вызывался" test -z "$(grep certbot "$LOG")"
+: >"$LOG"
+enqueue issue-renew.com
+run
+: >"$LOG"
+enqueue renew-renew.com
+run
+check "после настройки — перевыпуск" grep -q 'certonly.*-d renew.com.*--force-renewal' "$LOG"
+check "статус ok" test "$(status renew.com)" = ok
+
+echo "== недопустимые имена в заявках на перевыпуск"
+reset
+for evil in 'renew-vladinc.ru' 'renew-app.vladinc.ru' 'renew-a b.com' 'renew-x;y.com' 'renew-$(id).com' 'renew-..' 'renew-localhost' 'renew-a.b.c.d.vladinc.ru'; do
+    enqueue "$evil"
+done
+run
+check "certbot не вызывался" test -z "$(grep certbot "$LOG")"
+
+echo "== удаление убирает сведения о сертификате"
+reset
+mkdir -p "$T/certs/info"
+echo 203.0.113.10 >"$T/dns/gone2.com"
+enqueue issue-gone2.com
+run
+printf 'not_after=2030-01-01T00:00:00Z\n' >"$T/certs/info/gone2.com"
+enqueue delete-gone2.com
+run
+check "файл сведений удалён" test ! -e "$T/certs/info/gone2.com"
 
 echo "== без настроенных IP сервера домены не выпускаются"
 reset

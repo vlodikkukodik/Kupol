@@ -63,6 +63,8 @@ type Config struct {
 	SiteOrigin string
 	Limits     Limits
 	SMTP       SMTP
+	// UploadsDir — где лежат загруженные файлы (этап 6.1); по умолчанию ./uploads рядом с бинарником.
+	UploadsDir string
 }
 
 func (c Config) IsProd() bool { return c.Env == "prod" }
@@ -80,8 +82,9 @@ func load(get func(string) string) (Config, error) {
 	fail := func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) }
 
 	c := Config{
-		Env:      strings.ToLower(orDefault(get("KUPOL_ENV"), "dev")),
-		HTTPAddr: orDefault(get("KUPOL_HTTP_ADDR"), "127.0.0.1:8080"),
+		Env:        strings.ToLower(orDefault(get("KUPOL_ENV"), "dev")),
+		HTTPAddr:   orDefault(get("KUPOL_HTTP_ADDR"), "127.0.0.1:8080"),
+		UploadsDir: orDefault(get("KUPOL_UPLOADS_DIR"), "uploads"),
 	}
 	if c.Env != "dev" && c.Env != "prod" {
 		fail("KUPOL_ENV: ожидается dev или prod, получено %q", c.Env)

@@ -62,6 +62,15 @@ export const FIELDS: Record<string, FieldSpec[]> = {
   divider: [{ key: 'style', kind: 'select', values: ['line', 'stars'] }],
   pageBreak: [{ key: 'number', kind: 'text', maxLength: 20 }],
   footnote: [{ key: 'mark', kind: 'text', maxLength: 8 }],
+  image: [
+    { key: 'upload', kind: 'text', maxLength: 32, wide: true },
+    { key: 'caption', kind: 'text', maxLength: 300, wide: true },
+    { key: 'sticker', kind: 'select', values: ['none', 'frame', 'clip', 'stamp'] },
+  ],
+  audio: [
+    { key: 'upload', kind: 'text', maxLength: 32, wide: true },
+    { key: 'title', kind: 'text', maxLength: 200, wide: true },
+  ],
   appendix: [
     { key: 'number', kind: 'text', maxLength: 20 },
     { key: 'title', kind: 'text', maxLength: 200, wide: true },
@@ -76,7 +85,7 @@ export const fieldOptions = (node: string, spec: Extract<FieldSpec, { kind: 'sel
   spec.values.map((value) => ({ value, label: t(`editor.opt.${node}.${spec.key}.${value}`) }))
 
 /** Названия узлов редактора (те же виды блоков, что на сервере) */
-const NODES = ['heading', 'paragraph', 'list', 'quote', 'dossierHeader', 'experimentLog', 'logEntry', 'stamp', 'memo', 'clipping', 'clipLine', 'table', 'docLink', 'divider', 'pageBreak', 'footnote', 'appendix', 'unknownBlock'] as const
+const NODES = ['heading', 'paragraph', 'list', 'quote', 'dossierHeader', 'experimentLog', 'logEntry', 'stamp', 'memo', 'clipping', 'clipLine', 'table', 'docLink', 'divider', 'pageBreak', 'footnote', 'appendix', 'image', 'audio', 'unknownBlock'] as const
 
 /** Название узла редактора для подписей; незнакомый узел — его собственное имя. */
 export const nodeLabel = (node: string): string => ((NODES as readonly string[]).includes(node) ? t(`editor.node.${node}`) : node)
@@ -98,6 +107,8 @@ export const INSERTABLE: { type: string; node: string }[] = [
   { type: 'page', node: 'pageBreak' },
   { type: 'footnote', node: 'footnote' },
   { type: 'appendix', node: 'appendix' },
+  { type: 'image', node: 'image' },
+  { type: 'audio', node: 'audio' },
 ]
 
 /** Подпись и подсказка пункта меню «Вставить блок» */

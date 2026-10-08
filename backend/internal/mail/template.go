@@ -94,6 +94,31 @@ func EmailConfirmation(l i18n.Lang, login, confirmURL string) Message {
 	return Message{Subject: subject, HTML: html, Text: text}
 }
 
+// Notification — письмо-копия записки из внутренней почты (см. internal/inbox): заголовок и текст те же,
+// что читатель видит в ящике, — их как раз и собирает inbox.render на языке читателя. Кнопка ведёт на дело
+// или в личное дело, если у записки есть ссылка.
+func Notification(l i18n.Lang, title, body, url string) Message {
+	if title == "" {
+		title = l.Translate("Записка в архиве")
+	}
+	button, link := "", ""
+	if url != "" {
+		button, link = l.Translate("Открыть в архиве"), url
+	}
+	html, text := render(l, title, []string{body}, button, link)
+	return Message{Subject: title, HTML: html, Text: text}
+}
+
+// TestMessage — письмо-проверка: Директорат жмёт «Отправить проверку» в панели команды, чтобы убедиться,
+// что сервер, адрес отправителя и пароль верны.
+func TestMessage(l i18n.Lang) Message {
+	title := l.Translate("Проверка почты")
+	p1 := l.Translate("Это письмо-проверка: настройки почты архива КУПОЛ сохранены верно, письма уходят.")
+	subject := l.Translate("Проверка почты — КУПОЛ")
+	html, text := render(l, title, []string{p1}, "", "")
+	return Message{Subject: subject, HTML: html, Text: text}
+}
+
 // LevelUp — письмо о повышении уровня по XP (см. internal/xp).
 func LevelUp(l i18n.Lang, login, levelName string, level int) Message {
 	title := l.Translate("ДОПУСК ПОВЫШЕН")

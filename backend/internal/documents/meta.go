@@ -23,6 +23,10 @@ var blockKindNames = map[string]string{
 	"experiment_log": "Журнал эксперимента", "stamp": "Штамп", "memo": "Бланк (записка, приказ, письмо)",
 	"clipping": "Вырезка / расшифровка", "table": "Таблица", "doc_link": "Ссылка на документ", "divider": "Разделитель",
 	"page": "Разрыв страницы", "footnote": "Сноска", "appendix": "Приложение",
+	"containment_procedure": "Процедура содержания", "directive": "Пункт приказа", "incident_timeline": "Хронология инцидента",
+	"personnel_record": "Личные данные", "roster": "Штат", "hypothesis": "Гипотеза и результат",
+	"qa": "Вопрос — ответ", "routing": "Маршрут согласования",
+	"image": "Изображение", "audio": "Аудиозапись",
 }
 
 // BlockKindName — название типа блока (для неизвестного — сам тип).

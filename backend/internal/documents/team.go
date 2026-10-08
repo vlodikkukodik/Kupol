@@ -588,3 +588,40 @@ func (s *Service) TeamRestore(ctx context.Context, a Actor, id, versionID int64)
 	}
 	return res, err
 }
+
+// TeamDelete удаляет документ безвозвратно — вместе с историей версий, рецензий, чтения, пометками,
+// оценками и записью в поиске (все каскадом по документу). Право есть у Редактора (CanEditPublished)
+// и Директората — той же матрицей, что архивирование. Занятый другим человеком документ не удаляется
+// (LockedError): удалять из-под работающего автора нельзя. Шифр освобождается сразу: уникальные
+// индексы documents_code_key/documents_slug_key действуют только по существующим строкам.
+func (s *Service) TeamDelete(ctx context.Context, a Actor, id int64) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		d, err := s.lockedDoc(tx, a, id, false)
+		if err != nil {
+			return err
+		}
+		if !a.Directorate && !a.CanEditPublished {
+			return ErrForbidden
+		}
+		lock, err := s.activeLock(tx, d.ID, a)
+		if err != nil {
+			return err
+		}
+		if lock != nil && !lock.Mine {
+			return &LockedError{Holder: lock.Holder, ExpiresAt: lock.ExpiresAt}
+		}
+
+		now := s.now()
+		uid := a.UserID
+		details := audit.Details("code", deref(d.Code), "title", d.Title, "type", d.Type)
+		if err := audit.Record(tx, now, audit.DocumentDeleted, audit.Event{ActorID: &uid, DocumentID: &d.ID, Details: details}); err != nil {
+			return err
+		}
+		return tx.Delete(&Document{}, d.ID).Error
+	})
+	if err != nil {
+		return err
+	}
+	s.log.Info("документ удалён", "document_id", id, "by", a.Login)
+	return nil
+}

@@ -20,6 +20,43 @@ type Content struct {
 	Composed   *Composed    `json:"composed"`
 	Props      *Props       `json:"props,omitempty"`
 	Blocks     []InputBlock `json:"blocks"`
+	// IT — перевод заголовка и блоков на итальянский; nil, если перевода нет.
+	IT *Translation `json:"it,omitempty"`
+}
+
+// Translation — заголовок и блоки дела на втором языке интерфейса.
+type Translation struct {
+	Title  string       `json:"title"`
+	Blocks []InputBlock `json:"blocks"`
+}
+
+// translationsFromRaw разбирает колонку documents.translations в перевод (или nil, если пусто).
+func translationsFromRaw(raw JSONText) *Translation {
+	if len(raw) == 0 {
+		return nil
+	}
+	var m map[string]Translation
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+	it, ok := m["it"]
+	if !ok {
+		return nil
+	}
+	return &it
+}
+
+// translationsToRaw сериализует перевод в форму колонки documents.translations.
+func translationsToRaw(it *Translation) JSONText {
+	m := map[string]Translation{}
+	if it != nil {
+		m["it"] = *it
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return JSONText("{}")
+	}
+	return JSONText(raw)
 }
 
 // input собирает документ для проверки: шифр, тип и статус — от самого документа, остальное — от содержимого.
@@ -27,7 +64,7 @@ func (c Content) input(code, typ, status string) Input {
 	return Input{
 		Code: code, Type: typ, Status: status,
 		Title: c.Title, Level: c.Level, DirectLink: c.DirectLink, Grif: c.Grif,
-		Composed: c.Composed, Props: c.Props, Blocks: c.Blocks,
+		Composed: c.Composed, Props: c.Props, Blocks: c.Blocks, IT: c.IT,
 		// Черновик объекта живёт без шифра: номер О-№ присваивается при публикации.
 		allowNoCode: true,
 	}
@@ -36,7 +73,7 @@ func (c Content) input(code, typ, status string) Input {
 func contentFromInput(in Input) Content {
 	return Content{
 		Title: in.Title, Level: in.Level, DirectLink: in.DirectLink, Grif: in.Grif,
-		Composed: in.Composed, Props: in.Props, Blocks: in.Blocks,
+		Composed: in.Composed, Props: in.Props, Blocks: in.Blocks, IT: in.IT,
 	}
 }
 
@@ -84,6 +121,7 @@ func applyContent(dst *Document, src Document) {
 	dst.DangerClass, dst.DeviationPoints, dst.Department = src.DangerClass, src.DeviationPoints, src.Department
 	dst.Category, dst.ContainmentStatus, dst.DiscoveryPlace = src.Category, src.ContainmentStatus, src.DiscoveryPlace
 	dst.Blocks = src.Blocks
+	dst.Translations = src.Translations
 }
 
 // JSONText — значение колонки jsonb: в БД уходит строкой, читается как есть.

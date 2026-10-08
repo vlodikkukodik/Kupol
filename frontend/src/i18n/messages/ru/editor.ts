@@ -23,6 +23,7 @@ export default {
       footnote: 'Текст сноски…',
       entry: 'Текст записи…',
       column: 'Столбец',
+      transcript: 'Расшифровка записи…',
     },
 
     node: {
@@ -43,6 +44,8 @@ export default {
       pageBreak: 'Разрыв страницы',
       footnote: 'Сноска',
       appendix: 'Приложение',
+      image: 'Изображение',
+      audio: 'Аудиозапись',
       unknownBlock: 'Неизвестный блок',
     },
 
@@ -62,6 +65,8 @@ export default {
       pageBreak: { number: 'Номер страницы' },
       footnote: { mark: 'Знак сноски' },
       appendix: { number: 'Номер приложения', title: 'Название' },
+      image: { upload: 'Ключ файла (из раздела «Файлы»)', caption: 'Подпись', sticker: 'Оформление' },
+      audio: { upload: 'Ключ файла (из раздела «Файлы»)', title: 'Название записи' },
     },
 
     opt: {
@@ -71,6 +76,7 @@ export default {
       memo: { kind: { memo: 'Записка', order: 'Приказ', letter: 'Письмо' } },
       clipping: { kind: { newspaper: 'Газетная вырезка', handwritten: 'Рукописная запись', transcript: 'Расшифровка записи' } },
       divider: { style: { line: 'Линия', stars: 'Звёздочки' } },
+      image: { sticker: { none: 'Без оформления', frame: 'Рамка', clip: 'Скрепка', stamp: 'Печать' } },
     },
 
     insert: {
@@ -89,6 +95,8 @@ export default {
       pageBreak: { label: 'Разрыв страницы', hint: 'с номером' },
       footnote: { label: 'Сноска', hint: 'знак и текст' },
       appendix: { label: 'Приложение', hint: 'номер и название' },
+      image: { label: 'Изображение', hint: 'файл из раздела «Файлы»' },
+      audio: { label: 'Аудиозапись', hint: 'файл и расшифровка' },
     },
 
     toolbar: {

@@ -16,20 +16,66 @@ type_mappings:
   documents.Diff: "documents.Diff"
   documents.Problem: "documents.Problem"
   documents.Content: "documents.Content"
+  documents.SecretCodeOut: "documents.SecretCodeOut"
+  # Предметные типы из пакета suggestions в ответах httpapi (шаг 5.4).
+  suggestions.Out: "suggestions.Out"
+  suggestions.Status: "suggestions.Status"
+  # Предметные типы из пакета achievements в ответах httpapi (шаг 5.6).
+  achievements.Item: "achievements.Item"
+  achievements.Kind: "achievements.Kind"
+  inbox.Page: "inbox.Page"
+  inbox.Item: "inbox.Item"
+  petitions.Item: "petitions.Item"
+  petitions.Invitation: "petitions.Invitation"
+  sanctions.Item: "sanctions.Item"
+  uploads.Upload: "uploads.Upload"
   # Зависимости сервера (Deps) фронтенду не нужны и непрозрачны.
   config.Config: "unknown"
   gorm.DB: "unknown"
   slog.Logger: "unknown"
   accounts.Service: "unknown"
   documents.Service: "unknown"
+  suggestions.Service: "unknown"
+  uploads.Service: "unknown"
   ratelimit.Limiter: "unknown"
 packages:
   - path: "kupol/internal/documents"
     output_path: "../frontend/src/api/generated/documents.ts"
     frontmatter: |
       // Код сгенерирован tygo из backend/internal/documents (make types). Не править руками.
+      import type * as achievements from "./achievements";
+  - path: "kupol/internal/suggestions"
+    output_path: "../frontend/src/api/generated/suggestions.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/suggestions (make types). Не править руками.
+  - path: "kupol/internal/achievements"
+    output_path: "../frontend/src/api/generated/achievements.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/achievements (make types). Не править руками.
+  - path: "kupol/internal/inbox"
+    output_path: "../frontend/src/api/generated/inbox.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/inbox (make types). Не править руками.
+  - path: "kupol/internal/petitions"
+    output_path: "../frontend/src/api/generated/petitions.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/petitions (make types). Не править руками.
+  - path: "kupol/internal/sanctions"
+    output_path: "../frontend/src/api/generated/sanctions.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/sanctions (make types). Не править руками.
+  - path: "kupol/internal/uploads"
+    output_path: "../frontend/src/api/generated/uploads.ts"
+    frontmatter: |
+      // Код сгенерирован tygo из backend/internal/uploads (make types). Не править руками.
   - path: "kupol/internal/httpapi"
     output_path: "../frontend/src/api/generated/httpapi.ts"
     frontmatter: |
       // Код сгенерирован tygo из backend/internal/httpapi (make types). Не править руками.
       import type * as documents from "./documents";
+      import type * as suggestions from "./suggestions";
+      import type * as achievements from "./achievements";
+      import type * as inbox from "./inbox";
+      import type * as petitions from "./petitions";
+      import type * as sanctions from "./sanctions";
+      import type * as uploads from "./uploads";

@@ -63,6 +63,9 @@
 .kupol-editor .ProseMirror .pm-footnote .pm-content:has(> .ProseMirror-trailingBreak:only-child)::before {
   content: var(--ph-footnote);
 }
+.kupol-editor .ProseMirror .pm-audio .pm-content:has(> .ProseMirror-trailingBreak:only-child)::before {
+  content: var(--ph-transcript);
+}
 .kupol-editor .ProseMirror .pm-logEntry .pm-content:has(> .ProseMirror-trailingBreak:only-child)::before {
   content: var(--ph-entry);
 }

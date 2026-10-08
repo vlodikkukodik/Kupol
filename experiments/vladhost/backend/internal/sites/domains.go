@@ -42,6 +42,13 @@ const (
 	maxDomainNameLen = 253
 	defaultPerSite   = 5
 	defaultPerUser   = 10
+	// Поддомены на нашем домене: у каждого свой сертификат Let's Encrypt, а лимит выпусков общий на весь vladinc.ru,
+	// поэтому их число ограничено жёстче, чем число своих доменов.
+	defaultPerSiteSub = 5
+	defaultPerUserSub = 10
+
+	KindCustom = "custom" // свой домен пользователя (A-запись на наш IP)
+	KindSub    = "sub"    // поддомен сайта на нашем домене: {метка}.{адрес сайта}
 )
 
 var (
@@ -52,12 +59,24 @@ var (
 	ErrDomainLimitUser = apperr.New(http.StatusForbidden, "domain_limit_user", "domain limit per account reached")
 	ErrDomainsDisabled = apperr.New(http.StatusConflict, "domains_unavailable", "custom domains are not enabled")
 	ErrDomainNotFound  = apperr.New(http.StatusNotFound, "domain_not_found", "domain not found")
+
+	ErrSubLabelInvalid  = apperr.Validation("label", "sub_label", "invalid subdomain name")
+	ErrSubLimitSite     = apperr.New(http.StatusForbidden, "sub_limit_site", "subdomain limit per site reached")
+	ErrSubLimitUser     = apperr.New(http.StatusForbidden, "sub_limit_user", "subdomain limit per account reached")
+	ErrSubTaken         = apperr.New(http.StatusConflict, "sub_taken", "subdomain is already in use").OnField("label")
+	ErrDomainDirInvalid = apperr.Validation("dir", "domain_dir", "invalid folder")
+	ErrSubdomainsOff    = apperr.New(http.StatusConflict, "subdomains_unavailable", "subdomains are not enabled")
 )
+
+// subLabelRe: метка поддомена — одна часть имени. Две подряд идущие «-» не допускаются (так пишется punycode xn--).
+var subLabelRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$`)
 
 type Domain struct {
 	ID              int64      `gorm:"primaryKey" json:"id"`
 	SiteID          int64      `json:"-"`
 	Host            string     `json:"host"`
+	Kind            string     `json:"kind"` // custom | sub
+	Dir             string     `json:"dir"`  // папка сайта, которую отдаёт это имя; пусто — весь сайт
 	Status          string     `json:"status"`
 	Problem         string     `json:"problem"`
 	Found           string     `json:"-"` // найденные IP через запятую
@@ -87,6 +106,9 @@ type DomainConfig struct {
 	Resolver   Resolver
 	PerSite    int
 	PerUser    int
+	// Поддомены сайта на нашем домене.
+	PerSiteSub int
+	PerUserSub int
 }
 
 func (s *Service) ConfigureDomains(c DomainConfig) {
@@ -99,6 +121,12 @@ func (s *Service) ConfigureDomains(c DomainConfig) {
 	if c.PerUser <= 0 {
 		c.PerUser = defaultPerUser
 	}
+	if c.PerSiteSub <= 0 {
+		c.PerSiteSub = defaultPerSiteSub
+	}
+	if c.PerUserSub <= 0 {
+		c.PerUserSub = defaultPerUserSub
+	}
 	s.domains = &c
 }
 
@@ -107,11 +135,11 @@ func (s *Service) DomainsEnabled() bool {
 }
 
 // DomainInfo — сведения для интерфейса: на какие адреса направлять A-запись и сколько доменов можно.
-func (s *Service) DomainInfo() (ips []string, perSite int) {
+func (s *Service) DomainInfo() (ips []string, perSite, perSiteSub int) {
 	if !s.DomainsEnabled() {
-		return []string{}, 0
+		return []string{}, 0, 0
 	}
-	return s.domains.ServerIPs, s.domains.PerSite
+	return s.domains.ServerIPs, s.domains.PerSite, s.domains.PerSiteSub
 }
 
 var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$`)
@@ -163,7 +191,7 @@ func mapUniqueDomain(err error) error {
 }
 
 // AddDomain привязывает домен к сайту. Сразу выполняется первая проверка DNS.
-func (s *Service) AddDomain(ctx context.Context, userID, siteID int64, raw string) (*Domain, error) {
+func (s *Service) AddDomain(ctx context.Context, userID, siteID int64, raw, dir string) (*Domain, error) {
 	if !s.DomainsEnabled() {
 		return nil, ErrDomainsDisabled
 	}
@@ -175,6 +203,10 @@ func (s *Service) AddDomain(ctx context.Context, userID, siteID int64, raw strin
 	if err != nil {
 		return nil, err
 	}
+	dir, err = s.checkedDir(site, dir)
+	if err != nil {
+		return nil, err
+	}
 	var d *Domain
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Блокировка строки сайта сериализует параллельные добавления и не даёт обойти лимиты.
@@ -182,24 +214,24 @@ func (s *Service) AddDomain(ctx context.Context, userID, siteID int64, raw strin
 			return err
 		}
 		var perSite, perUser int64
-		if err := tx.Model(&Domain{}).Where("site_id = ?", site.ID).Count(&perSite).Error; err != nil {
+		if err := tx.Model(&Domain{}).Where("site_id = ? AND kind = ?", site.ID, KindCustom).Count(&perSite).Error; err != nil {
 			return err
 		}
 		if int(perSite) >= s.domains.PerSite {
 			return ErrDomainLimitSite.With(s.domains.PerSite)
 		}
 		if err := tx.Table("domains").Joins("JOIN sites ON sites.id = domains.site_id").
-			Where("sites.user_id = ?", userID).Count(&perUser).Error; err != nil {
+			Where("sites.user_id = ? AND domains.kind = ?", userID, KindCustom).Count(&perUser).Error; err != nil {
 			return err
 		}
 		if int(perUser) >= s.domains.PerUser {
 			return ErrDomainLimitUser.With(s.domains.PerUser)
 		}
-		d = &Domain{SiteID: site.ID, Host: host, Status: DomainPendingDNS}
+		d = &Domain{SiteID: site.ID, Host: host, Kind: KindCustom, Dir: dir, Status: DomainPendingDNS}
 		if err := tx.Create(d).Error; err != nil {
 			return mapUniqueDomain(err)
 		}
-		return s.writeMapping(host, site.Host)
+		return s.writeMapping(host, site.Host, dir)
 	})
 	if err != nil {
 		return nil, err
@@ -208,11 +240,126 @@ func (s *Service) AddDomain(ctx context.Context, userID, siteID int64, raw strin
 	return d, nil
 }
 
-func (s *Service) writeMapping(host, siteHost string) error {
+// checkedDir проверяет папку и создаёт её в сайте, если её нет.
+func (s *Service) checkedDir(site *Site, dir string) (string, error) {
+	dir, err := cleanSiteDir(dir)
+	if err != nil {
+		return "", ErrDomainDirInvalid
+	}
+	if err := s.ensureSiteDir(site, dir); err != nil {
+		if errors.Is(err, errBadDir) {
+			return "", ErrDomainDirInvalid
+		}
+		return "", err
+	}
+	return dir, nil
+}
+
+// AddSubdomain заводит поддомен сайта на нашем домене: {метка}.{адрес сайта}. DNS проверять не нужно: имя уже
+// резолвится на наш сервер, поэтому сразу заказывается сертификат.
+func (s *Service) AddSubdomain(ctx context.Context, userID, siteID int64, label, dir string) (*Domain, error) {
+	if !s.DomainsEnabled() {
+		return nil, ErrSubdomainsOff
+	}
+	site, err := s.Get(ctx, userID, siteID)
+	if err != nil {
+		return nil, err
+	}
+	label = strings.ToLower(strings.TrimSpace(label))
+	if !subLabelRe.MatchString(label) || strings.Contains(label, "--") {
+		return nil, ErrSubLabelInvalid
+	}
+	dir, err = s.checkedDir(site, dir)
+	if err != nil {
+		return nil, err
+	}
+	host := label + "." + site.Host
+	var d *Domain
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Raw("SELECT id FROM sites WHERE id = ? FOR UPDATE", site.ID).Scan(new(int64)).Error; err != nil {
+			return err
+		}
+		var perSite, perUser int64
+		if err := tx.Model(&Domain{}).Where("site_id = ? AND kind = ?", site.ID, KindSub).Count(&perSite).Error; err != nil {
+			return err
+		}
+		if int(perSite) >= s.domains.PerSiteSub {
+			return ErrSubLimitSite.With(s.domains.PerSiteSub)
+		}
+		if err := tx.Table("domains").Joins("JOIN sites ON sites.id = domains.site_id").
+			Where("sites.user_id = ? AND domains.kind = ?", userID, KindSub).Count(&perUser).Error; err != nil {
+			return err
+		}
+		if int(perUser) >= s.domains.PerUserSub {
+			return ErrSubLimitUser.With(s.domains.PerUserSub)
+		}
+		d = &Domain{SiteID: site.ID, Host: host, Kind: KindSub, Dir: dir, Status: DomainPendingDNS}
+		if err := tx.Create(d).Error; err != nil {
+			var pg *pgconn.PgError
+			if errors.As(err, &pg) && pg.Code == "23505" {
+				return ErrSubTaken
+			}
+			return err
+		}
+		return s.writeMapping(host, site.Host, dir)
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.advanceDomain(ctx, d)
+	return d, nil
+}
+
+// UpdateDomainDir меняет папку, которую отдаёт имя (свой домен или поддомен). Пусто — весь сайт.
+func (s *Service) UpdateDomainDir(ctx context.Context, userID, siteID, id int64, dir string) (*Domain, error) {
+	d, site, err := s.getDomain(ctx, userID, siteID, id)
+	if err != nil {
+		return nil, err
+	}
+	dir, err = s.checkedDir(site, dir)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.db.WithContext(ctx).Model(d).Update("dir", dir).Error; err != nil {
+		return nil, err
+	}
+	d.Dir = dir
+	if s.domains != nil {
+		if err := s.writeMapping(d.Host, site.Host, dir); err != nil {
+			return nil, err
+		}
+	}
+	return d, nil
+}
+
+// writeMapping пишет привязку имени: первая строка — адрес сайта, вторая (если есть) — папка сайта, которую отдаёт имя.
+// Файл заменяется целиком через переименование: шлюз не должен прочитать наполовину записанный.
+func (s *Service) writeMapping(host, siteHost, dir string) error {
 	if err := os.MkdirAll(s.domains.MappingDir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(s.domains.MappingDir, host), []byte(siteHost+"\n"), 0o644)
+	content := siteHost + "\n"
+	if dir != "" {
+		content += dir + "\n"
+	}
+	tmp, err := os.CreateTemp(s.domains.MappingDir, ".tmp-*")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.WriteString(content); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	return os.Rename(tmp.Name(), filepath.Join(s.domains.MappingDir, host))
 }
 
 func (s *Service) removeMapping(host string) {
@@ -337,7 +484,10 @@ func (s *Service) checkDNS(ctx context.Context, host string) (ok bool, problem s
 
 // advanceDomain проверяет DNS и, если он верный, переводит домен к выпуску сертификата.
 func (s *Service) advanceDomain(ctx context.Context, d *Domain) {
-	ok, problem, found := s.checkDNS(ctx, d.Host)
+	ok, problem, found := true, "", []string(nil) // поддомен на нашем домене: имя и так указывает на сервер
+	if d.Kind != KindSub {
+		ok, problem, found = s.checkDNS(ctx, d.Host)
+	}
 	now := time.Now()
 	upd := map[string]any{"dns_checked_at": now, "problem": problem, "found": strings.Join(found, ",")}
 	d.DNSCheckedAt, d.Problem, d.Found = &now, problem, strings.Join(found, ",")
@@ -412,8 +562,8 @@ func (s *Service) reconcileDomains(ctx context.Context) error {
 				}
 			}
 			next := DomainActive
-			if status == CertFailed {
-				next = DomainFailed
+			if status == CertFailed && !s.hasValidCert(d.Host) {
+				next = DomainFailed // если прежний сертификат ещё действует, имя работает, а причина остаётся в error
 			}
 			if err := s.db.WithContext(ctx).Model(&Domain{}).Where("id = ?", d.ID).
 				Updates(map[string]any{"status": next, "error": msg}).Error; err != nil {

@@ -317,7 +317,7 @@ func TestTeamDocumentCSRFAndMethods(t *testing.T) {
 	for name, c := range map[string]*client{"чужой Origin": &evil, "без Origin": &noOrigin} {
 		for _, call := range []struct{ method, path string }{
 			{"POST", docsPath}, {"PUT", path}, {"PUT", path + "/draft"}, {"POST", path + "/lock"}, {"DELETE", path + "/lock"},
-			{"POST", path + "/versions/1/restore"}, {"POST", path + "/preview"},
+			{"POST", path + "/versions/1/restore"}, {"POST", path + "/preview"}, {"DELETE", path},
 		} {
 			if r := c.do(call.method, call.path, memoBody("МЕМО-666", "Взлом")); r.Code != 403 || r.errCode() != "forbidden_origin" {
 				t.Errorf("%s: %s %s = %d %s", name, call.method, call.path, r.Code, r.errCode())
@@ -328,7 +328,7 @@ func TestTeamDocumentCSRFAndMethods(t *testing.T) {
 		t.Errorf("запросы с чужого сайта что-то изменили: %v", got)
 	}
 	for _, call := range []struct{ method, path string }{
-		{"DELETE", path}, {"PATCH", path}, {"POST", path}, {"GET", path + "/lock"}, {"POST", path + "/versions"},
+		{"PATCH", path}, {"POST", path}, {"GET", path + "/lock"}, {"POST", path + "/versions"},
 	} {
 		if r := author.client.do(call.method, call.path, nil); r.Code != 405 && r.Code != 404 {
 			t.Errorf("%s %s: %d", call.method, call.path, r.Code)
@@ -490,5 +490,42 @@ func TestTeamPreviewOverHTTP(t *testing.T) {
 	}
 	if r := author.client.do("GET", path, nil); r.Code != 405 && r.Code != 404 {
 		t.Errorf("GET на предпросмотр: %d", r.Code)
+	}
+}
+
+func TestTeamDocumentDeleteOverHTTP(t *testing.T) {
+	_, actors := teamStackWithActors(t)
+	author, editor, director := actors["author"], actors["editor"], actors["director"]
+
+	id := author.createMemo(t, "МЕМО-20", "Удаляемый")
+	path := fmt.Sprintf("%s/%d", docsPath, id)
+
+	// у автора нет права удалять опубликованное/своё «на месте» — Редактор и Директорат имеют
+	if r := author.client.do("DELETE", path, nil); r.Code != 403 {
+		t.Errorf("автор: %d", r.Code)
+	}
+	if r := actors["plain"].client.do("DELETE", path, nil); r.Code != 403 {
+		t.Errorf("сотрудник без прав: %d", r.Code)
+	}
+
+	if r := director.client.do("DELETE", path, nil); r.Code != 204 {
+		t.Fatalf("Директорат удаляет: %d %s", r.Code, r.Body)
+	}
+	if r := director.client.do("GET", path, nil); r.Code != 404 {
+		t.Errorf("документ должен исчезнуть: %d", r.Code)
+	}
+
+	// шифр свободен для нового документа
+	id2 := author.createMemo(t, "МЕМО-20", "Новый на том же шифре")
+	path2 := fmt.Sprintf("%s/%d", docsPath, id2)
+	if r := director.client.do("DELETE", path2, nil); r.Code != 204 {
+		t.Fatalf("Директорат удаляет: %d %s", r.Code, r.Body)
+	}
+
+	// Редактор удаляет свой собственный документ (CanEditPublished)
+	id3 := editor.createMemo(t, "МЕМО-21", "Документ Редактора")
+	path3 := fmt.Sprintf("%s/%d", docsPath, id3)
+	if r := editor.client.do("DELETE", path3, nil); r.Code != 204 {
+		t.Fatalf("Редактор удаляет своё: %d %s", r.Code, r.Body)
 	}
 }

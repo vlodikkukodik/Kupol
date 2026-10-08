@@ -1,0 +1,27 @@
+[Unit]
+Description=Vladhost — посредник оболочек сайтов (SSH и веб-терминал запускают оболочки через него)
+After=network.target
+
+[Service]
+# Работает от root: запускает оболочки пользователей сайтов в песочнице systemd (systemd-run). К сокету пускает только панель
+# (пользователь vladhost, проверяется по SO_PEERCRED), запрос проверяется по метке, которую ставит vladhost-runtime.
+Type=simple
+ExecStart=/opt/vladhost/bin/vladhost shell-broker
+Environment=VLADHOST_SHELL_SOCKET=/run/vladhost/shell.sock
+Environment=VLADHOST_RUNTIME_DIR=/var/lib/vladhost/runtime
+Environment=VLADHOST_SITES_ROOT=/data/vladhost/sites
+Restart=always
+RestartSec=2
+RuntimeDirectory=vladhost
+RuntimeDirectoryMode=0755
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target

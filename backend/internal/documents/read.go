@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"kupol/internal/achievements"
 	"kupol/internal/i18n"
 )
 
@@ -16,11 +17,17 @@ var DirectorateViewer = Viewer{Directorate: true}
 
 // visible ограничивает запрос документами, которые читатель вправе видеть в списках:
 // опубликованные и не выше его допуска; Директорат видит и неопубликованные (но не больше уровня 7).
-// Это единственное место, где определяется видимость документа в списках.
+// Читателю с итальянским языком интерфейса список (каталог, лента, поиск) показывает только дела с
+// итальянским переводом — русское содержимое читателю по прямой ссылке всё ещё доступно (Get,
+// pickLocale), но в списках без перевода дело не появляется. Это единственное место, где
+// определяется видимость документа в списках.
 func visible(tx *gorm.DB, v Viewer) *gorm.DB {
 	tx = tx.Where("level <= ?", v.Level())
 	if !v.SeesUnpublished() {
 		tx = tx.Where("status = ?", string(StatusPublished))
+	}
+	if v.Lang == i18n.IT {
+		tx = tx.Where("jsonb_exists(translations, 'it')")
 	}
 	return tx
 }
@@ -43,13 +50,17 @@ type Item struct {
 	ContainmentName   string     `json:"containment_name,omitempty"`
 	Status            string     `json:"status,omitempty"` // только тем, кто видит неопубликованное
 	PublishedAt       *time.Time `json:"published_at,omitempty"`
+	// HasTranslation — есть ли у документа перевод на второй язык интерфейса.
+	HasTranslation bool `json:"has_translation"`
 }
 
 func itemFrom(d *Document, v Viewer) Item {
+	title, _ := pickLocale(d, v.Lang)
 	it := Item{
-		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).NameIn(v.Lang), Title: d.Title, Level: d.Level,
-		Composed:    Composed{Year: d.ComposedYear, Month: d.ComposedMonth, Day: d.ComposedDay},
-		DangerClass: d.DangerClass, DeviationPoints: d.DeviationPoints, Department: d.Department,
+		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).NameIn(v.Lang), Title: title, Level: d.Level,
+		HasTranslation: hasTranslation(d),
+		Composed:       Composed{Year: d.ComposedYear, Month: d.ComposedMonth, Day: d.ComposedDay},
+		DangerClass:    d.DangerClass, DeviationPoints: d.DeviationPoints, Department: d.Department,
 		Category: d.Category, ContainmentStatus: d.ContainmentStatus,
 	}
 	if d.Category != nil {
@@ -72,6 +83,24 @@ func deref(s *string) string {
 	}
 	return *s
 }
+
+// pickLocale выбирает заголовок и блоки на языке читателя: если перевода нет или он не выбран,
+// возвращает основное (русское) содержимое — «показывать то, что есть».
+func pickLocale(d *Document, lang i18n.Lang) (string, BlockList) {
+	if lang == i18n.IT {
+		if it := translationsFromRaw(d.Translations); it != nil {
+			blocks := make(BlockList, len(it.Blocks))
+			for i, b := range it.Blocks {
+				blocks[i] = Block{ID: b.ID, Type: b.Type, Level: b.Level, Data: b.Data}
+			}
+			return it.Title, blocks
+		}
+	}
+	return d.Title, d.Blocks
+}
+
+// hasTranslation — есть ли у документа перевод на второй язык.
+func hasTranslation(d *Document) bool { return translationsFromRaw(d.Translations) != nil }
 
 // QueryError — некорректный параметр запроса каталога. Message — по-русски; формат и значения запоминаются,
 // чтобы ответить на языке читателя (In).
@@ -200,7 +229,7 @@ type ListResult struct {
 
 // listColumns — поля для списков: без блоков (они тяжёлые и в каталоге не нужны).
 const listColumns = "id, code, slug, type, title, status, level, composed_year, composed_month, composed_day, " +
-	"danger_class, deviation_points, department, category, containment_status, published_at"
+	"danger_class, deviation_points, department, category, containment_status, published_at, translations"
 
 // List возвращает страницу каталога: только то, что читатель вправе видеть.
 func (s *Service) List(ctx context.Context, v Viewer, q ListQuery) (*ListResult, error) {
@@ -263,9 +292,12 @@ func (s *Service) Recent(ctx context.Context, v Viewer, limit int) ([]Item, erro
 		return nil, queryError("limit", "от 1 до %d", maxFeed)
 	}
 	var docs []Document
-	err := s.db.WithContext(ctx).Model(&Document{}).
-		Where("code IS NOT NULL AND status = ? AND level <= ? AND published_at IS NOT NULL", string(StatusPublished), v.Level()).
-		Select(listColumns).Order("published_at DESC, id DESC").Limit(limit).Find(&docs).Error
+	tx := s.db.WithContext(ctx).Model(&Document{}).
+		Where("code IS NOT NULL AND status = ? AND level <= ? AND published_at IS NOT NULL", string(StatusPublished), v.Level())
+	if v.Lang == i18n.IT {
+		tx = tx.Where("jsonb_exists(translations, 'it')")
+	}
+	err := tx.Select(listColumns).Order("published_at DESC, id DESC").Limit(limit).Find(&docs).Error
 	if err != nil {
 		return nil, err
 	}
@@ -372,6 +404,8 @@ type OutDocument struct {
 	CopyNumber string `json:"copy_number"`
 	// ReadCount — сколько зарегистрированных читателей ознакомилось с документом («лист ознакомления»; без имён — история чтения закрыта).
 	ReadCount int `json:"read_count"`
+	// HasTranslation — есть ли у документа перевод на второй язык интерфейса.
+	HasTranslation bool `json:"has_translation"`
 }
 
 // copyNumber — номер экземпляра читателя; у Гражданина номера нет (пустая строка: интерфейс подпишет «б/н» на своём языке).
@@ -412,26 +446,47 @@ func (s *Service) Get(ctx context.Context, v Viewer, ref string) (*OutDocument, 
 	}
 	d := &row.Document
 
+	// Погашенный скрытый код (шаг 5.5) открывает документ аккаунту в обход обычной видимости —
+	// статуса, уровня и уровня его блоков — но не отменяет флаг «Доступ запрещён» для тех, кто код
+	// не разгадал. effLevel — уровень, с которым читаются блоки: обычный уровень читателя или,
+	// если документ открыт кодом, уровень самого документа (блоки внутри видны целиком).
+	effLevel := v.Level()
 	if d.Status != string(StatusPublished) && !v.SeesUnpublished() {
-		return nil, ErrNotFound
+		unlocked, err := s.hasDocumentUnlock(ctx, v.UserID, d.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !unlocked {
+			return nil, ErrNotFound
+		}
+		effLevel = max(effLevel, d.Level)
 	}
 	if d.Level > v.Level() {
-		if DirectLink(d.DirectLink) == DirectLinkForbidden {
-			return nil, &AccessDeniedError{RequiredLevel: d.Level}
+		unlocked, err := s.hasDocumentUnlock(ctx, v.UserID, d.ID)
+		if err != nil {
+			return nil, err
 		}
-		return nil, ErrNotFound
+		if !unlocked {
+			if DirectLink(d.DirectLink) == DirectLinkForbidden {
+				return nil, &AccessDeniedError{RequiredLevel: d.Level}
+			}
+			return nil, ErrNotFound
+		}
+		effLevel = max(effLevel, d.Level)
 	}
 
-	resolve, err := s.linkResolver(ctx, v, d.Blocks)
+	title, srcBlocks := pickLocale(d, v.Lang)
+	resolve, err := s.linkResolver(ctx, v, srcBlocks)
 	if err != nil {
 		return nil, err
 	}
-	blocks, err := RenderBlocks(d.Blocks, d.Level, v.Level(), resolve)
+	blocks, err := RenderBlocks(srcBlocks, d.Level, effLevel, resolve)
 	if err != nil {
 		return nil, fmt.Errorf("документ %s: %w", c.Canonical, err)
 	}
 
-	out := outDocument(d, row.AuthorLogin, blocks, v)
+	out := outDocument(d, title, row.AuthorLogin, blocks, v)
+	out.HasTranslation = hasTranslation(d)
 	if out.MentionedIn, err = s.mentions(ctx, v, c.Canonical); err != nil {
 		return nil, err
 	}
@@ -450,9 +505,9 @@ func (s *Service) Get(ctx context.Context, v Viewer, ref string) (*OutDocument, 
 
 // outDocument собирает ответ читателю из записи документа и уже отфильтрованных блоков. Общий для чтения и предпросмотра:
 // что попадает в ответ, решается в одном месте.
-func outDocument(d *Document, authorLogin *string, blocks []OutBlock, v Viewer) *OutDocument {
+func outDocument(d *Document, title string, authorLogin *string, blocks []OutBlock, v Viewer) *OutDocument {
 	out := &OutDocument{
-		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).NameIn(v.Lang), Title: d.Title,
+		Code: deref(d.Code), Slug: deref(d.Slug), Type: d.Type, TypeName: Type(d.Type).NameIn(v.Lang), Title: title,
 		Grif: d.Grif, Level: d.Level,
 		Composed:    Composed{Year: d.ComposedYear, Month: d.ComposedMonth, Day: d.ComposedDay},
 		DangerClass: d.DangerClass, DeviationPoints: d.DeviationPoints, Department: d.Department,
@@ -504,7 +559,15 @@ func (s *Service) recordRead(ctx context.Context, userID, docID int64) {
 		ON CONFLICT (user_id, document_id)
 		DO UPDATE SET last_read_at = EXCLUDED.last_read_at, read_count = document_reads.read_count + 1`,
 		userID, docID, now, now).Error
-	if err != nil && ctx.Err() == nil {
-		s.log.Error("не удалось записать факт чтения", "user_id", userID, "document_id", docID, "err", err)
+	if err != nil {
+		if ctx.Err() == nil {
+			s.log.Error("не удалось записать факт чтения", "user_id", userID, "document_id", docID, "err", err)
+		}
+		return
+	}
+	// Грамоты за число прочитанных дел (шаг 5.6) — best-effort, как и сама запись чтения выше:
+	// не всплывают немедленным тостом (не ломать форму ответа читателю), появятся в личном деле.
+	if _, err := achievements.CheckReads(ctx, s.db, userID, now); err != nil && ctx.Err() == nil {
+		s.log.Error("не удалось проверить грамоты за чтение", "user_id", userID, "err", err)
 	}
 }

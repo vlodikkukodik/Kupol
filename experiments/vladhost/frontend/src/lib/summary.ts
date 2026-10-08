@@ -5,20 +5,30 @@ import type { Site } from '@/api/schemas'
 /** Порог заполнения диска, после которого сводка предупреждает. */
 export const DISK_WARN_PERCENT = 80
 
-export type AttentionKind = 'cert_failed' | 'domain_failed' | 'domain_dns' | 'empty_site' | 'disk_full'
+/** За сколько суток до окончания сертификата сводка предупреждает: автопродление к этому сроку уже должно было сработать. */
+export const CERT_WARN_DAYS = 14
+
+/** Сколько целых суток осталось до момента; отрицательно, если он уже прошёл. */
+export function daysUntil(iso: string, now: Date = new Date()): number {
+  return Math.floor((Date.parse(iso) - now.getTime()) / 86_400_000)
+}
+
+export type AttentionKind = 'cert_failed' | 'domain_failed' | 'cert_expiring' | 'domain_dns' | 'empty_site' | 'disk_full'
 
 export interface Attention {
   kind: AttentionKind
   /** Сайт, к которому относится пункт; у «диск заполнен» его нет. */
   site?: Site
-  /** Имя домена для пунктов про домены. */
+  /** Имя домена (или адрес сайта) для пунктов про домены и сертификаты. */
   host?: string
+  /** Сколько суток осталось у сертификата (для «сертификат скоро истекает»). */
+  days?: number
   /** Раздел кабинета сайта, где проблема решается. */
-  route: 'site-overview' | 'site-domains' | 'sites'
+  route: 'site-overview' | 'site-domains' | 'site-ssl' | 'sites'
 }
 
 /** Что требует действий пользователя, от срочного к менее срочному. */
-export function attentionItems(sites: readonly Site[], usedBytes: number, quotaBytes: number): Attention[] {
+export function attentionItems(sites: readonly Site[], usedBytes: number, quotaBytes: number, now: Date = new Date()): Attention[] {
   const items: Attention[] = []
   for (const s of sites) {
     if (s.cert_status === 'failed') items.push({ kind: 'cert_failed', site: s, route: 'site-overview' })
@@ -26,6 +36,17 @@ export function attentionItems(sites: readonly Site[], usedBytes: number, quotaB
   for (const s of sites) {
     for (const d of s.domains) {
       if (d.status === 'failed') items.push({ kind: 'domain_failed', site: s, host: d.host, route: 'site-domains' })
+    }
+  }
+  // Работающий сертификат подходит к концу — значит, автопродление не сработало (лимит, DNS, сбой выпускателя).
+  for (const s of sites) {
+    const names = [
+      ...(s.cert_status === 'active' && s.cert ? [{ host: s.host, cert: s.cert }] : []),
+      ...s.domains.filter((d) => d.status === 'active' && d.cert).map((d) => ({ host: d.host, cert: d.cert! })),
+    ]
+    for (const n of names) {
+      const days = daysUntil(n.cert.not_after, now)
+      if (days <= CERT_WARN_DAYS) items.push({ kind: 'cert_expiring', site: s, host: n.host, days, route: 'site-ssl' })
     }
   }
   if (quotaBytes > 0 && (usedBytes / quotaBytes) * 100 >= DISK_WARN_PERCENT) items.push({ kind: 'disk_full', route: 'sites' })

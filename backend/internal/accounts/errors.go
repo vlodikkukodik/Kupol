@@ -11,6 +11,8 @@ var (
 	ErrInvalidCredentials = errors.New("accounts: неверные учётные данные")
 	// ErrWrongPassword — пользователь вошёл, но не смог подтвердить текущий пароль (смена пароля, удаление).
 	ErrWrongPassword = errors.New("accounts: неверный текущий пароль")
+	// ErrBanned — аккаунт заблокирован (шаг 5.9); сообщается только тому, кто ввёл верный пароль.
+	ErrBanned = errors.New("accounts: аккаунт заблокирован")
 	// ErrLoginTaken — логин занят.
 	ErrLoginTaken = errors.New("accounts: логин занят")
 	// ErrCaptcha — неверный, просроченный или уже использованный ответ на анкету.

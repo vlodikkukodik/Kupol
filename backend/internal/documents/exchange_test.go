@@ -25,6 +25,36 @@ func fixtureBlocks(t *testing.T) []InputBlock {
 	return blocks
 }
 
+// newKindFixtures — образцы восьми видов блоков, по одному на тип дела (containment_procedure … routing).
+// В общий файл редактора (fixtureBlocks) не идут нарочно: их не редактирует визуальный редактор (Tiptap
+// хранит их как узел-«коробку»), поэтому у e2e-теста редактора свой отдельный счёт «15 видов».
+func newKindFixtures(t *testing.T) []InputBlock {
+	t.Helper()
+	raw := `[
+		{"id":"cp1","type":"containment_procedure","data":{"title":"Порядок","steps":["Шаг один.","Шаг два."]}},
+		{"id":"dir1","type":"directive","data":{"recipient":"ОТД-2","order":"Провести проверку.","deadline":"до 01.05"}},
+		{"id":"tl1","type":"incident_timeline","data":{"entries":[{"time":"14:02","event":"Событие."}]}},
+		{"id":"pr1","type":"personnel_record","data":{"rank":"Куратор","clearance":"Уровень 4","status":"active"}},
+		{"id":"ro1","type":"roster","data":{"entries":[{"name":"И. Петров","position":"Начальник"}]}},
+		{"id":"hy1","type":"hypothesis","data":{"text":"Гипотеза.","result":"Результат.","confirmed":true}},
+		{"id":"qa1","type":"qa","data":{"entries":[{"question":"Вопрос?","answer":"Ответ."}]}},
+		{"id":"rt1","type":"routing","data":{"entries":[{"who":"Начальник","decision":"approved"}]}},
+		{"id":"im1","type":"image","data":{"upload":"0123456789abcdef0123456789abcdef","caption":"Схема","sticker":"clip"}},
+		{"id":"au1","type":"audio","data":{"upload":"fedcba9876543210fedcba9876543210","title":"Запись","transcript":"Текст записи."}}
+	]`
+	var blocks []InputBlock
+	if err := json.Unmarshal([]byte(raw), &blocks); err != nil {
+		t.Fatal(err)
+	}
+	return blocks
+}
+
+// allKindFixtures — все виды блоков (15 редакторских + 8 новых по типам дела) для тестов, которые сверяются
+// с полным реестром `kinds`.
+func allKindFixtures(t *testing.T) []InputBlock {
+	return append(fixtureBlocks(t), newKindFixtures(t)...)
+}
+
 func (e *env) export(a Actor, id int64, f ExportFormat) *ExportFile {
 	e.t.Helper()
 	file, err := e.svc.TeamExport(ctx, a, id, f)
@@ -214,7 +244,7 @@ func TestExportAccessFollowsDocumentAccess(t *testing.T) {
 }
 
 func TestMarkdownCoversEveryBlockKind(t *testing.T) {
-	blocks := fixtureBlocks(t)
+	blocks := allKindFixtures(t)
 	seen := map[string]bool{}
 	for _, b := range blocks {
 		seen[b.Type] = true
