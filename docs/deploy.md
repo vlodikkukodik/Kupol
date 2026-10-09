@@ -78,6 +78,10 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d api.kupol.vladinc.ru      # добавит 443 и редирект
 ```
 
+Те же три команды обновляют конфиг на уже развёрнутом VPS: там есть `location ^~ /api/uploads/put/` с
+`client_max_body_size 21m` (загрузки идут прямо на api-поддомин, см. `docs/dev.md`, §6.1) — без него nginx отвергнет
+файл больше 1 МиБ, пока Go ещё даже не увидит запрос.
+
 Логи — journald (`journalctl -u kupol -f`); объём ограничьте в `/etc/systemd/journald.conf` (`SystemMaxUse=`).
 
 ## 2. Первый деплой бэкенда

@@ -58,12 +58,17 @@ export interface AchievementsResponse {
   items: achievements.Item[];
 }
 /**
- * UploadTicketResponse — POST /api/team/uploads/ticket: одноразовый билет и путь, куда отправить файл.
+ * UploadTicketResponse — POST /api/team/uploads/ticket: одноразовый билет и адрес, куда отправить файл.
  */
 export interface UploadTicketResponse {
   ticket: string;
   expires_at: string /* RFC 3339 */;
   path: string;
+  /**
+   * URL — абсолютный адрес загрузки. Файл идёт с origin сайта прямо на api-поддомин, минуя
+   * PHP-прокси (у multipart его php://input остаётся пустым), поэтому одного пути Path мало.
+   */
+  url: string;
   max_bytes: number /* int */;
 }
 /**
@@ -765,6 +770,20 @@ export const IPSourceProxy = "proxy"; // IP подтверждён подпис�
 export const IPSourceDirect = "direct"; // IP из TCP-соединения / доверенного обратного прокси
 
 //////////
+// source: pdf.go
+
+/**
+ * PDFQueue — очередь печати (этап 6.2). В тестах подменяется фейком: сборка typst'ом — не их дело.
+ */
+export type PDFQueue = any;
+/**
+ * EnqueueResponse — POST /api/documents/:ref/pdfs: номер джобы, за ним можно следить.
+ */
+export interface EnqueueResponse {
+  id: number /* int64 */;
+}
+
+//////////
 // source: petitions.go
 
 
@@ -797,6 +816,10 @@ export interface Deps {
    */
   MailSettings?: unknown;
   Limiter?: unknown;
+  /**
+   * PDFs — очередь печати в PDF (этап 6.2).
+   */
+  PDFs: PDFQueue;
 }
 
 //////////

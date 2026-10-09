@@ -33,11 +33,13 @@ type Deps struct {
 	// MailSettings — SMTP, который Директорат включает в панели команды (настройки писем читателя — у Accounts).
 	MailSettings *mailsettings.Service
 	Limiter      *ratelimit.Limiter
+	// PDFs — очередь печати в PDF (этап 6.2).
+	PDFs PDFQueue
 }
 
 func New(d Deps) (*gin.Engine, error) {
-	if d.Accounts == nil || d.Documents == nil || d.Suggestions == nil || d.Petitions == nil || d.Sanctions == nil || d.Uploads == nil || d.MailSettings == nil || d.Limiter == nil {
-		return nil, errors.New("httpapi: не заданы Accounts, Documents, Suggestions, Petitions, Sanctions, Uploads, MailSettings и Limiter")
+	if d.Accounts == nil || d.Documents == nil || d.Suggestions == nil || d.Petitions == nil || d.Sanctions == nil || d.Uploads == nil || d.MailSettings == nil || d.Limiter == nil || d.PDFs == nil {
+		return nil, errors.New("httpapi: не заданы Accounts, Documents, Suggestions, Petitions, Sanctions, Uploads, MailSettings, Limiter и PDFs")
 	}
 	gin.SetMode(gin.ReleaseMode)
 
@@ -66,9 +68,11 @@ func New(d Deps) (*gin.Engine, error) {
 	)
 
 	r.NoRoute(func(c *gin.Context) {
+		discardBody(c, MaxBodyBytes+1)
 		Fail(c, http.StatusNotFound, CodeNotFound, "Дело не найдено")
 	})
 	r.NoMethod(func(c *gin.Context) {
+		discardBody(c, MaxBodyBytes+1)
 		Fail(c, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Метод не поддерживается")
 	})
 
@@ -188,6 +192,12 @@ func New(d Deps) (*gin.Engine, error) {
 	// Скрытые коды (пасхалки, шаг 5.5): погашает только вошедший.
 	api.POST("/secret-codes/redeem", requireAuth(), docs.redeemSecretCode)
 
+	// Печать в PDF (этап 6.2): ставит вошедший, статус и файл — только владелец джобы.
+	pdfs := &pdfHandlers{queue: d.PDFs, docs: d.Documents, origin: d.Config.SiteOrigin, log: d.Log}
+	api.POST("/documents/:ref/pdfs", requireAuth(), pdfs.enqueue)
+	api.GET("/pdfs/:id", requireAuth(), pdfs.status)
+	api.GET("/pdfs/:id/file", requireAuth(), pdfs.file)
+
 	// «Пометки на полях» (шаг 5.2): читает кто угодно, пишет и жалуется только вошедший.
 	api.GET("/documents/:ref/remarks", docs.listRemarks)
 	api.POST("/documents/:ref/remarks", requireAuth(), docs.createRemark)
@@ -205,7 +215,9 @@ func New(d Deps) (*gin.Engine, error) {
 	// Загрузки (этап 6.1): билет — по праву писать, файл — по билету, отдача — по допуску читателя.
 	up := &uploadHandlers{svc: d.Uploads, log: d.Log}
 	api.POST("/team/uploads/ticket", requireCapability(accounts.CapWriteDrafts), up.ticket)
-	api.POST("/uploads/put/:ticket", up.put)
+	// Файл приходит с origin сайта прямо на api-поддомин (см. uploadPutURL): ему нужны CORS-заголовки.
+	api.POST("/uploads/put/:ticket", uploadCors(d.Config.SiteOrigin), up.put)
+	api.OPTIONS("/uploads/put/:ticket", uploadCors(d.Config.SiteOrigin))
 	api.GET("/team/uploads", requireCapability(accounts.CapWriteDrafts), up.list)
 	api.DELETE("/team/uploads/:id", requireCapability(accounts.CapWriteDrafts), up.remove)
 	api.GET("/uploads/:key/file", up.serve(false))

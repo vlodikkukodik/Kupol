@@ -181,7 +181,10 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
 
   /** Отправляет запрос и возвращает успешный ответ; сбой связи и коды не 2xx — ApiError (и событие для сторов связи). */
   async function send({ path, method = 'GET', body, signal, headers = {} }: RequestOptions & { path: string }): Promise<Response> {
-    if (!path.startsWith('/')) throw new TypeError(`API path must start with "/": ${path}`)
+    // Путь относительно base либо абсолютный адрес: файлы грузятся прямо на api-поддомин,
+    // минуя PHP-прокси (его php://input у multipart остаётся пустым).
+    const absolute = /^https?:\/\//.test(path)
+    if (!absolute && !path.startsWith('/')) throw new TypeError(`API path must start with "/": ${path}`)
 
     // Язык интерфейса уходит серверу: сообщения об ошибках, названия уровней и статусов приходят на нём
     const init: RequestInit = { method, headers: { Accept: 'application/json', 'Accept-Language': locale.value, ...headers }, credentials: 'same-origin' }
@@ -196,7 +199,7 @@ export function createClient({ base = '/api', timeoutMs = DEFAULT_TIMEOUT_MS }: 
 
     let res: Response
     try {
-      res = await fetch(base + path, init)
+      res = await fetch(absolute ? path : base + path, init)
     } catch (cause) {
       // Отмену вызывающим отдаём как есть — это не сбой сети.
       if (signal?.aborted) throw cause

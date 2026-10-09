@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -174,10 +175,20 @@ func bodyLimitMiddleware(limit int64, bigPrefix string, bigLimit int64) gin.Hand
 			limit = bigLimit // загрузка файла: свой, больший предел
 		}
 		if c.Request.ContentLength > limit {
+			// дочитать объявленное тело до ответа: иначе клиент, получивший 413 на обрыве
+			// соединения, увидит 502 (в проде тело ограничено nginx, поэтому читаем объявленное)
+			discardBody(c, c.Request.ContentLength)
 			Fail(c, http.StatusRequestEntityTooLarge, CodeTooLarge, "Слишком большой запрос")
 			return
 		}
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		c.Next()
 	}
+}
+
+// discardBody — дочитать тело, если обработчик ответил, не читая его. Иначе соединение закрывается
+// посреди приёма: nginx видит обрыв и отдаёт клиенту 502 вместо ответа API (тело большой загрузки
+// и 404/405 на него — как раз такой случай). limit — предел, навешанный bodyLimitMiddleware.
+func discardBody(c *gin.Context, limit int64) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(c.Request.Body, limit))
 }

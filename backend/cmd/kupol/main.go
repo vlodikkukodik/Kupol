@@ -33,6 +33,7 @@ import (
 	"kupol/internal/mail"
 	"kupol/internal/mailsettings"
 	"kupol/internal/passwords"
+	"kupol/internal/pdf"
 	"kupol/internal/petitions"
 	"kupol/internal/ratelimit"
 	"kupol/internal/sanctions"
@@ -168,6 +169,18 @@ func serve(ctx context.Context, cfg config.Config, db *gorm.DB, log *slog.Logger
 		return err
 	}
 
+	// Очередь печати в PDF (этап 6.2): River разбирает джобы, typst собирает листы читателя.
+	pdfs, err := pdf.NewQueue(ctx, pdf.QueueConfig{
+		DB: db, Dir: cfg.PDFDir, Typst: cfg.Typst, Documents: docs, Uploads: uploadsSvc,
+		SiteOrigin: cfg.SiteOrigin, Log: log,
+	})
+	if err != nil {
+		return err
+	}
+	if err := pdfs.Start(ctx); err != nil {
+		return fmt.Errorf("очередь печати: %w", err)
+	}
+
 	handler, err := httpapi.New(httpapi.Deps{
 		Config: cfg, DB: db, Log: log, Accounts: svc, Limiter: limiter,
 		Documents:    docs,
@@ -176,6 +189,7 @@ func serve(ctx context.Context, cfg config.Config, db *gorm.DB, log *slog.Logger
 		Sanctions:    sanctions.NewService(db, nil),
 		Uploads:      uploadsSvc,
 		MailSettings: ms,
+		PDFs:         pdfs,
 	})
 	if err != nil {
 		return err
@@ -211,6 +225,11 @@ func serve(ctx context.Context, cfg config.Config, db *gorm.DB, log *slog.Logger
 	}
 	if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
+	}
+	queueCtx, queueCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer queueCancel()
+	if err := pdfs.Stop(queueCtx); err != nil {
+		log.Error("очередь печати не остановилась", "ошибка", err)
 	}
 	log.Info("API остановлен")
 	return nil

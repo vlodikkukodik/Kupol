@@ -65,6 +65,10 @@ type Config struct {
 	SMTP       SMTP
 	// UploadsDir — где лежат загруженные файлы (этап 6.1); по умолчанию ./uploads рядом с бинарником.
 	UploadsDir string
+	// PDFDir — куда складывать напечатанные PDF (этап 6.2); по умолчанию ./pdfs.
+	PDFDir string
+	// Typst — путь к typst; пусто — искать в PATH.
+	Typst string
 }
 
 func (c Config) IsProd() bool { return c.Env == "prod" }
@@ -85,6 +89,8 @@ func load(get func(string) string) (Config, error) {
 		Env:        strings.ToLower(orDefault(get("KUPOL_ENV"), "dev")),
 		HTTPAddr:   orDefault(get("KUPOL_HTTP_ADDR"), "127.0.0.1:8080"),
 		UploadsDir: orDefault(get("KUPOL_UPLOADS_DIR"), "uploads"),
+		PDFDir:     orDefault(strings.TrimSpace(get("KUPOL_PDF_DIR")), "pdfs"),
+		Typst:      strings.TrimSpace(get("KUPOL_TYPST")),
 	}
 	if c.Env != "dev" && c.Env != "prod" {
 		fail("KUPOL_ENV: ожидается dev или prod, получено %q", c.Env)

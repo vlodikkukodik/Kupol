@@ -39,6 +39,11 @@ function onPick(e: Event) {
 
 function fail(err: unknown) {
   if (!(err instanceof ApiError)) throw err
+  // Причина по полю файла («нужна картинка JPEG…») показывается у поля, а не общим текстом
+  if (err.fields.file) {
+    fileError.value = err.fields.file
+    return
+  }
   failure.value = describeApiError(err)
 }
 

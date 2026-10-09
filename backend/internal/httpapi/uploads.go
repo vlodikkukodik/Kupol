@@ -49,6 +49,36 @@ func uploadActor(c *gin.Context) uploads.Actor {
 	return uploads.Actor{ID: u.ID, Directorate: u.Directorate, Manager: u.Can(accounts.CapEditPublished)}
 }
 
+// uploadPutURL — абсолютный адрес для файла. Загрузка идёт с origin сайта прямо на api-поддомин,
+// минуя PHP-прокси (его php://input у multipart остаётся пустым), поэтому путь Path от корня сайта
+// не годится. Схему берём из X-Forwarded-Proto: перед Go всегда nginx (nginx-kupol-api.conf).
+func uploadPutURL(c *gin.Context, ticket string) string {
+	scheme := "http"
+	if c.GetHeader("X-Forwarded-Proto") == "https" || c.Request.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + c.Request.Host + uploadPutPrefix + ticket
+}
+
+// uploadCors — узкие CORS-заголовки для прямой загрузки: ответ читает браузер с origin сайта,
+// поэтому для совпадающего Origin отдаём Access-Control-Allow-Origin. Сам запрос multipart —
+// «простой», preflight браузер не шлёт; OPTIONS обслуживаем на всякий случай.
+func uploadCors(siteOrigin string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if origin := c.GetHeader("Origin"); origin != "" && origin == siteOrigin {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
+			c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Content-Type")
+		}
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
+}
+
 // POST /api/team/uploads/ticket — билет на загрузку (право писать).
 func (h *uploadHandlers) ticket(c *gin.Context) {
 	t, exp, err := h.svc.NewTicket(CurrentAuth(c).User.ID)
@@ -56,18 +86,23 @@ func (h *uploadHandlers) ticket(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, UploadTicketResponse{Ticket: t, ExpiresAt: exp.UTC(), Path: uploadPutPrefix + t, MaxBytes: uploads.MaxBytes})
+	c.JSON(http.StatusOK, UploadTicketResponse{
+		Ticket: t, ExpiresAt: exp.UTC(), Path: uploadPutPrefix + t, URL: uploadPutURL(c, t), MaxBytes: uploads.MaxBytes,
+	})
 }
 
 // POST /api/uploads/put/:ticket — multipart: file и необязательный level (0–7). Авторизует билет.
 func (h *uploadHandlers) put(c *gin.Context) {
 	uid, err := h.svc.UseTicket(c.Param("ticket"))
 	if err != nil {
+		// тело читаем, даже когда билет не годится: иначе обрыв соединения даст клиенту 502
+		discardBody(c, uploadBodyLimit)
 		h.fail(c, err)
 		return
 	}
 	fh, err := c.FormFile("file")
 	if err != nil {
+		discardBody(c, uploadBodyLimit)
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
 			h.fail(c, uploads.ErrTooLarge)

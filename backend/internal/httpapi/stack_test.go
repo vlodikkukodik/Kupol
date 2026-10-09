@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +23,7 @@ import (
 	"kupol/internal/mail"
 	"kupol/internal/mailsettings"
 	"kupol/internal/passwords"
+	"kupol/internal/pdf"
 	"kupol/internal/petitions"
 	"kupol/internal/ratelimit"
 	"kupol/internal/sanctions"
@@ -40,8 +44,59 @@ type stack struct {
 	sugs    *suggestions.Service
 	limiter *ratelimit.Limiter
 	ms      *mailsettings.Service
+	pdfs    *fakePDFs
 	cfg     config.Config
 	clients int
+}
+
+// fakePDFs — фейк очереди печати (этап 6.2): джобы в памяти, готовый файл — на диске, как у настоящей.
+type fakePDFs struct {
+	dir   string
+	mu    sync.Mutex
+	jobs  map[int64]*pdf.Status
+	files map[int64]string
+	next  int64
+}
+
+func newFakePDFs(t *testing.T) *fakePDFs {
+	return &fakePDFs{dir: t.TempDir(), jobs: map[int64]*pdf.Status{}, files: map[int64]string{}}
+}
+
+func (f *fakePDFs) Enqueue(_ context.Context, args pdf.Args) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.next++
+	f.jobs[f.next] = &pdf.Status{ID: f.next, State: pdf.StateQueued, Ref: args.Ref, UserID: args.UserID}
+	return f.next, nil
+}
+
+func (f *fakePDFs) Status(_ context.Context, id int64) (*pdf.Status, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	st, ok := f.jobs[id]
+	if !ok {
+		return nil, pdf.ErrJobNotFound
+	}
+	cp := *st
+	return &cp, nil
+}
+
+func (f *fakePDFs) File(id int64) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.files[id]
+}
+
+// finish — «воркер закончил»: готовый файл и состояние ready.
+func (f *fakePDFs) finish(id int64, data []byte) {
+	path := filepath.Join(f.dir, fmt.Sprintf("%d.pdf", id))
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		panic(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.jobs[id].State = pdf.StateReady
+	f.files[id] = path
 }
 
 func newStack(t *testing.T, tweak func(*config.Config)) *stack { return newStackOpts(t, tweak, nil) }
@@ -106,11 +161,12 @@ func newStackOpts(t *testing.T, tweak func(*config.Config), mailer mail.Sender) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := httpapi.New(httpapi.Deps{Config: cfg, DB: db, Log: testutil.Logger(), Accounts: svc, Documents: docs, Suggestions: sugs, Petitions: petitions.NewService(db, nil), Sanctions: sanctions.NewService(db, nil), Uploads: uploadsSvc, MailSettings: ms, Limiter: limiter})
+	pdfs := newFakePDFs(t)
+	r, err := httpapi.New(httpapi.Deps{Config: cfg, DB: db, Log: testutil.Logger(), Accounts: svc, Documents: docs, Suggestions: sugs, Petitions: petitions.NewService(db, nil), Sanctions: sanctions.NewService(db, nil), Uploads: uploadsSvc, MailSettings: ms, Limiter: limiter, PDFs: pdfs})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &stack{r: r, db: db, svc: svc, docs: docs, sugs: sugs, limiter: limiter, ms: ms, cfg: cfg}
+	return &stack{r: r, db: db, svc: svc, docs: docs, sugs: sugs, limiter: limiter, ms: ms, pdfs: pdfs, cfg: cfg}
 }
 
 // client — «браузер» с хранилищем кук поверх тестового роутера.

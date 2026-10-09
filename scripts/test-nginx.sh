@@ -109,6 +109,13 @@ expect "тело ровно 1 МиБ доходит до Go (405, не 413)" \
 head -c 1048577 /dev/zero >"$TMP/over.bin"
 expect "тело 1 МиБ + 1 байт: 413" \
   "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/octet-stream' --data-binary "@$TMP/over.bin" "$NG/api/health")" 413
+# Загрузки (этап 6.1) идут прямо на api-поддомин и несут файл до 20 МБ — у них свой location.
+expect "тело 2 МиБ на загрузке доходит до Go (403, не 413)" \
+  "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -F "file=@$BIG;type=image/png" "$NG/api/uploads/put/no-ticket")" 403
+expect "на загрузке лимит тела 21m, а не общий 1m" \
+  "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -F "file=@$TMP/edge.bin" "$NG/api/uploads/put/no-ticket")" 403
+expect "загрузка отдаёт CORS для origin сайта" \
+  "$(curl -sS -D - -o /dev/null -X POST -H 'Origin: http://127.0.0.1:5173' -F "file=@$TMP/edge.bin" "$NG/api/uploads/put/no-ticket" | grep -ci '^access-control-allow-origin: http://127.0.0.1:5173')" 1
 R="$(curl -sS -w '\n%{http_code}' "$NG/api/nope")"
 expect "404 в формате API" "$(sed '$d' <<<"$R" | jq -r .error.code)" not_found
 

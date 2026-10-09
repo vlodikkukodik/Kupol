@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"kupol/internal/httpapi"
 )
 
 func testPNG() []byte {
@@ -35,6 +37,7 @@ func putFile(st *stack, c *client, path, name string, data []byte, level string)
 	mw.Close()
 	req := httptest.NewRequest(http.MethodPost, path, &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Origin", c.origin) // браузер грузит файл кросс-доменно, Origin всегда есть
 	rec := httptest.NewRecorder()
 	st.r.ServeHTTP(rec, req)
 	return rec
@@ -118,5 +121,64 @@ func TestUploadsOverHTTP(t *testing.T) {
 	}
 	if r := actors["director"].client.do("GET", fileURL, nil); r.Code != 404 {
 		t.Errorf("после удаления: %d", r.Code)
+	}
+}
+
+// Загрузка идёт с origin сайта прямо на api-поддомин, минуя PHP-прокси: билет несёт абсолютный
+// адрес, а ответ на прямой POST несёт CORS для этого origin (иначе браузер не прочитает ответ).
+func TestUploadGoesAroundPHPProxy(t *testing.T) {
+	st, actors := teamStackWithActors(t)
+	author := actors["author"]
+
+	r := author.client.do("POST", "/api/team/uploads/ticket", nil)
+	if r.Code != 200 {
+		t.Fatalf("билет: %d %s", r.Code, r.Body)
+	}
+	ticket, path, url := r.json()["ticket"].(string), r.json()["path"].(string), r.json()["url"].(string)
+	if ticket == "" || path != "/api/uploads/put/"+ticket {
+		t.Errorf("путь: path=%q ticket=%q", path, ticket)
+	}
+	// httptest подставляет example.com в Host; X-Forwarded-Proto не передан — схема http.
+	if want := "http://example.com" + path; url != want {
+		t.Errorf("url: %q, ожидалось %q", url, want)
+	}
+	// За nginx (боевой конфиг) схема берётся из X-Forwarded-Proto.
+	req := httptest.NewRequest(http.MethodPost, "/api/team/uploads/ticket", nil)
+	req.Header.Set("Origin", testOrigin)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.AddCookie(&http.Cookie{Name: httpapi.SessionCookieName, Value: author.client.cookie.Value})
+	w := httptest.NewRecorder()
+	st.r.ServeHTTP(w, req)
+	if body := w.Body.String(); w.Code != 200 || !strings.Contains(body, `"url":"https://example.com/api/uploads/put/`) {
+		t.Errorf("url за nginx (%d): %s", w.Code, body)
+	}
+
+	// Прямой файл: ответ несёт CORS для origin сайта.
+	rec := putFile(st, author.client, path, "схема.png", testPNG(), "2")
+	if rec.Code != 201 {
+		t.Fatalf("загрузка: %d %s", rec.Code, rec.Body)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != testOrigin {
+		t.Errorf("Access-Control-Allow-Origin: %q, ожидалось %q", got, testOrigin)
+	}
+	if got := rec.Header().Get("Vary"); !strings.Contains(strings.ToLower(got), "origin") {
+		t.Errorf("нет Vary: Origin: %q", got)
+	}
+
+	// Чужой origin: браузер отклоняется на CSRF, CORS-заголовок не выдаётся.
+	foreign := st.newClient(t)
+	foreign.origin = "https://evil.example"
+	rec = putFile(st, foreign, path, "x.png", testPNG(), "2")
+	if rec.Code != 403 || rec.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Errorf("чужой origin: %d, ACAO=%q", rec.Code, rec.Header().Get("Access-Control-Allow-Origin"))
+	}
+
+	// preflight на всякий случай (multipart — «простой» запрос, но OPTIONS должен отвечать).
+	opt := httptest.NewRequest(http.MethodOptions, path, nil)
+	opt.Header.Set("Origin", testOrigin)
+	ow := httptest.NewRecorder()
+	st.r.ServeHTTP(ow, opt)
+	if ow.Code != http.StatusNoContent || ow.Header().Get("Access-Control-Allow-Origin") != testOrigin {
+		t.Errorf("OPTIONS: %d ACAO=%q", ow.Code, ow.Header().Get("Access-Control-Allow-Origin"))
 	}
 }

@@ -30,8 +30,11 @@ export function describeApiError(err: ApiError): string {
     case 'upstream_timeout':
     case 'proxy_misconfigured':
       return t('errors.internal')
-    default:
-      return err.message || t('errors.generic')
+    default: {
+      // У валидации сервер шлёт общий текст («проверьте поля»), настоящая причина — в полях
+      const first = Object.values(err.fields)[0]
+      return first || err.message || t('errors.generic')
+    }
   }
 }
 

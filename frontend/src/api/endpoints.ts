@@ -162,7 +162,8 @@ export const uploadsApi = {
     const form = new FormData()
     form.append('level', String(level))
     form.append('file', file)
-    const r = await api.post<UploadResponse>(t.path.replace(/^\/api/, ''), form)
+    // t.url — абсолютный адрес api-поддомена: файл идёт мимо PHP-прокси, иначе тело пропадает
+    const r = await api.post<UploadResponse>(t.url, form)
     return r.upload as Upload
   },
   remove: (id: number) => api.delete<null>(`/team/uploads/${id}`),

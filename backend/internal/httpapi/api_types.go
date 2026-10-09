@@ -54,12 +54,15 @@ type AchievementsResponse struct {
 	Items []achievements.Item `json:"items"`
 }
 
-// UploadTicketResponse — POST /api/team/uploads/ticket: одноразовый билет и путь, куда отправить файл.
+// UploadTicketResponse — POST /api/team/uploads/ticket: одноразовый билет и адрес, куда отправить файл.
 type UploadTicketResponse struct {
 	Ticket    string    `json:"ticket"`
 	ExpiresAt time.Time `json:"expires_at"`
 	Path      string    `json:"path"`
-	MaxBytes  int       `json:"max_bytes"`
+	// URL — абсолютный адрес загрузки. Файл идёт с origin сайта прямо на api-поддомин, минуя
+	// PHP-прокси (у multipart его php://input остаётся пустым), поэтому одного пути Path мало.
+	URL      string `json:"url"`
+	MaxBytes int    `json:"max_bytes"`
 }
 
 // UploadResponse — загруженный файл.
