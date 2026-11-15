@@ -13,7 +13,7 @@ const full = computed(() => `/api/uploads/${props.data.upload}/file`)
   <figure class="image" :class="`image--${data.sticker}`">
     <p v-if="failed" class="image__missing" role="note">{{ $t('doc.imageMissing') }}</p>
     <a v-else :href="full" target="_blank" rel="noopener" class="image__link">
-      <img :src="thumb" :alt="data.caption ?? ''" loading="lazy" @error="failed = true">
+      <img :src="thumb" :alt="data.caption ?? ''" loading="lazy" data-print-eager @error="failed = true">
     </a>
     <figcaption v-if="data.caption">{{ data.caption }}</figcaption>
   </figure>

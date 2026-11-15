@@ -201,4 +201,56 @@ html.scroll-locked {
   .no-print {
     display: none !important;
   }
+  /* поля листа A4; Safari на iPhone/iPad тоже берёт их из @page */
+  @page {
+    size: A4;
+    margin: 15mm 14mm;
+  }
+  /* фоны и цвета штампов/грифов — как на экране (иначе Safari и Chrome их выкидывают) */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    animation: none !important;
+    transition: none !important;
+  }
+  /* высота «во весь экран» (100dvh) на iOS даёт лишнюю пустую страницу */
+  .app,
+  .stage,
+  main {
+    min-height: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  article.paper {
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    transform: none !important;
+  }
+  /* не рвать блоки, картинки и заголовки между страницами */
+  img,
+  figure,
+  table,
+  blockquote,
+  pre,
+  [id^='b-'] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  img {
+    max-width: 100% !important;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }

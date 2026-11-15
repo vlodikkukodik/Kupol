@@ -31,6 +31,7 @@ export const ICONS = {
   home: 'M4 11l8-7 8 7M6 10v10h12V10',
   filter: 'M4 5h16l-6 8v6l-4-2v-4z',
   sort: 'M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4',
+  printer: 'M7 9V3h10v6M7 17H4v-8h16v8h-3M7 14h10v7H7z',
   stamp: 'M8 4h8v6l2 3v3H6v-3l2-3zM5 20h14',
   refresh: 'M20 12a8 8 0 1 1-2.5-5.8M20 4v5h-5',
   layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5',

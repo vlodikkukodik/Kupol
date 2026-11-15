@@ -1,6 +1,7 @@
 // Lettura del documento: foglio, intestazioni di riservatezza, scheda del dossier, blocchi, oscuramenti, «bacheca coi fili».
 export default {
   doc: {
+    print: 'Stampa',
     loading: 'Caricamento del fascicolo…',
     graphLink: 'Collegamenti del documento: la bacheca coi fili →',
     mentionedIn: 'Menzionato in',

@@ -83,4 +83,8 @@ build-back: ## Собрать бинарник Go для linux/amd64 (VPS)
 	  -ldflags "-s -w -X kupol/internal/version.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo dev) -X kupol/internal/version.Commit=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
 	  -o bin/kupol ./cmd/kupol
 
-.PHONY: help env db-up db-down db-reset migrate test-back test-proxy test-front test e2e-api e2e-browser e2e e2e-apache test-deploy test-nginx test-infra dev build-back build-front
+build-node: build-back ## Собрать Node-обёртку: backend/node с бинарником kupol внутри (залить папку на Node-хостинг)
+	cp backend/bin/kupol backend/node/kupol
+	@echo "готово: backend/node — запуск: npm start (порт из PORT)"
+
+.PHONY: build-node help env db-up db-down db-reset migrate test-back test-proxy test-front test e2e-api e2e-browser e2e e2e-apache test-deploy test-nginx test-infra dev build-back build-front

@@ -170,3 +170,19 @@ deploy/backup/kupol-restore-check.sh kupol-ГГГГММДД-ЧЧММСС.dump.ag
 FTP без шифрования; запуск `kupol.service` под systemd (в контейнере systemd нет; синтаксис юнита проверен
 `systemd-analyze verify`) — после установки проверьте `systemctl status kupol` и `journalctl -u kupol`; WebSocket через nginx — появится вместе с чатом (этап 6), в конфиге заложены
 заголовки `Upgrade`/`Connection`.
+
+## API на Node.js-хостинге (вместо VPS + systemd)
+
+Если хостинг умеет запускать только Node.js-приложения, Go API можно запустить через обёртку `backend/node/`:
+
+1. `make build-node` — соберёт `backend/bin/kupol` (linux/amd64) и положит его в `backend/node/kupol`.
+2. Залейте папку `backend/node/` на хостинг (`server.js`, `package.json`, `kupol`) и положите рядом `.env` с переменными `KUPOL_*` (или задайте их в панели хостинга).
+3. Команда запуска — `npm start` (или `node server.js`).
+
+Обёртка берёт порт из `PORT` (адрес — `HOST`, по умолчанию `0.0.0.0`), выставляет `KUPOL_HTTP_ADDR` и запускает `kupol serve`. При падении бинарник перезапускается с нарастающей паузой; после 5 падений подряд обёртка выходит, чтобы хостинг увидел ошибку. Фронтенд и PHP-прокси остаются как есть — в `config.php` прокси укажите адрес этого Node-приложения.
+
+### Автодеплой через GitHub Actions (FTP)
+
+Два workflow, оба запускаются **только вручную** (Actions → Run workflow): `.github/workflows/deploy-backend.yml` (Deploy Backend) собирает Node-обёртку с Go API и заливает её по FTP, `.github/workflows/deploy-frontend.yml` (Deploy Frontend) собирает фронтенд с PHP-прокси и заливает его. Нужные repository secrets: `BACK_FTP_HOST/USER/PASSWORD/DIR` для бэкенда, `FRONT_FTP_HOST/USER/PASSWORD/DIR` для фронтенда (секреты другой стороны каждый workflow использует только для чтения, чтобы `KUPOL_PROXY_SECRET` в `.env` и `api/config.php` совпадал), по желанию `FRONT_FTP_PORT`, `BACK_FTP_PORT`, `API_URL` (upstream для `api/config.php`), `SITE_ORIGIN`.
+
+CI скачивает текущий `.env` бэкенда и дописывает только недостающее: `KUPOL_PROXY_SECRET`, `KUPOL_ENV=prod`, `KUPOL_LOG_LEVEL`, `KUPOL_UPLOADS_DIR`, `KUPOL_SITE_ORIGIN`, плюс закомментированные подсказки. Ваши значения не трогаются. `api/config.php` создаётся с тем же секретом, если его на сайте ещё нет. `KUPOL_DATABASE_URL` и SMTP вписываете сами.

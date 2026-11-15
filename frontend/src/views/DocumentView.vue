@@ -8,6 +8,7 @@ import { keys } from '@/api/query'
 import DocumentPaper from '@/components/document/DocumentPaper.vue'
 import DocumentRatings from '@/components/document/DocumentRatings.vue'
 import DocumentRemarks from '@/components/document/DocumentRemarks.vue'
+import UiButton from '@/ui/UiButton.vue'
 import UiSheet from '@/ui/UiSheet.vue'
 import UiSkeleton from '@/ui/UiSkeleton.vue'
 import { t } from '@/i18n'
@@ -17,6 +18,21 @@ import ErrorView from './ErrorView.vue'
 import NotFoundView from './NotFoundView.vue'
 
 const route = useRoute()
+
+// Печать на принтер. На iPhone/iPad window.print() в Safari открывает системное окно печати (AirPrint, «Сохранить в PDF»).
+// Картинки с loading="lazy" ниже экрана браузер может не успеть загрузить к печати — Safari печатает пустые места.
+// Поэтому перед печатью переводим их в eager и ждём загрузки (не дольше пары секунд).
+const canPrint = typeof window !== 'undefined' && typeof window.print === 'function'
+async function printDoc() {
+  const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img[data-print-eager]'))
+  imgs.forEach((img) => (img.loading = 'eager'))
+  const pending = imgs.filter((img) => !img.complete).map((img) => new Promise<void>((done) => {
+    img.addEventListener('load', () => done(), { once: true })
+    img.addEventListener('error', () => done(), { once: true })
+  }))
+  await Promise.race([Promise.all(pending), new Promise((done) => setTimeout(done, 2500))])
+  window.print()
+}
 const router = useRouter()
 const auth = useAuthStore()
 
@@ -71,9 +87,12 @@ watch(doc, async (d) => {
 
 <template>
   <template v-if="doc">
+    <div v-if="canPrint" class="doc-actions no-print">
+      <UiButton icon="printer" size="sm" variant="ghost" data-testid="print-doc" @click="printDoc">{{ $t('doc.print') }}</UiButton>
+    </div>
     <DocumentPaper :doc="doc" />
-    <DocumentRatings :code="doc.code" />
-    <DocumentRemarks :code="doc.code" />
+    <DocumentRatings class="no-print" :code="doc.code" />
+    <DocumentRemarks class="no-print" :code="doc.code" />
   </template>
 
   <AccessDeniedView v-else-if="error && error.code === 'access_denied'" :level="error.requiredLevel" />
@@ -83,6 +102,14 @@ watch(doc, async (d) => {
 </template>
 
 <style scoped>
+.doc-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+}
+.doc-actions + :deep(.paper) {
+  margin-top: var(--space-2);
+}
 /* Лист-заготовка, пока документ грузится: те же поля, что у настоящего листа (DocumentPaper) */
 .paper {
   margin-top: var(--space-4);

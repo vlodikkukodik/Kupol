@@ -37,7 +37,7 @@ const mark = computed(() => archiveMark(props.doc))
       <BlockRenderer v-for="(block, i) in blocks" :id="block.id ? `b-${block.id}` : undefined" :key="block.id ?? `redacted-${i}`" :block="block" />
     </div>
 
-    <p v-if="doc.slug" class="paper__graph"><RouterLink :to="{ name: 'graph', params: { ref: doc.slug } }" data-testid="graph-link">{{ $t('doc.graphLink') }}</RouterLink></p>
+    <p v-if="doc.slug" class="paper__graph no-print"><RouterLink :to="{ name: 'graph', params: { ref: doc.slug } }" data-testid="graph-link">{{ $t('doc.graphLink') }}</RouterLink></p>
 
     <!-- Документы, которые ссылаются на этот: сервер отдаёт только доступные читателю (и документ, и сам блок-ссылку) -->
     <section v-if="doc.mentioned_in?.length" class="paper__mentions" aria-labelledby="mentioned-title" data-testid="mentions">

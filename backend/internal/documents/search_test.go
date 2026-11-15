@@ -119,8 +119,10 @@ func mustBlock(t *testing.T, raw string) Block {
 }
 
 // Каждый вид блока либо даёт текст в индекс, либо явно исключён с причиной: новый вид не пройдёт мимо.
+// В образце бывают и блоки без текста (картинка без подписи), поэтому слова нужны хотя бы от одного блока вида.
 func TestSearchIndexCoversEveryBlockKind(t *testing.T) {
 	seen := map[string]bool{}
+	indexed, worded := map[string]bool{}, map[string]bool{}
 	for _, ib := range allKindFixtures(t) {
 		seen[ib.Type] = true
 		b := Block{ID: ib.ID, Type: ib.Type, Level: ib.Level, Data: ib.Data}
@@ -132,15 +134,17 @@ func TestSearchIndexCoversEveryBlockKind(t *testing.T) {
 		case !excluded && !ok:
 			t.Errorf("блок «%s» не индексируется и не в списке исключённых", ib.Type)
 		case ok:
-			empty := true
+			indexed[ib.Type] = true
 			for _, sb := range pieces.byLevel {
 				if strings.TrimSpace(sb.String()) != "" {
-					empty = false
+					worded[ib.Type] = true
 				}
 			}
-			if empty {
-				t.Errorf("блок «%s» из образца не дал ни одного слова", ib.Type)
-			}
+		}
+	}
+	for kind := range indexed {
+		if !worded[kind] {
+			t.Errorf("ни один блок «%s» из образца не дал ни одного слова", kind)
 		}
 	}
 	for kind := range kinds {

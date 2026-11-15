@@ -26,6 +26,8 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: libvips (картинки в uploads)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libvips-tools
       - name: .env из образца
         run: make env
       - name: gofmt

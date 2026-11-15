@@ -56,7 +56,7 @@ const statusText = computed(() => t(`app.status.${connection.state}`))
 
   <!-- Пока открыто меню или окно входа, страница под ними недоступна ни мыши, ни клавиатуре, ни скринридеру -->
   <div class="app" :inert="ui.overlayOpen">
-    <header class="masthead">
+    <header class="masthead no-print">
       <button
         id="menu-toggle"
         type="button"
@@ -89,9 +89,9 @@ const statusText = computed(() => t(`app.status.${connection.state}`))
     </main>
 
     <!-- в потоке страницы, а не поверх неё: уведомление не должно перекрывать кнопки и текст -->
-    <CookieNotice />
+    <CookieNotice class="no-print" />
 
-    <footer class="colophon">
+    <footer class="colophon no-print">
       <span>{{ $t('app.footerLine') }} <RouterLink to="/about#privacy">{{ $t('app.privacy') }}</RouterLink></span>
       <span class="status" :data-state="connection.state" role="status">{{ statusText }}</span>
       <p class="disclaimer">{{ $t('app.disclaimer') }}</p>

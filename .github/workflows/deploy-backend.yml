@@ -1,0 +1,129 @@
+# Деплой по FTP: только Node-обёртка с Go API. Запуск только вручную: Actions → Deploy Backend → Run workflow.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   BACK_FTP_HOST, BACK_FTP_USER, BACK_FTP_PASSWORD, BACK_FTP_DIR, BACK_FTP_PORT (необяз., 21) — обязательны
+#   FRONT_FTP_* (необяз.) — только чтение api/config.php сайта, чтобы KUPOL_PROXY_SECRET совпал
+#   API_URL (необяз.) — upstream в api/config.php; SITE_ORIGIN (необяз.) — KUPOL_SITE_ORIGIN в .env
+#
+# .env бэкенда: скачивается, дополняется только недостающими ключами и заливается обратно.
+name: Deploy Backend
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-back
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Сборка и заливка бэкенда
+    runs-on: ubuntu-latest
+    env:
+      FRONT_FTP_HOST: ${{ secrets.FRONT_FTP_HOST }}
+      FRONT_FTP_USER: ${{ secrets.FRONT_FTP_USER }}
+      FRONT_FTP_PASSWORD: ${{ secrets.FRONT_FTP_PASSWORD }}
+      FRONT_FTP_DIR: ${{ secrets.FRONT_FTP_DIR }}
+      FRONT_FTP_PORT: ${{ secrets.FRONT_FTP_PORT }}
+      BACK_FTP_HOST: ${{ secrets.BACK_FTP_HOST }}
+      BACK_FTP_USER: ${{ secrets.BACK_FTP_USER }}
+      BACK_FTP_PASSWORD: ${{ secrets.BACK_FTP_PASSWORD }}
+      BACK_FTP_DIR: ${{ secrets.BACK_FTP_DIR }}
+      BACK_FTP_PORT: ${{ secrets.BACK_FTP_PORT }}
+      API_URL: ${{ secrets.API_URL }}
+      SITE_ORIGIN: ${{ secrets.SITE_ORIGIN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # для версии в бинарнике (git describe)
+
+      - name: Проверка секретов
+        run: |
+          missing=0
+          for v in BACK_FTP_HOST BACK_FTP_USER BACK_FTP_PASSWORD; do
+            [ -n "${!v}" ] || { echo "::error::не задан secret $v"; missing=1; }
+          done
+          exit $missing
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Установка lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Сборка бэкенда (Node-обёртка + бинарник)
+        run: make build-node
+
+      - name: Настройка lftp
+        run: |
+          cat > "$RUNNER_TEMP/lftp.rc" <<'RC'
+          set ftp:ssl-allow yes
+          set ftp:passive-mode yes
+          set net:max-retries 3
+          set net:timeout 30
+          set cmd:fail-exit yes
+          RC
+          # ftp.sh HOST USER PASSWORD PORT "команды lftp"
+          cat > "$RUNNER_TEMP/ftp.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          host="$1" user="$2" pass="$3" port="${4:-21}"; shift 4
+          lftp -c "source $RUNNER_TEMP/lftp.rc; open -p ${port:-21} -u \"$user\",\"$pass\" \"$host\"; $*"
+          SH
+          chmod +x "$RUNNER_TEMP/ftp.sh"
+          echo "FTP=$RUNNER_TEMP/ftp.sh" >> "$GITHUB_ENV"
+
+      - name: Скачивание текущих .env и api/config.php
+        run: |
+          mkdir -p "$RUNNER_TEMP/remote"
+          cd "$RUNNER_TEMP/remote"
+          BD="${BACK_FTP_DIR:-.}"; FD="${FRONT_FTP_DIR:-.}"
+          [ -z "$BACK_FTP_HOST" ] || "$FTP" "$BACK_FTP_HOST" "$BACK_FTP_USER" "$BACK_FTP_PASSWORD" "$BACK_FTP_PORT" \
+            "set cmd:fail-exit no; get \"$BD/.env\" -o old.env" || true
+          [ -z "$FRONT_FTP_HOST" ] || "$FTP" "$FRONT_FTP_HOST" "$FRONT_FTP_USER" "$FRONT_FTP_PASSWORD" "$FRONT_FTP_PORT" \
+            "set cmd:fail-exit no; get \"$FD/api/config.php\" -o old-config.php" || true
+          ls -la
+
+      - name: Генерация недостающего в .env и config.php
+        id: prep
+        run: |
+          R="$RUNNER_TEMP/remote"
+          scripts/ci-prepare-env.sh "$R/old.env" "$R/new.env" "$R/old-config.php" "$R/new-config.php" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Заливка бэкенда
+        run: |
+          BD="${BACK_FTP_DIR:-.}"
+          R="$RUNNER_TEMP/remote"
+          mkdir -p "$RUNNER_TEMP/restart" && touch "$RUNNER_TEMP/restart/restart.txt"
+          envcmd=""
+          if [ "${{ steps.prep.outputs.env_changed }}" = "1" ]; then
+            envcmd="put \"$R/new.env\" -o \"$BD/.env\";"
+            echo "в .env добавлены недостающие ключи"
+          fi
+          # Бинарник льём под временным именем и переименовываем: работающий файл может быть занят.
+          # tmp/restart.txt — сигнал перезапуска для Passenger-хостингов (на остальных безвреден).
+          "$FTP" "$BACK_FTP_HOST" "$BACK_FTP_USER" "$BACK_FTP_PASSWORD" "$BACK_FTP_PORT" "
+            mkdir -p -f \"$BD\"; mkdir -p -f \"$BD/tmp\";
+            put backend/node/server.js -o \"$BD/server.js\";
+            put backend/node/package.json -o \"$BD/package.json\";
+            put backend/node/kupol -o \"$BD/kupol.new\";
+            set cmd:fail-exit no; rm -f \"$BD/kupol.prev\"; mv \"$BD/kupol\" \"$BD/kupol.prev\"; set cmd:fail-exit yes;
+            mv \"$BD/kupol.new\" \"$BD/kupol\";
+            set cmd:fail-exit no; chmod 755 \"$BD/kupol\"; set cmd:fail-exit yes;
+            $envcmd
+            put $RUNNER_TEMP/restart/restart.txt -o \"$BD/tmp/restart.txt\"
+          "
+
+      - name: Итог
+        run: |
+          {
+            echo "### Бэкенд залит"
+            echo "- .env дополнен: ${{ steps.prep.outputs.env_changed }}"
+            echo ""
+            echo "Впишите в .env KUPOL_DATABASE_URL (и SMTP, если нужна почта) и перезапустите Node-приложение."
+          } >> "$GITHUB_STEP_SUMMARY"

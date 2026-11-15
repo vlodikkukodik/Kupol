@@ -1,0 +1,118 @@
+# Деплой по FTP: только фронтенд (Vite + PHP-прокси). Запуск только вручную: Actions → Deploy Frontend → Run workflow.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   FRONT_FTP_HOST, FRONT_FTP_USER, FRONT_FTP_PASSWORD, FRONT_FTP_DIR, FRONT_FTP_PORT (необяз., 21) — обязательны
+#   BACK_FTP_* (необяз.) — только чтение .env бэкенда, чтобы KUPOL_PROXY_SECRET совпал
+#   API_URL (необяз.) — upstream в api/config.php; SITE_ORIGIN (необяз.) — KUPOL_SITE_ORIGIN в .env
+#
+# api/config.php создаётся, только если его ещё нет на сайте (с секретом из .env бэкенда).
+name: Deploy Frontend
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-front
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Сборка и заливка фронтенда
+    runs-on: ubuntu-latest
+    env:
+      FRONT_FTP_HOST: ${{ secrets.FRONT_FTP_HOST }}
+      FRONT_FTP_USER: ${{ secrets.FRONT_FTP_USER }}
+      FRONT_FTP_PASSWORD: ${{ secrets.FRONT_FTP_PASSWORD }}
+      FRONT_FTP_DIR: ${{ secrets.FRONT_FTP_DIR }}
+      FRONT_FTP_PORT: ${{ secrets.FRONT_FTP_PORT }}
+      BACK_FTP_HOST: ${{ secrets.BACK_FTP_HOST }}
+      BACK_FTP_USER: ${{ secrets.BACK_FTP_USER }}
+      BACK_FTP_PASSWORD: ${{ secrets.BACK_FTP_PASSWORD }}
+      BACK_FTP_DIR: ${{ secrets.BACK_FTP_DIR }}
+      BACK_FTP_PORT: ${{ secrets.BACK_FTP_PORT }}
+      API_URL: ${{ secrets.API_URL }}
+      SITE_ORIGIN: ${{ secrets.SITE_ORIGIN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверка секретов
+        run: |
+          missing=0
+          for v in FRONT_FTP_HOST FRONT_FTP_USER FRONT_FTP_PASSWORD; do
+            [ -n "${!v}" ] || { echo "::error::не задан secret $v"; missing=1; }
+          done
+          exit $missing
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Установка lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Сборка фронтенда
+        run: make build-front
+
+      - name: Настройка lftp
+        run: |
+          cat > "$RUNNER_TEMP/lftp.rc" <<'RC'
+          set ftp:ssl-allow yes
+          set ftp:passive-mode yes
+          set net:max-retries 3
+          set net:timeout 30
+          set cmd:fail-exit yes
+          RC
+          # ftp.sh HOST USER PASSWORD PORT "команды lftp"
+          cat > "$RUNNER_TEMP/ftp.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          host="$1" user="$2" pass="$3" port="${4:-21}"; shift 4
+          lftp -c "source $RUNNER_TEMP/lftp.rc; open -p ${port:-21} -u \"$user\",\"$pass\" \"$host\"; $*"
+          SH
+          chmod +x "$RUNNER_TEMP/ftp.sh"
+          echo "FTP=$RUNNER_TEMP/ftp.sh" >> "$GITHUB_ENV"
+
+      - name: Скачивание текущих .env и api/config.php
+        run: |
+          mkdir -p "$RUNNER_TEMP/remote"
+          cd "$RUNNER_TEMP/remote"
+          BD="${BACK_FTP_DIR:-.}"; FD="${FRONT_FTP_DIR:-.}"
+          [ -z "$BACK_FTP_HOST" ] || "$FTP" "$BACK_FTP_HOST" "$BACK_FTP_USER" "$BACK_FTP_PASSWORD" "$BACK_FTP_PORT" \
+            "set cmd:fail-exit no; get \"$BD/.env\" -o old.env" || true
+          [ -z "$FRONT_FTP_HOST" ] || "$FTP" "$FRONT_FTP_HOST" "$FRONT_FTP_USER" "$FRONT_FTP_PASSWORD" "$FRONT_FTP_PORT" \
+            "set cmd:fail-exit no; get \"$FD/api/config.php\" -o old-config.php" || true
+          ls -la
+
+      - name: Генерация недостающего в .env и config.php
+        id: prep
+        run: |
+          R="$RUNNER_TEMP/remote"
+          scripts/ci-prepare-env.sh "$R/old.env" "$R/new.env" "$R/old-config.php" "$R/new-config.php" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Заливка фронтенда
+        run: |
+          FD="${FRONT_FTP_DIR:-.}"
+          R="$RUNNER_TEMP/remote"
+          touch frontend/dist/.kupol-site
+          cfgcmd=""
+          if [ "${{ steps.prep.outputs.config_changed }}" = "1" ]; then
+            cfgcmd="put \"$R/new-config.php\" -o \"$FD/api/config.php\";"
+            echo "api/config.php создан CI"
+          fi
+          "$FTP" "$FRONT_FTP_HOST" "$FRONT_FTP_USER" "$FRONT_FTP_PASSWORD" "$FRONT_FTP_PORT" "
+            mkdir -p -f \"$FD\";
+            mirror -R --verbose=1 --parallel=4 --exclude-glob api/config.php frontend/dist \"$FD\";
+            $cfgcmd
+          "
+
+      - name: Итог
+        run: |
+          {
+            echo "### Фронтенд залит"
+            echo "- api/config.php создан: ${{ steps.prep.outputs.config_changed }}"
+          } >> "$GITHUB_STEP_SUMMARY"

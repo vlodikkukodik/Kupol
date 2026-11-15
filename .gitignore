@@ -15,3 +15,7 @@ frontend/public/api/config.php
 
 # Локальные боевые секреты деплоя (боевой config.php прокси и т.п.)
 deploy/.local/
+
+# Бинарник и секреты для Node-обёртки
+backend/node/kupol
+backend/node/.env

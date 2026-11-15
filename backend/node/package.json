@@ -1,0 +1,13 @@
+{
+  "name": "kupol-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node-обёртка: запускает собранный Go-бинарник kupol на порту из PORT",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
